@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -31,6 +32,23 @@ const leaseOwnerLookupTimeout = 10 * time.Second
 // When owner is not nil, a Lease created by the elector carries it as an owner
 // reference so it is garbage-collected together with the controller workload.
 func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.LeaderCallbacks, namespace string, lockName string, identity string, owner *metav1.OwnerReference) (*leaderelection.LeaderElector, error) {
+	return newLeaderElectorWithTimings(client, callbacks, namespace, lockName, identity, owner, defaultLeaderElectionTimings)
+}
+
+// leaderElectionTimings holds the leader election intervals.
+type leaderElectionTimings struct {
+	LeaseDuration time.Duration
+	RenewDeadline time.Duration
+	RetryPeriod   time.Duration
+}
+
+var defaultLeaderElectionTimings = leaderElectionTimings{
+	LeaseDuration: 30 * time.Second,
+	RenewDeadline: 15 * time.Second,
+	RetryPeriod:   7500 * time.Millisecond,
+}
+
+func newLeaderElectorWithTimings(client kubernetes.Interface, callbacks leaderelection.LeaderCallbacks, namespace string, lockName string, identity string, owner *metav1.OwnerReference, timings leaderElectionTimings) (*leaderelection.LeaderElector, error) {
 	broadcaster := record.NewBroadcaster()
 	hostname, _ := os.Hostname()
 
@@ -44,13 +62,12 @@ func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.Lead
 
 	lock := newOwnedLeaseLock(client, namespace, lockName, lc, owner)
 
-	ttl := 30 * time.Second
 	return leaderelection.NewLeaderElector(
 		leaderelection.LeaderElectionConfig{
 			Lock:          lock,
-			LeaseDuration: ttl,
-			RenewDeadline: ttl / 2,
-			RetryPeriod:   ttl / 4,
+			LeaseDuration: timings.LeaseDuration,
+			RenewDeadline: timings.RenewDeadline,
+			RetryPeriod:   timings.RetryPeriod,
 			Callbacks:     callbacks,
 			// Clear the holder on graceful shutdown so another replica can
 			// take over immediately instead of waiting for the lease to expire.
@@ -72,9 +89,23 @@ func (lbc *LoadBalancerController) leaderElectionIdentity() string {
 // the controller workload, so Kubernetes garbage-collects it when the workload
 // is deleted, and then runs leader election until ctx is canceled.
 // Failing to set the owner never blocks leader election.
+//
+// LeaderElector.Run returns when ctx is canceled or when this replica fails to
+// renew the Lease within the renew deadline (for example during an API server
+// outage). In the second case the replica must compete for the Lease again,
+// otherwise it never leads again and, with a single replica, no status is
+// reported until the pod restarts (#4506). Run blocks in acquire until the
+// Lease is obtained, so the loop does not spin.
 func (lbc *LoadBalancerController) runLeaderElector(ctx context.Context) {
 	lbc.ensureLeaseOwner(ctx)
-	lbc.leaderElector.Run(ctx)
+	for {
+		lbc.leaderElector.Run(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		nl.Warnf(lbc.Logger, "Lost leader election Lease %s/%s, trying to acquire it again",
+			lbc.metadata.namespace, lbc.leaderElectionLockName)
+	}
 }
 
 // ensureLeaseOwner adds the controller workload as an owner of the leader
@@ -217,12 +248,15 @@ func ensureLeaseOwnerReference(ctx context.Context, client kubernetes.Interface,
 
 // createLeaderHandler builds the handler funcs for leader handling
 func createLeaderHandler(lbc *LoadBalancerController) leaderelection.LeaderCallbacks {
+	// A replica can start leading more than once (see runLeaderElector), but
+	// telemetry reporting must only be started once.
+	var startTelemetry sync.Once
 	return leaderelection.LeaderCallbacks{
 		OnStartedLeading: func(ctx context.Context) {
 			nl.Debug(lbc.Logger, "started leading")
 			// Closing this channel allows the leader to start the telemetry reporting process
 			if lbc.telemetryChan != nil {
-				close(lbc.telemetryChan)
+				startTelemetry.Do(func() { close(lbc.telemetryChan) })
 			}
 			if lbc.reportIngressStatus {
 				ingresses := lbc.configuration.GetResourcesWithFilter(resourceFilter{Ingresses: true})

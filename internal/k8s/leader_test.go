@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
@@ -409,4 +412,148 @@ func TestAddLeaderHandler_SetsLeaseOwnerOnStartedLeading(t *testing.T) {
 	if diff := cmp.Diff([]meta_v1.OwnerReference{deploymentOwnerRef()}, lease.OwnerReferences); diff != "" {
 		t.Errorf("owner references mismatch (-want +got):\n%s", diff)
 	}
+}
+
+func TestCreateLeaderHandler_StartedLeadingTwiceDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	lbc := &LoadBalancerController{
+		Logger:        nl.LoggerFromContext(context.Background()),
+		telemetryChan: make(chan struct{}),
+	}
+	handler := createLeaderHandler(lbc)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("OnStartedLeading panicked when leading for the second time: %v", r)
+		}
+	}()
+	handler.OnStartedLeading(context.Background())
+	handler.OnStartedLeading(context.Background())
+
+	select {
+	case <-lbc.telemetryChan:
+	default:
+		t.Error("expected telemetryChan to be closed after leading")
+	}
+}
+
+// TestRunLeaderElector_ReacquiresLeadershipAfterLosingIt reproduces #4506: a
+// replica that fails to renew its Lease stops leading and must be able to
+// become the leader again once the API server is reachable.
+func TestRunLeaderElector_ReacquiresLeadershipAfterLosingIt(t *testing.T) {
+	t.Parallel()
+	client := fake.NewClientset()
+
+	var failLeaseUpdates atomic.Bool
+	client.PrependReactor("update", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if failLeaseUpdates.Load() {
+			return true, nil, errors.New("simulated API server outage")
+		}
+		return false, nil, nil
+	})
+	client.PrependReactor("get", "leases", func(k8stesting.Action) (bool, runtime.Object, error) {
+		if failLeaseUpdates.Load() {
+			return true, nil, errors.New("simulated API server outage")
+		}
+		return false, nil, nil
+	})
+
+	started := make(chan struct{}, 4)
+	stopped := make(chan struct{}, 4)
+	lbc := &LoadBalancerController{
+		client:                 client,
+		Logger:                 nl.LoggerFromContext(context.Background()),
+		leaderElectionLockName: testLeaseName,
+		metadata:               controllerMetadata{namespace: testLeaseNamespace, pod: testPod()},
+	}
+	callbacks := leaderelection.LeaderCallbacks{
+		OnStartedLeading: func(context.Context) { started <- struct{}{} },
+		OnStoppedLeading: func() { stopped <- struct{}{} },
+	}
+	elector, err := newLeaderElectorWithTimings(client, callbacks, testLeaseNamespace, testLeaseName, "pod-a", nil, fastLeaderElectionTimings)
+	if err != nil {
+		t.Fatalf("creating leader elector: %v", err)
+	}
+	lbc.leaderElector = elector
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		lbc.runLeaderElector(ctx)
+		close(done)
+	}()
+
+	waitFor := func(ch <-chan struct{}, what string) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(10 * time.Second):
+			cancel()
+			t.Fatalf("timed out waiting for %s", what)
+		}
+	}
+
+	waitFor(started, "initial leadership")
+	failLeaseUpdates.Store(true)
+	waitFor(stopped, "leadership to be lost")
+	failLeaseUpdates.Store(false)
+	waitFor(started, "leadership to be re-acquired")
+	if !lbc.leaderElector.IsLeader() {
+		t.Error("expected the replica to be leader again")
+	}
+
+	cancel()
+	waitFor(done, "runLeaderElector to return after cancel")
+}
+
+func TestRunLeaderElector_ReturnsWhenContextCanceled(t *testing.T) {
+	t.Parallel()
+	client := fake.NewClientset()
+	started := make(chan struct{}, 1)
+	var stoppedCount atomic.Int32
+	lbc := &LoadBalancerController{
+		client:                 client,
+		Logger:                 nl.LoggerFromContext(context.Background()),
+		leaderElectionLockName: testLeaseName,
+		metadata:               controllerMetadata{namespace: testLeaseNamespace, pod: testPod()},
+	}
+	elector, err := newLeaderElectorWithTimings(client, leaderelection.LeaderCallbacks{
+		OnStartedLeading: func(context.Context) { started <- struct{}{} },
+		OnStoppedLeading: func() { stoppedCount.Add(1) },
+	}, testLeaseNamespace, testLeaseName, "pod-a", nil, fastLeaderElectionTimings)
+	if err != nil {
+		t.Fatalf("creating leader elector: %v", err)
+	}
+	lbc.leaderElector = elector
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		lbc.runLeaderElector(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		cancel()
+		t.Fatal("timed out waiting for leadership")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("runLeaderElector did not return after the context was canceled")
+	}
+	if got := stoppedCount.Load(); got != 1 {
+		t.Errorf("expected exactly one OnStoppedLeading call on shutdown, got %d", got)
+	}
+}
+
+// fastLeaderElectionTimings keeps leader election tests fast. The ratios match
+// defaultLeaderElectionTimings.
+var fastLeaderElectionTimings = leaderElectionTimings{
+	LeaseDuration: 400 * time.Millisecond,
+	RenewDeadline: 200 * time.Millisecond,
+	RetryPeriod:   100 * time.Millisecond,
 }
