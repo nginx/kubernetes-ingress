@@ -319,7 +319,10 @@ func TestOwnedLeaseLock_CreateWithoutOwner(t *testing.T) {
 	}
 }
 
-func TestNewLeaderElector_CreatesOwnedLeaseAndReleasesOnCancel(t *testing.T) {
+// The Lease must not be released on cancel: status writes may still be in
+// flight, and a successor taking over immediately could have them overwrite
+// its status.
+func TestNewLeaderElector_CreatesOwnedLeaseAndKeepsItOnCancel(t *testing.T) {
 	t.Parallel()
 	client := fake.NewClientset()
 	owner := deploymentOwnerRef()
@@ -357,8 +360,8 @@ func TestNewLeaderElector_CreatesOwnedLeaseAndReleasesOnCancel(t *testing.T) {
 	}
 
 	lease = getTestLease(t, client)
-	if lease.Spec.HolderIdentity != nil && *lease.Spec.HolderIdentity != "" {
-		t.Errorf("expected lease to be released on cancel, holder is %q", *lease.Spec.HolderIdentity)
+	if lease.Spec.HolderIdentity == nil || *lease.Spec.HolderIdentity != "pod-a" {
+		t.Errorf("expected the Lease to stay held by pod-a until it expires, got %v", lease.Spec.HolderIdentity)
 	}
 }
 

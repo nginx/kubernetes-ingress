@@ -67,8 +67,9 @@ func newLeaderElectorWithTimings(client kubernetes.Interface, callbacks leaderel
 			RenewDeadline: timings.RenewDeadline,
 			RetryPeriod:   timings.RetryPeriod,
 			Callbacks:     callbacks,
-			// Release the Lease on shutdown for faster failover.
-			ReleaseOnCancel: true,
+			// ReleaseOnCancel is left off: status writes can still be in
+			// flight on shutdown, and a successor taking over immediately
+			// could have its status overwritten.
 		},
 	)
 }
