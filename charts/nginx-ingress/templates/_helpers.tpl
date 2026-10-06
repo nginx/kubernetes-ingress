@@ -310,8 +310,20 @@ Build the args for the service binary.
 {{- end }}
 {{- end }}
 
+{{- define "nginx-ingress.appprotect.nginxplus.validate" -}}
+{{- if not .Values.controller.nginxplus }}
+{{- if .Values.controller.appprotect.enable }}
+{{- fail "controller.appprotect.enable requires controller.nginxplus=true" }}
+{{- end }}
+{{- if .Values.controller.appprotectdos.enable }}
+{{- fail "controller.appprotectdos.enable requires controller.nginxplus=true" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "nginx-ingress.args" -}}
 {{- include "nginx-ingress.appprotect.plmStorage.validate" . -}}
+{{- include "nginx-ingress.appprotect.nginxplus.validate" . -}}
 {{- if and .Values.controller.debug .Values.controller.debug.enable }}
 - --listen=:2345
 - --headless=true
@@ -328,6 +340,7 @@ Build the args for the service binary.
 {{- end }}
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
+{{- if .Values.controller.nginxplus }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}
 - -enable-app-protect-ip-intelligence={{ and .Values.controller.appprotect.enable .Values.controller.appprotect.ipIntelligence.enable }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.logLevel }}
@@ -355,6 +368,7 @@ Build the args for the service binary.
 - -app-protect-dos-max-workers={{ .Values.controller.appprotectdos.maxWorkers }}
 - -app-protect-dos-memory={{ .Values.controller.appprotectdos.memory }}
 {{ end }}
+{{- end }}
 - -nginx-configmaps=$(POD_NAMESPACE)/{{ include "nginx-ingress.configName" . }}
 {{- if .Values.controller.nginxplus }}
 - -mgmt-configmap=$(POD_NAMESPACE)/{{ include "nginx-ingress.mgmtConfigName" . }}
@@ -407,9 +421,11 @@ Build the args for the service binary.
 - -enable-prometheus-metrics={{ .Values.prometheus.create }}
 - -prometheus-metrics-listen-port={{ .Values.prometheus.port }}
 - -prometheus-tls-secret={{ .Values.prometheus.secret }}
+{{- if .Values.controller.nginxplus }}
 - -enable-service-insight={{ .Values.serviceInsight.create }}
 - -service-insight-listen-port={{ .Values.serviceInsight.port }}
 - -service-insight-tls-secret={{ .Values.serviceInsight.secret }}
+{{- end }}
 - -enable-custom-resources={{ .Values.controller.enableCustomResources }}
 - -enable-snippets={{ .Values.controller.enableSnippets }}
 - -disable-ipv6={{ .Values.controller.disableIPV6 }}
@@ -441,7 +457,9 @@ Build the args for the service binary.
 {{- end }}
 - -ssl-dynamic-reload={{ .Values.controller.enableSSLDynamicReload }}
 - -enable-telemetry-reporting={{ .Values.controller.telemetryReporting.enable}}
+{{- if .Values.controller.nginxplus }}
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
+{{- end }}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
 {{- if eq .Values.nginxAgent.dataplaneKeySecretName "" }}

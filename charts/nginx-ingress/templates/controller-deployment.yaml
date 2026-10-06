@@ -86,7 +86,7 @@ spec:
         - name: prometheus
           containerPort: {{ .Values.prometheus.port }}
 {{- end }}
-{{- if .Values.serviceInsight.create }}
+{{- if and .Values.controller.nginxplus .Values.serviceInsight.create }}
         - name: service-insight
           containerPort: {{ .Values.serviceInsight.port }}
 {{- end }}

@@ -263,6 +263,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "default-listener-ports-no-crs",
 			namespace:   "default",
 		},
+		"plusOnlyArgsWithoutPlus": {
+			valuesFile:  "testdata/plus-only-args-oss.yaml",
+			releaseName: "plus-only-args-oss",
+			namespace:   "default",
+		},
 		"commonLabels": {
 			valuesFile:  "testdata/common-labels.yaml",
 			releaseName: "common-labels",
@@ -429,6 +434,18 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "appprotect-waf-plm-without-url",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url"},
+		},
+		"appProtectWAFWithoutPlus": {
+			valuesFile:        "testdata/app-protect-waf-without-plus.yaml",
+			releaseName:       "appprotect-waf-without-plus",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.enable requires controller.nginxplus=true"},
+		},
+		"appProtectDOSWithoutPlus": {
+			valuesFile:        "testdata/app-protect-dos-without-plus.yaml",
+			releaseName:       "appprotect-dos-without-plus",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotectdos.enable requires controller.nginxplus=true"},
 		},
 	}
 

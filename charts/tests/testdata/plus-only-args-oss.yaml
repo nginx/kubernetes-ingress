@@ -1,0 +1,6 @@
+controller:
+  nginxplus: false
+  enableWeightChangesDynamicReload: true
+serviceInsight:
+  create: true
+  secret: default/service-insight-tls

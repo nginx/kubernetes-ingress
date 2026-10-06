@@ -1,0 +1,4 @@
+controller:
+  nginxplus: false
+  appprotectdos:
+    enable: true
