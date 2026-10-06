@@ -291,7 +291,6 @@ func TestOwnedLeaseLock_CreateSetsOwnerReference(t *testing.T) {
 		t.Errorf("expected holder pod-a, got %v", lease.Spec.HolderIdentity)
 	}
 
-	// The lock must be usable for renewals after Create.
 	record.HolderIdentity = "pod-a"
 	record.LeaderTransitions = 1
 	if err := lock.Update(context.Background(), record); err != nil {
@@ -365,8 +364,6 @@ func TestNewLeaderElector_CreatesOwnedLeaseAndReleasesOnCancel(t *testing.T) {
 
 func TestAddLeaderHandler_SetsLeaseOwnerOnStartedLeading(t *testing.T) {
 	t.Parallel()
-	// Simulates an upgrade from a chart that shipped the Lease: an older
-	// replica recreated the Lease without an owner after Helm deleted it.
 	existing := &coordination_v1.Lease{
 		ObjectMeta: meta_v1.ObjectMeta{Name: testLeaseName, Namespace: testLeaseNamespace},
 	}
@@ -389,8 +386,7 @@ func TestAddLeaderHandler_SetsLeaseOwnerOnStartedLeading(t *testing.T) {
 	if lbc.leaderElector == nil {
 		t.Fatal("expected leader elector to be created")
 	}
-	// Mimic the Lease being recreated without an owner after the startup
-	// check, e.g. by an old replica during a rolling upgrade.
+	// An older replica recreates the Lease without an owner.
 	if err := client.CoordinationV1().Leases(testLeaseNamespace).Delete(context.Background(), testLeaseName, meta_v1.DeleteOptions{}); err != nil {
 		t.Fatalf("deleting lease: %v", err)
 	}
@@ -437,9 +433,7 @@ func TestCreateLeaderHandler_StartedLeadingTwiceDoesNotPanic(t *testing.T) {
 	}
 }
 
-// TestRunLeaderElector_ReacquiresLeadershipAfterLosingIt reproduces #4506: a
-// replica that fails to renew its Lease stops leading and must be able to
-// become the leader again once the API server is reachable.
+// Reproduces #4506.
 func TestRunLeaderElector_ReacquiresLeadershipAfterLosingIt(t *testing.T) {
 	t.Parallel()
 	client := fake.NewClientset()
@@ -550,8 +544,6 @@ func TestRunLeaderElector_ReturnsWhenContextCanceled(t *testing.T) {
 	}
 }
 
-// fastLeaderElectionTimings keeps leader election tests fast. The ratios match
-// defaultLeaderElectionTimings.
 var fastLeaderElectionTimings = leaderElectionTimings{
 	LeaseDuration: 400 * time.Millisecond,
 	RenewDeadline: 200 * time.Millisecond,

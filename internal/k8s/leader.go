@@ -24,13 +24,11 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// leaseOwnerLookupTimeout bounds the API calls used to resolve the Lease owner
-// at startup.
+// leaseOwnerLookupTimeout bounds the startup lookup of the Lease owner.
 const leaseOwnerLookupTimeout = 10 * time.Second
 
-// newLeaderElector creates a new LeaderElection and returns the Elector.
-// When owner is not nil, a Lease created by the elector carries it as an owner
-// reference so it is garbage-collected together with the controller workload.
+// newLeaderElector creates a LeaderElector. If owner is set, a Lease it
+// creates is owned by the controller workload.
 func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.LeaderCallbacks, namespace string, lockName string, identity string, owner *metav1.OwnerReference) (*leaderelection.LeaderElector, error) {
 	return newLeaderElectorWithTimings(client, callbacks, namespace, lockName, identity, owner, defaultLeaderElectionTimings)
 }
@@ -69,15 +67,13 @@ func newLeaderElectorWithTimings(client kubernetes.Interface, callbacks leaderel
 			RenewDeadline: timings.RenewDeadline,
 			RetryPeriod:   timings.RetryPeriod,
 			Callbacks:     callbacks,
-			// Clear the holder on graceful shutdown so another replica can
-			// take over immediately instead of waiting for the lease to expire.
+			// Release the Lease on shutdown for faster failover.
 			ReleaseOnCancel: true,
 		},
 	)
 }
 
-// leaderElectionIdentity returns the name of the controller pod, which
-// identifies this replica in the leader election Lease.
+// leaderElectionIdentity returns the pod name used as the Lease holder.
 func (lbc *LoadBalancerController) leaderElectionIdentity() string {
 	if lbc.metadata.pod != nil && lbc.metadata.pod.Name != "" {
 		return lbc.metadata.pod.Name
@@ -85,17 +81,8 @@ func (lbc *LoadBalancerController) leaderElectionIdentity() string {
 	return os.Getenv("POD_NAME")
 }
 
-// runLeaderElector makes sure an existing leader election Lease is owned by
-// the controller workload, so Kubernetes garbage-collects it when the workload
-// is deleted, and then runs leader election until ctx is canceled.
-// Failing to set the owner never blocks leader election.
-//
-// LeaderElector.Run returns when ctx is canceled or when this replica fails to
-// renew the Lease within the renew deadline (for example during an API server
-// outage). In the second case the replica must compete for the Lease again,
-// otherwise it never leads again and, with a single replica, no status is
-// reported until the pod restarts (#4506). Run blocks in acquire until the
-// Lease is obtained, so the loop does not spin.
+// runLeaderElector runs leader election until ctx is canceled.
+// Run also returns when the Lease is lost, so loop to compete for it again.
 func (lbc *LoadBalancerController) runLeaderElector(ctx context.Context) {
 	lbc.ensureLeaseOwner(ctx)
 	for {
@@ -108,8 +95,7 @@ func (lbc *LoadBalancerController) runLeaderElector(ctx context.Context) {
 	}
 }
 
-// ensureLeaseOwner adds the controller workload as an owner of the leader
-// election Lease, logging instead of failing so leader election is never blocked.
+// ensureLeaseOwner adds the workload as the Lease owner. Errors are only logged.
 func (lbc *LoadBalancerController) ensureLeaseOwner(ctx context.Context) {
 	if lbc.leaseOwner == nil {
 		return
@@ -120,11 +106,9 @@ func (lbc *LoadBalancerController) ensureLeaseOwner(ctx context.Context) {
 	}
 }
 
-// leaseOwnerReference returns the owner reference of the top-level workload
-// (Deployment, DaemonSet or StatefulSet) that manages the given pod.
-// It returns nil when the pod has no supported controller.
-// Deployment pods are resolved through their ReplicaSet to the Deployment,
-// because old ReplicaSets are garbage-collected during rollouts.
+// leaseOwnerReference returns the Deployment, DaemonSet or StatefulSet that
+// manages the pod, or nil if there is none. Deployments are used rather than
+// ReplicaSets because old ReplicaSets are deleted during rollouts.
 func leaseOwnerReference(ctx context.Context, client kubernetes.Interface, pod *v1.Pod) (*metav1.OwnerReference, error) {
 	if pod == nil {
 		return nil, nil
@@ -151,9 +135,8 @@ func leaseOwnerReference(ctx context.Context, client kubernetes.Interface, pod *
 	}
 }
 
-// ownerReferenceFor builds a plain owner reference. Controller and
-// BlockOwnerDeletion are left unset: the Lease is not managed by the workload
-// controller, and blocking deletion would require extra RBAC on the owner.
+// ownerReferenceFor builds an owner reference. BlockOwnerDeletion is left
+// unset as it would need extra RBAC.
 func ownerReferenceFor(apiVersion, kind, name string, uid types.UID) *metav1.OwnerReference {
 	return &metav1.OwnerReference{
 		APIVersion: apiVersion,
@@ -163,11 +146,8 @@ func ownerReferenceFor(apiVersion, kind, name string, uid types.UID) *metav1.Own
 	}
 }
 
-// ownedLeaseLock is a resourcelock.LeaseLock that sets an owner reference on
-// the Lease whenever it has to create it. client-go's LeaseLock.Create only
-// sets labels, so without this a Lease that is deleted while the controller is
-// running (for example by `helm upgrade` removing the Lease that older charts
-// created) would be recreated without an owner and never garbage-collected.
+// ownedLeaseLock is a LeaseLock that sets the owner reference when it
+// creates the Lease.
 type ownedLeaseLock struct {
 	*resourcelock.LeaseLock
 	client kubernetes.Interface
@@ -186,9 +166,8 @@ func newOwnedLeaseLock(client kubernetes.Interface, namespace, name string, lc r
 	}
 }
 
-// Create creates the Lease with the owner reference, then reads it back
-// through the embedded LeaseLock so its internal state is initialized for
-// later Update calls.
+// Create creates the Lease with the owner, then reads it back so the embedded
+// LeaseLock can Update it.
 func (l *ownedLeaseLock) Create(ctx context.Context, ler resourcelock.LeaderElectionRecord) error {
 	if l.owner == nil {
 		return l.LeaseLock.Create(ctx, ler)
@@ -208,10 +187,8 @@ func (l *ownedLeaseLock) Create(ctx context.Context, ler resourcelock.LeaderElec
 	return err
 }
 
-// ensureLeaseOwnerReference creates the leader election Lease with the given
-// owner, or adds the owner to an existing Lease (for example one created by an
-// older version of the controller or by the Helm chart).
-// The Lease spec, labels and annotations are left untouched.
+// ensureLeaseOwnerReference creates the Lease with the owner, or adds the
+// owner to an existing Lease.
 func ensureLeaseOwnerReference(ctx context.Context, client kubernetes.Interface, namespace, name string, owner metav1.OwnerReference) error {
 	leases := client.CoordinationV1().Leases(namespace)
 
@@ -226,7 +203,7 @@ func ensureLeaseOwnerReference(ctx context.Context, client kubernetes.Interface,
 				},
 			}, metav1.CreateOptions{})
 			if apierrors.IsAlreadyExists(err) {
-				// Another replica created it first; retry to add the owner.
+				// Created by another replica; retry.
 				return apierrors.NewConflict(coordinationv1.Resource("leases"), name, err)
 			}
 			return err
@@ -248,8 +225,7 @@ func ensureLeaseOwnerReference(ctx context.Context, client kubernetes.Interface,
 
 // createLeaderHandler builds the handler funcs for leader handling
 func createLeaderHandler(lbc *LoadBalancerController) leaderelection.LeaderCallbacks {
-	// A replica can start leading more than once (see runLeaderElector), but
-	// telemetry reporting must only be started once.
+	// A replica can lead more than once; start telemetry only once.
 	var startTelemetry sync.Once
 	return leaderelection.LeaderCallbacks{
 		OnStartedLeading: func(ctx context.Context) {
@@ -313,8 +289,7 @@ func (lbc *LoadBalancerController) addLeaderHandler(leaderHandler leaderelection
 	if owner != nil && leaderHandler.OnStartedLeading != nil {
 		onStartedLeading := leaderHandler.OnStartedLeading
 		leaderHandler.OnStartedLeading = func(ctx context.Context) {
-			// The Lease may have been recreated without an owner since startup,
-			// for example by a replica running an older version during an upgrade.
+			// An older replica may have recreated the Lease without an owner.
 			lbc.ensureLeaseOwner(ctx)
 			onStartedLeading(ctx)
 		}

@@ -496,10 +496,8 @@ func TestHelmNICNetworkPolicyLegacyValues(t *testing.T) {
 	}
 }
 
-// TestHelmNICLeaderElectionLeaseNotRendered verifies the chart no longer ships
-// the leader election Lease (created by the controller at runtime, see #7573)
-// or the unused leader election ConfigMap, and that the deprecated
-// controller.reportIngressStatus.annotations value is still accepted.
+// TestHelmNICLeaderElectionLeaseNotRendered checks the chart renders no Lease
+// or leader election ConfigMap, and still accepts the deprecated annotations value.
 func TestHelmNICLeaderElectionLeaseNotRendered(t *testing.T) {
 	t.Parallel()
 
