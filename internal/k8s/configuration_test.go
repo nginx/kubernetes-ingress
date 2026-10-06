@@ -8011,3 +8011,50 @@ func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace(t *te
 		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after detaching apps-ns/vs-b (-want +got):\n%s", diff)
 	}
 }
+
+// TestConfigurationPolicyStore pins the basic semantics of Configuration.policies —
+// the task-ordered store getPolicies reads instead of the policy informer cache (see
+// the field doc). AddOrUpdatePolicy/GetPolicy/DeletePolicy are otherwise untested
+// directly; getPolicies-level coverage lives in controller_test.go
+// (TestGetPolicies{GlobalWatch,NamespacedWatch} and
+// TestCreate{VirtualServer,Ingress}ExIgnoresUnprocessedPolicyChange).
+func TestConfigurationPolicyStore(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	if got := cfg.GetPolicy("default/auth-pol"); got != nil {
+		t.Fatalf("GetPolicy on an empty store = %+v, want nil", got)
+	}
+
+	pol := &conf_v1.Policy{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth-pol", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-v1"},
+		},
+	}
+	cfg.AddOrUpdatePolicy(pol)
+	if got := cfg.GetPolicy("default/auth-pol"); got != pol {
+		t.Fatalf("GetPolicy after AddOrUpdatePolicy = %+v, want the stored policy %+v", got, pol)
+	}
+
+	// AddOrUpdatePolicy overwrites in place — a second syncPolicy run for the same
+	// key must replace, not accumulate.
+	polV2 := &conf_v1.Policy{
+		ObjectMeta: metav1.ObjectMeta{Name: "auth-pol", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-v2"},
+		},
+	}
+	cfg.AddOrUpdatePolicy(polV2)
+	if got := cfg.GetPolicy("default/auth-pol"); got != polV2 {
+		t.Fatalf("GetPolicy after a second AddOrUpdatePolicy = %+v, want the newer policy %+v", got, polV2)
+	}
+
+	cfg.DeletePolicy("default/auth-pol")
+	if got := cfg.GetPolicy("default/auth-pol"); got != nil {
+		t.Fatalf("GetPolicy after DeletePolicy = %+v, want nil", got)
+	}
+
+	// DeletePolicy on a key that was never added must not panic.
+	cfg.DeletePolicy("default/never-added")
+}

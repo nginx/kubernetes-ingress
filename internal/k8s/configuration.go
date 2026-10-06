@@ -402,6 +402,28 @@ type Configuration struct {
 	virtualServerRoutes map[string]*conf_v1.VirtualServerRoute
 	transportServers    map[string]*conf_v1.TransportServer
 
+	// policies is a task-ordered snapshot of Policy resources, written by
+	// syncPolicy and read by getPolicies. Unlike ingresses/virtualServers
+	// above, it stores policies unfiltered — including ones with the wrong
+	// IngressClass or that fail validation — because getPolicies performs
+	// that filtering itself and callers depend on the distinct errors it
+	// produces ("doesn't exist" vs "incorrect ingress class" vs "is
+	// invalid"). Filtering here would collapse those into "doesn't exist".
+	//
+	// This exists so that createVirtualServerEx/createIngressEx never
+	// observe a Policy change before its own syncPolicy task has run. Before
+	// this field, getPolicies read nsi.policyLister directly — the informer
+	// cache, updated by the watch independent of task order — so a
+	// VirtualServer/Ingress resync triggered by an unrelated task (e.g. an
+	// EndpointSlice event) could pick up a queued-but-unprocessed Policy
+	// change. For an ExternalAuth policy that repoints AuthServiceName, that
+	// produced the same wrong-Service hazard as a VirtualServer upstream
+	// edit: the Plus upstream name (vs_exauth_<ns>_<pol> /
+	// ing_<ns>_<ing>_exauth_<ns>_<pol>) doesn't encode the service, so a
+	// live API write computed from the new auth service would rebind an
+	// upstream still reachable under the old auth URI/TLS config.
+	policies map[string]*conf_v1.Policy
+
 	// minionsByHost indexes minion Ingresses by their host for O(1) lookup.
 	// Outer key: host string, inner key: ingress resource key (namespace/name).
 	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
@@ -474,6 +496,7 @@ func NewConfiguration(
 		virtualServers:               make(map[string]*conf_v1.VirtualServer),
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
 		transportServers:             make(map[string]*conf_v1.TransportServer),
+		policies:                     make(map[string]*conf_v1.Policy),
 		minionsByHost:                make(map[string]map[string]bool),
 		vsrToVSConfigs:               make(map[string][]*conf_v1.VirtualServer),
 		hostProblems:                 make(map[string]ConfigurationProblem),
@@ -1160,6 +1183,33 @@ func (c *Configuration) DeletePolicyServiceRef(policyNamespace, policyName strin
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	delete(c.serviceReferenceChecker.policyServices, policyNamespace+"/"+policyName)
+}
+
+// AddOrUpdatePolicy stores the raw Policy resource, keyed by namespace/name, for
+// getPolicies to read. Called by syncPolicy only — see the policies field doc for why
+// this must stay task-ordered rather than reading the informer cache directly.
+func (c *Configuration) AddOrUpdatePolicy(pol *conf_v1.Policy) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.policies[getResourceKey(&pol.ObjectMeta)] = pol
+}
+
+// DeletePolicy removes the Policy resource for key (namespace/name) from the store.
+// Called by syncPolicy when the Policy no longer exists, and by
+// cleanupUnwatchedNamespacedResources when its namespace stops being watched.
+func (c *Configuration) DeletePolicy(key string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	delete(c.policies, key)
+}
+
+// GetPolicy returns the Policy resource for key (namespace/name), or nil if it hasn't
+// been synced (or has been deleted). Returns the raw stored policy with no
+// IngressClass or validation filtering — see the policies field doc.
+func (c *Configuration) GetPolicy(key string) *conf_v1.Policy {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.policies[key]
 }
 
 // FindResourcesForAppProtectPolicyAnnotation finds resources that reference the specified AppProtect policy via annotation.

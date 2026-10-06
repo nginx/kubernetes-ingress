@@ -1583,6 +1583,15 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 			key := getResourceKey(&vsr.ObjectMeta)
 			lbc.configuration.DeleteVirtualServerRoute(key)
 		}
+
+		// Policies no longer die with this namespace's informer now that
+		// Configuration.policies is a separate task-ordered store (see its
+		// field doc) rather than a read-through to the informer cache.
+		for _, obj := range nsi.policyLister.List() {
+			pol := obj.(*conf_v1.Policy)
+			key := getResourceKey(&pol.ObjectMeta)
+			lbc.configuration.DeletePolicy(key)
+		}
 	}
 	if nsi.appProtectEnabled {
 		lbc.cleanupUnwatchedAppWafResources(nsi)
@@ -4292,6 +4301,15 @@ func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyVal
 	return cfg
 }
 
+// getAllPolicies reads nsi.policyLister directly (the informer cache), not the
+// task-ordered Configuration.policies store that getPolicies below uses. That's
+// deliberate: this feeds discovery only — "which resources might need
+// re-rendering" (findVirtualServersUsingRatelimitScaling, the WAF/AppProtect
+// cross-references in appprotect_waf.go) — never a config input. Over-inclusion
+// here just triggers an idempotent re-render; under-inclusion would miss a
+// needed update. getPolicies, which supplies the actual policy data a
+// VirtualServer/Ingress config is generated from, must stay task-ordered — see
+// the Configuration.policies field doc.
 func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	var policies []*conf_v1.Policy
 
@@ -4314,6 +4332,14 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	return policies
 }
 
+// getPolicies resolves Policy references into Policy objects for config
+// generation (VirtualServer/VirtualServerRoute/Ingress policy attachment).
+// It reads Configuration.policies — a task-ordered snapshot written by
+// syncPolicy — rather than the policy informer cache directly, so that a
+// resource resync triggered by an unrelated task (e.g. an EndpointSlice
+// event) can never observe a Policy change before its own syncPolicy task
+// has processed it. See the Configuration.policies field doc for why that
+// matters on NGINX Plus.
 func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReference, ownerNamespace string) ([]*conf_v1.Policy, []error) {
 	var result []*conf_v1.Policy
 	var errors []error
@@ -4326,35 +4352,17 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 
 		policyKey := fmt.Sprintf("%s/%s", polNamespace, p.Name)
 
-		var policyObj interface{}
-		var exists bool
-		var err error
-
+		// getNamespacedInformer still gates on the namespace being watched —
+		// a distinct error from the policy simply not existing yet.
 		nsi := lbc.getNamespacedInformer(polNamespace)
 		if nsi == nil {
 			errors = append(errors, fmt.Errorf("failed to get namespace %s", polNamespace))
 			continue
 		}
 
-		policyObj, exists, err = nsi.policyLister.GetByKey(policyKey)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to get policy %s: %w", policyKey, err))
-			continue
-		}
-
-		if !exists {
-			errors = append(errors, fmt.Errorf("policy %s doesn't exist", policyKey))
-			continue
-		}
-
-		policy, ok := policyObj.(*conf_v1.Policy)
-		if !ok {
-			errors = append(errors, fmt.Errorf("policy %s has unexpected type %T", policyKey, policyObj))
-			continue
-		}
-
+		policy := lbc.configuration.GetPolicy(policyKey)
 		if policy == nil {
-			errors = append(errors, fmt.Errorf("policy %s is nil", policyKey))
+			errors = append(errors, fmt.Errorf("policy %s doesn't exist", policyKey))
 			continue
 		}
 
@@ -4363,8 +4371,7 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		err = validation.ValidatePolicy(policy, lbc.policyValidationConfig())
-		if err != nil {
+		if err := validation.ValidatePolicy(policy, lbc.policyValidationConfig()); err != nil {
 			errors = append(errors, fmt.Errorf("policy %s is invalid: %w", policyKey, err))
 			continue
 		}
