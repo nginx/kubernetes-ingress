@@ -1,0 +1,7 @@
+controller:
+  service:
+    type: NodePort
+    httpPort:
+      nodePort: 0
+    httpsPort:
+      nodePort: 0

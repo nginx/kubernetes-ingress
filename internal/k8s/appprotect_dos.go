@@ -134,7 +134,11 @@ func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 	var polExists bool
 	var err error
 
-	obj, polExists, err = lbc.getNamespacedInformer(ns).appProtectDosPolicyLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, polExists, err = nsi.appProtectDosPolicyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
@@ -164,7 +168,11 @@ func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 	var confExists bool
 	var err error
 
-	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectDosLogConfLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, confExists, err = nsi.appProtectDosLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
@@ -194,7 +202,11 @@ func (lbc *LoadBalancerController) syncDosProtectedResource(task task) {
 	var confExists bool
 	var err error
 
-	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectDosProtectedLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, confExists, err = nsi.appProtectDosProtectedLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return

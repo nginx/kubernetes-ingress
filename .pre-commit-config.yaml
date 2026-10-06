@@ -58,7 +58,7 @@ repos:
         description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
         entry: .github/scripts/validate-workflow-gating.sh
         language: golang
-        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.53.6"]
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.54.1"]
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: false
         require_serial: true
@@ -87,12 +87,12 @@ repos:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 9.0.1
+    rev: 9.0.2
     hooks:
       - id: isort
 
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 26.5.1
+    rev: 26.10.0
     hooks:
       - id: black
 
@@ -109,7 +109,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.38.0
+    rev: 0.38.2
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -118,7 +118,7 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.2
+    rev: v0.23.3
     hooks:
       - id: markdownlint-cli2
         args: [ "**/*.md", "--fix" ]

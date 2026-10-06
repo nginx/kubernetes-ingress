@@ -1,4 +1,127 @@
 
+[TestExecuteOIDCTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded/module_loaded_disables_WAF_on_every_internal_OIDC_location - 1]
+    # Advanced configuration START
+    set $internal_error_message "NGINX / OpenID Connect login failure\n";
+    set $pkce_id "";
+    set $idp_sid "";
+    # resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
+    subrequest_output_buffer_size 32k; # To fit a complete tokenset response
+    gunzip on; # Decompress IdP responses if necessary
+    # Advanced configuration END
+
+    location = /_jwks_uri {
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+        proxy_cache jwk;                              # Cache the JWK Set received from IdP
+        proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
+        proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
+        proxy_ssl_server_name on;                     # Send SNI to IdP host
+
+        proxy_method GET;                             # In case client request was non-GET
+        proxy_set_header Content-Length "";           # ''
+        proxy_pass $oidc_jwt_keyfile;                 # Expecting to find a URI here
+        proxy_ignore_headers Cache-Control Expires Set-Cookie; # Does not influence caching
+    }
+
+    location @do_oidc_flow {
+        status_zone "OIDC start";
+        js_content oidc.auth;
+        default_type text/plain; # In case we throw an error
+    }
+
+    set $redir_location "/_codexch";
+    location = "/_codexch" {
+        # This location is called by the IdP after successful authentication
+        status_zone "OIDC code exchange";
+        js_content oidc.codeExchange;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /_token {
+        # This location is called by oidcCodeExchange(). We use the proxy_ directives
+        # to construct the OpenID Connect token request, as per:
+        #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_server_name on;    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_refresh {
+        # This location is called by oidcAuth() when performing a token refresh. We
+        # use the proxy_ directives to construct the OpenID Connect token request, as per:
+        #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_server_name on;                    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_token_validation {
+        # Internal location to verify any JWT (e.g., id_token, logout_token)
+        # using the auth_jwt module. Extracts the claims and returns them as JSON.
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+        auth_jwt "" token=$arg_token;
+        js_content oidc.extractTokenClaims;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /logout {
+        status_zone "OIDC logout";
+        add_header Set-Cookie "auth_token=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags";
+        js_content oidc.logout;
+    }
+
+    location = /front_channel_logout {
+        status_zone "OIDC logout";
+        add_header Cache-Control "no-store";
+        default_type text/plain;
+        js_content oidc.handleFrontChannelLogout;
+    }
+
+    location = /_logout {
+        # This location is the default value of $oidc_logout_redirect (in case it wasn't configured)
+        default_type text/plain;
+        return 200 "Logged out\n";
+    }
+
+    location @oidc_error {
+        # This location is called when oidcAuth() or oidcCodeExchange() returns an error
+        status_zone "OIDC error";
+        default_type text/plain;
+        return 500 $internal_error_message;
+    }
+
+    # location /api/ {
+    #     api write=on;
+    #     allow 127.0.0.1; # Only the NGINX host may call the NGINX Plus API
+    #     deny all;
+    #     access_log off;
+    # }
+
+# vim: syntax=nginx
+
+---
+
 [TestExecuteTemplateForNGINXOSSTransportServerWithSNI - 1]
 
 upstream cafe-upstream {
@@ -415,7 +538,6 @@ server {
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
         proxy_busy_buffers_size 8k;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -449,7 +571,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -476,7 +597,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -545,7 +665,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -572,7 +691,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -842,7 +960,6 @@ server {
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
         proxy_busy_buffers_size 8k;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -875,7 +992,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -901,7 +1017,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -968,7 +1083,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -994,7 +1108,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1140,7 +1253,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1205,7 +1317,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1279,7 +1390,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1375,7 +1485,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1405,7 +1514,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1497,7 +1605,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1527,7 +1634,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1693,6 +1799,111 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded/module_loaded_disables_WAF_on_every_internal_location - 1]
+
+upstream upstream1 {
+    zone upstream1 ;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    location = /_jwks_uri_server_tenant1 {
+        internal;
+        app_protect_enable off;
+        proxy_method GET;
+        proxy_set_header Content-Length "";
+        proxy_ssl_verify off;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+        proxy_set_header Host idp.example.com;
+        set $idp_backend idp.example.com;
+        proxy_pass ://$idp_backend/keys;
+    }
+    location = /_validate_apikey_njs {
+            internal;
+            app_protect_enable off;
+            js_content apikey_auth.validate;
+    }
+    js_var $header_query_value "${http_x_api_key}";
+    js_var $apikey_auth_local_map "apikey_map";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name $apikey_map;
+
+    
+
+    
+    location "/" {
+        set $service "svc";
+        status_zone "svc";
+
+        
+        set $header_query_value "${http_x_api_key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://upstream1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/_external_auth/authsvc" {
+        set $service "authsvc";
+        status_zone "authsvc";
+        internal;
+        app_protect_enable off;
+
+        
+        set $header_query_value "${http_x_api_key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_ext_auth_authsvc/verify;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel - 1]
 
 upstream upstream {
@@ -1740,7 +1951,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -2019,6 +2229,54 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersOSSTemplateWithUseForwardedHeadersTrue - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $forwarded_host;
+        proxy_set_header X-Forwarded-Port $forwarded_port;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header Host "$forwarded_host";
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel - 1]
 
 upstream upstream {
@@ -2068,7 +2326,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -2357,6 +2614,336 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersProxyHTTPVersion - 1]
+
+upstream test-upstream {
+    zone test-upstream ;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/unset" {
+        set $service "";
+
+        
+        set $default_connection_header "";
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/http-1-0" {
+        set $service "";
+
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/http-1-1" {
+        set $service "";
+
+        
+        set $default_connection_header "";
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/http-2" {
+        set $service "";
+
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 2;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/grpc" {
+        set $service "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test-upstream;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersProxyHTTPVersionForNGINXPlus - 1]
+
+upstream test-upstream {
+    zone test-upstream ;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/unset" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header "";
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/http-1-0" {
+        set $service "";
+        status_zone "";
+
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/http-1-1" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header "";
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/http-2" {
+        set $service "";
+        status_zone "";
+
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 2;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/grpc" {
+        set $service "";
+        status_zone "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test-upstream;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersTemplateWithClientBodyBufferSize - 1]
 
 
@@ -2390,7 +2977,6 @@ server {
         client_body_buffer_size 16k;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -3133,7 +3719,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -3261,7 +3846,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers on;
@@ -3289,7 +3873,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers on;
@@ -3434,6 +4017,366 @@ server {
 
         
         set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersAndCustomHeaders - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host "custom.example.com";
+        proxy_set_header X-Forwarded-Host "custom-forwarded.example.com";
+        proxy_set_header X-Forwarded-Port "8443";
+        proxy_set_header X-Forwarded-Proto "https";
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersAndCustomHeadersGRPC/nginx - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header Host "custom.example.com";
+        grpc_set_header X-Forwarded-Host "custom-forwarded.example.com";
+        grpc_set_header X-Forwarded-Port "8443";
+        grpc_set_header X-Forwarded-Proto "https";
+        grpc_pass grpc://test-upstream;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersAndCustomHeadersGRPC/nginx-plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header Host "custom.example.com";
+        grpc_set_header X-Forwarded-Host "custom-forwarded.example.com";
+        grpc_set_header X-Forwarded-Port "8443";
+        grpc_set_header X-Forwarded-Proto "https";
+        grpc_pass grpc://test-upstream;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersTrue - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $forwarded_host;
+        proxy_set_header X-Forwarded-Port $forwarded_port;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_set_header Host "$forwarded_host";
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersTrueGRPC/nginx - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $forwarded_host;
+        grpc_set_header X-Forwarded-Port $forwarded_port;
+        grpc_set_header X-Forwarded-Proto $forwarded_proto;
+        grpc_set_header Host "$forwarded_host";
+        grpc_pass grpc://test-upstream;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersTrueGRPC/nginx-plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $forwarded_host;
+        grpc_set_header X-Forwarded-Port $forwarded_port;
+        grpc_set_header X-Forwarded-Proto $forwarded_proto;
+        grpc_set_header Host "$forwarded_host";
+        grpc_pass grpc://test-upstream;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
     }
 }
 
@@ -4014,7 +4957,6 @@ server {
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
         proxy_busy_buffers_size 8k;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4046,7 +4988,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4071,7 +5012,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4136,7 +5076,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4161,7 +5100,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4183,6 +5121,467 @@ server {
         proxy_intercept_errors on;
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+    
+    
+}
+
+---
+
+[TestVirtualServerForNginxACMEChallengeRedirectBypass - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
+    keepalive 32;
+    sticky cookie test expires=25s "path=/tea";
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test:10m rate=10r/s;
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
+    if ($scheme = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test burst=5 delay=10;
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_basic off;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_cm-acme-http-solver-abcde;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+    
+    
+}
+
+---
+
+[TestVirtualServerForNginxACMEChallengeWithAuth - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
+    keepalive 32;
+    sticky cookie test expires=25s "path=/tea";
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test:10m rate=10r/s;
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
+    if ($scheme = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test burst=5 delay=10;
+    auth_basic "server realm";
+    auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
+    auth_request "/_external_auth/oauth2/auth";
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_basic off;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_cm-acme-http-solver-abcde;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
     }
         
     location @grpc_deadline_exceeded {
@@ -4418,7 +5817,6 @@ server {
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
         proxy_busy_buffers_size 8k;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4451,7 +5849,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4477,7 +5874,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4544,7 +5940,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4570,7 +5965,1213 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location "/return" {
+        set $service "";
+        status_zone "";
+
+        
+        error_page 418 =200 "@return_0";
+        proxy_intercept_errors on;
+        proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
+        set $default_connection_header close;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+        
+    
+}
+
+---
+
+[TestVirtualServerForNginxPlusACMEChallengeRedirectBypass - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
+    keepalive 32;
+    queue 10 timeout=60s;
+    sticky cookie test expires=25s "path=/tea";
+    ntlm;
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test_sync:10m rate=10r/s sync;
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
+    if ($scheme = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
+    auth_jwt "My Api";
+    auth_jwt_key_file jwk-secret;
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
+    
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @hc-coffee {
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        proxy_pass http://coffee-v2;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+
+    }
+    location @hc-tea {
+        
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_pass grpc://tea-v3;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
+
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_jwt off;
+        auth_basic off;
+
+        
+        auth_oidc off;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_cm-acme-http-solver-abcde;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+        
+    
+}
+
+---
+
+[TestVirtualServerForNginxPlusACMEChallengeWithAuth - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
+    keepalive 32;
+    queue 10 timeout=60s;
+    sticky cookie test expires=25s "path=/tea";
+    ntlm;
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test_sync:10m rate=10r/s sync;
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
+    if ($scheme = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
+    auth_jwt "My Api";
+    auth_jwt_key_file jwk-secret;
+    auth_basic "server realm";
+    auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
+    auth_request "/_external_auth/oauth2/auth";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
+    
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @hc-coffee {
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        proxy_pass http://coffee-v2;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+
+    }
+    location @hc-tea {
+        
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_pass grpc://tea-v3;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
+
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_jwt off;
+        auth_basic off;
+
+        
+        auth_oidc off;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_cm-acme-http-solver-abcde;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+        
+    
+}
+
+---
+
+[TestVirtualServerForNginxPlusACMEChallengeWithJWTAndOIDC - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
+    keepalive 32;
+    queue 10 timeout=60s;
+    sticky cookie test expires=25s "path=/tea";
+    ntlm;
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test_sync:10m rate=10r/s sync;
+keyval $idp_sid $client_sid              zone=oidc_sids;
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    include oidc-conf.d/oidc__.conf;
+
+    set $oidc_pkce_enable 0;
+    set $oidc_client_auth_method "client_secret_post";
+    set $oidc_logout_redirect "https://example.com/logout";
+    set $oidc_hmac_key "";
+    set $zone_sync_leeway 0;
+
+    set $oidc_authz_endpoint "https://idp.example.com/auth";
+    set $oidc_authz_extra_args "";
+    set $oidc_token_endpoint "https://idp.example.com/token";
+    set $oidc_end_session_endpoint "https://idp.example.com/logout";
+    set $oidc_jwt_keyfile "https://idp.example.com/jwks";
+    set $oidc_scopes "openid+profile+email";
+    set $oidc_client "test-client";
+    set $oidc_client_secret "test-secret";
+    auth_oidc oidc_default_my_provider_default_cafe;
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    set $vs_redirect_to_https 0;
+    if ($scheme = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
+    auth_jwt "server api";
+    auth_jwt_key_file jwk-secret;
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
+    
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @hc-coffee {
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        proxy_pass http://coffee-v2;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+
+    }
+    location @hc-tea {
+        
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_pass grpc://tea-v3;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
+
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_jwt off;
+        auth_basic off;
+
+        
+        auth_oidc off;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_cm-acme-http-solver-abcde;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+        
+    
+}
+
+---
+
+[TestVirtualServerForNginxPlusRedirectNoChallengeUnchanged - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
+    keepalive 32;
+    queue 10 timeout=60s;
+    sticky cookie test expires=25s "path=/tea";
+    ntlm;
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test_sync:10m rate=10r/s sync;
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    if ($scheme = 'http') {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
+    auth_jwt "My Api";
+    auth_jwt_key_file jwk-secret;
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
+    
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @hc-coffee {
+        
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        proxy_pass http://coffee-v2;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+
+    }
+    location @hc-tea {
+        
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_pass grpc://tea-v3;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
+
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+        internal;
+        # location snippet
+        allow 127.0.0.1;
+        deny all;
+        deny 127.0.0.1;
+        allow all;
+        limit_req zone=loc_pol_rl_test_test_test_sync;
+
+        
+        proxy_ssl_certificate egress-mtls-secret.pem;
+        proxy_ssl_certificate_key egress-mtls-secret.pem;
+            
+        proxy_ssl_trusted_certificate trusted-cert.pem;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 1;
+        proxy_ssl_protocols TLSv1.3;
+        proxy_ssl_ciphers "DEFAULT";
+        proxy_ssl_session_reuse on;
+        proxy_ssl_server_name on;
+        proxy_ssl_name "";
+        set $default_connection_header close;
+        rewrite $request_uri $request_uri;
+        rewrite $request_uri $request_uri;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+        proxy_max_temp_file_size 1024m;
+
+        proxy_buffering on;
+        proxy_buffers 8 4k;
+        proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_hide_header Header;
+        proxy_pass_header Host;
+        proxy_ignore_headers Cache;
+        add_header Header-Name "Header Value" always;
+        proxy_pass http://test-upstream$request_uri;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @loc0 {
+        set $service "";
+        status_zone "";
+
+        
+        error_page 400 500 =200 "@error_page_1";
+        error_page 500 "@error_page_2";
+        proxy_intercept_errors on;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @loc1 {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v2;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @loc2 {
+        set $service "";
+        status_zone "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout 30s;
+        grpc_read_timeout 31s;
+        grpc_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://coffee-v3;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+    location @match_loc_0 {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v2;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @match_loc_default {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4684,7 +7285,8 @@ server {
 
     server_tokens "";
     auth_request "/_external_auth/oauth2/auth";
-    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+    set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+    error_page 401 = @external_auth_signin;
 
     
 
@@ -4693,9 +7295,10 @@ server {
         set $service "tea-svc";
         status_zone "tea-svc";
         auth_request "/_external_auth/oauth2/auth";
+        set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+        error_page 401 = @external_auth_signin;
 
         
-        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout ;
@@ -4704,7 +7307,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4717,6 +7319,10 @@ server {
         proxy_next_upstream ;
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
     }
 }
 
@@ -4807,7 +7413,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -4833,7 +7438,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5022,7 +7626,6 @@ server {
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
         proxy_busy_buffers_size 8k;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5055,7 +7658,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5081,7 +7683,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5148,7 +7749,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5174,7 +7774,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5297,6 +7896,376 @@ server {
 
 ---
 
+[TestVirtualServerForNginxRedirectNoChallengeUnchanged - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    random;
+    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
+    keepalive 32;
+    sticky cookie test expires=25s "path=/tea";
+}
+
+upstream coffee-v1 {
+    zone coffee-v1 256k;
+    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+}
+
+upstream coffee-v2 {
+    zone coffee-v2 256k;
+    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+}
+
+split_clients $request_id $split_0 {
+    50% @loc0;
+    50% @loc1;
+}
+map $match_0_0 $match {
+    ~^1 @match_loc_0;
+    default @match_loc_default;
+}
+map $http_x_version $match_0_0 {
+    v2 1;
+    default 0;
+}
+# HTTP snippet
+limit_req_zone $url zone=pol_rl_test_test_test:10m rate=10r/s;
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    http2 on;
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+    ssl_client_certificate ingress-mtls-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+    if ($scheme = 'http') {
+        return 301 https://$host$request_uri;
+    }
+
+    server_tokens "off";
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header X-Real-IP;
+    real_ip_recursive on;
+    allow 127.0.0.1;
+    deny all;
+    deny 127.0.0.1;
+    allow all;
+    limit_req_log_level error;
+    limit_req_status 503;
+    limit_req zone=pol_rl_test_test_test burst=5 delay=10;
+    # server snippet
+    location "/split" {
+        rewrite ^ @split_0 last;
+    }
+    location "/coffee" {
+        rewrite ^ @match last;
+    }
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
+        
+        default_type "application/json";
+        
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+    location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_1 {
+        
+        
+        add_header Set-Cookie "cookie1=test" always;
+        
+        add_header Set-Cookie "cookie2=test; Secure" always;
+        
+        # status code is ignored here, using 0
+        return 0 "Hello World";
+    }
+    
+
+    
+    location @return_0 {
+        default_type "text/html";
+        
+        # status code is ignored here, using 0
+        return 0 "Hello!";
+    }
+    
+
+    
+    location "/" {
+        set $service "";
+        internal;
+        # location snippet
+        allow 127.0.0.1;
+        deny all;
+        deny 127.0.0.1;
+        allow all;
+        limit_req zone=loc_pol_rl_test_test_test;
+
+        
+        proxy_ssl_certificate egress-mtls-secret.pem;
+        proxy_ssl_certificate_key egress-mtls-secret.pem;
+            
+        proxy_ssl_trusted_certificate trusted-cert.pem;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 1;
+        proxy_ssl_protocols TLSv1.3;
+        proxy_ssl_ciphers "DEFAULT";
+        proxy_ssl_session_reuse on;
+        proxy_ssl_server_name on;
+        proxy_ssl_name "";
+        set $default_connection_header close;
+        rewrite $request_uri $request_uri;
+        rewrite $request_uri $request_uri;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+        proxy_max_temp_file_size 1024m;
+
+        proxy_buffering on;
+        proxy_buffers 8 4k;
+        proxy_buffer_size 4k;
+        proxy_busy_buffers_size 8k;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_hide_header Header;
+        proxy_pass_header Host;
+        proxy_ignore_headers Cache;
+        add_header Header-Name "Header Value" always;
+        proxy_pass http://test-upstream$request_uri;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @loc0 {
+        set $service "";
+
+        
+        error_page 400 500 =200 "@error_page_1";
+        error_page 500 "@error_page_2";
+        proxy_intercept_errors on;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @loc1 {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v2;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @loc2 {
+        set $service "";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout 30s;
+        grpc_read_timeout 31s;
+        grpc_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://coffee-v3;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+    location @match_loc_0 {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v2;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location @match_loc_default {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream error timeout;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 0;
+    }
+    location "/return" {
+        set $service "";
+
+        
+        error_page 418 =200 "@return_0";
+        proxy_intercept_errors on;
+        proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
+        set $default_connection_header close;
+    }
+        
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+
+    
+    
+}
+
+---
+
 [TestVirtualServerForNginxWithAllPathTypes - 1]
 
 server {
@@ -5376,7 +8345,8 @@ server {
 
     server_tokens "";
     auth_request "/_external_auth/oauth2/auth";
-    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+    set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+    error_page 401 = @external_auth_signin;
 
     
 
@@ -5384,9 +8354,10 @@ server {
     location "/tea" {
         set $service "tea-svc";
         auth_request "/_external_auth/oauth2/auth";
+        set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+        error_page 401 = @external_auth_signin;
 
         
-        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout ;
@@ -5395,7 +8366,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5408,6 +8378,10 @@ server {
         proxy_next_upstream ;
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
     }
 }
 
@@ -5555,7 +8529,6 @@ server {
         proxy_buffers 8 4k;
         proxy_buffer_size 4k;
         proxy_busy_buffers_size 8k;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5587,7 +8560,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5612,7 +8584,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5677,7 +8648,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5702,7 +8672,6 @@ server {
         client_max_body_size 1m;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -5784,6 +8753,92 @@ server {
 
     
     
+}
+
+---
+
+[TestVirtualServerLocationExternalAuthWithoutSigninURL/nginx - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request "/_external_auth/server";
+    set $external_auth_signin_uri "/oauth2/start";
+    error_page 401 = @external_auth_signin;
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        auth_request "/_external_auth/location";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestVirtualServerLocationExternalAuthWithoutSigninURL/nginx-plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request "/_external_auth/server";
+    set $external_auth_signin_uri "/oauth2/start";
+    error_page 401 = @external_auth_signin;
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        status_zone "";
+        auth_request "/_external_auth/location";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
 }
 
 ---

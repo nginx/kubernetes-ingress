@@ -97,9 +97,24 @@ server {
     {{- end }}
 
     {{- with $s.TLSRedirect }}
+    {{- if $s.ACMEChallengeActive }}
+    {{- /* ACME HTTP-01 challenges must be answered over plain HTTP. The exemption has to
+           live at server level: rewrite-module directives here run before location selection. */}}
+    set $vs_redirect_to_https 0;
+    if ({{ .BasedOn }} = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return {{ .Code }} https://$host$request_uri;
+    }
+    {{- else }}
     if ({{ .BasedOn }} = 'http') {
         return {{ .Code }} https://$host$request_uri;
     }
+    {{- end }}
     {{- end }}
 
     server_tokens "{{ $s.ServerTokens }}";
@@ -248,11 +263,14 @@ server {
 
     {{- if $s.ExternalAuth }}
     auth_request {{ printf "%q" $s.ExternalAuth.URI.InternalPath }};
+        {{- if $s.ExternalAuth.SigninURL }}
+    set $external_auth_signin_uri {{ printf "%q" $s.ExternalAuth.SigninURL }};
+    error_page 401 = @external_auth_signin;
+        {{- end}}
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
-    {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
-    error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    error_page {{ $e.Codes }} {{ if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
     {{- end }}
 
     {{- range $snippet := $s.Snippets }}
@@ -307,10 +325,16 @@ server {
         {{ $snippet }}
         {{- end }}
 
-        {{- if $l.AuthRequestOff }}
+        {{- if or $l.AuthRequestOff $l.ACMEChallenge }}
         auth_request off;
         {{- else if $l.ExternalAuth }}
         auth_request {{ printf "%q" $l.ExternalAuth.URI.InternalPath }};
+            {{- if $l.ExternalAuth.SigninURL }}
+        set $external_auth_signin_uri {{ printf "%q" $l.ExternalAuth.SigninURL }};
+        error_page 401 = @external_auth_signin;
+            {{- else}}
+        error_page 401 = @external_auth_unauthorized;
+            {{- end}}
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -348,11 +372,18 @@ server {
             {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
         {{- end }}
 
+        {{- if $l.ACMEChallenge }}
+        auth_basic off;
+        {{- else }}
         {{- with $l.BasicAuth }}
         auth_basic {{ printf "%q" .Realm }};
         auth_basic_user_file {{ .Secret }};
         {{- end }}
+        {{- end }}
 
+        {{- if $l.ACMEChallenge }}
+        {{- /* auth_request off is emitted above; a second auth_request would fail nginx -t. */}}
+        {{- else }}
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";
         set $header_query_value {{ makeHeaderQueryValue $l.APIKey }};
@@ -363,6 +394,7 @@ server {
         {{- else }}
         {{- with $s.APIKey }}
         set $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
+        {{- end }}
         {{- end }}
         {{- end }}
 
@@ -408,8 +440,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
-        error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -419,7 +450,12 @@ server {
         {{- if $l.InternalProxyPass }}
         proxy_pass {{ $l.InternalProxyPass }};
         {{- end }}
+        {{- /* HTTP/2 forbids the hop-by-hop Connection header (RFC 9113 8.2.2), so the header and
+               the variable feeding it are both omitted when proxying over HTTP/2. HTTP/1.0 always
+               sends "Connection: close", so the variable is unused there too. */}}
+        {{- if and (ne $l.ProxyHTTPVersion "2") (ne $l.ProxyHTTPVersion "1.0") }}
         set $default_connection_header {{ if $l.HasKeepalive }}""{{ else }}close{{ end }};
+        {{- end }}
         {{- if or $l.ProxyPass $l.GRPCPass }}
             {{- range $r := $l.Rewrites }}
         rewrite {{ $r }};
@@ -453,9 +489,17 @@ server {
                 {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- /* HTTP/1.0 has no persistent connections or Upgrade mechanism, so the connection is
+               closed explicitly (https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7). */}}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
         {{- if $l.ProxyPassRequestBody }}
         proxy_pass_request_body {{ $l.ProxyPassRequestBody }};
@@ -474,15 +518,15 @@ server {
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Host") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host $host;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host {{ if $l.UseForwardedHeaders }}$forwarded_host{{ else }}$host{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Port") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port $server_port;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port {{ if $l.UseForwardedHeaders }}$forwarded_port{{ else }}$server_port{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ if $l.UseForwardedHeaders }}$forwarded_proto{{ else }}{{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }}{{ end }};
         {{- end }}
         {{- end }}
 
@@ -593,6 +637,19 @@ server {
         {{- end }}
     }
     {{- end }}
+
+    {{- if hasExternalAuthSignin $s}}
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    {{- end}}
+    {{- if hasExternalAuthNoSignin $s}}
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+    {{- end}}
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}

@@ -128,6 +128,24 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
+	if useForwardedHeaders, exists, err := GetMapKeyAsBool(cfgm.Data, "use-forwarded-headers", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			cfgParams.UseForwardedHeaders = useForwardedHeaders
+		}
+	}
+
+	if cfgParams.UseForwardedHeaders && cfgParams.DisableForwardedHeaders {
+		errorText := fmt.Sprintf("ConfigMap %s/%s: 'use-forwarded-headers' and 'disable-forwarded-headers' are mutually exclusive, ignoring 'use-forwarded-headers'", cfgm.GetNamespace(), cfgm.GetName())
+		nl.Error(l, errorText)
+		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		cfgParams.UseForwardedHeaders = false
+		configOk = false
+	}
+
 	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
@@ -994,6 +1012,23 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		cfgParams.MainOtelTraceInHTTP = otelTraceInHTTP
 	}
 
+	if otelTraceContext, exists := cfgm.Data["otel-trace-context"]; exists {
+		otelTraceContext = strings.TrimSpace(otelTraceContext)
+		switch otelTraceContext {
+		case "extract", "inject", "propagate", "ignore":
+			cfgParams.MainOtelTraceContext = otelTraceContext
+		case "":
+		default:
+			errorText := fmt.Sprintf(
+				"ConfigMap %s/%s: invalid value for 'otel-trace-context': %q, must be one of 'extract', 'inject', 'propagate', 'ignore'",
+				cfgm.GetNamespace(), cfgm.GetName(), otelTraceContext,
+			)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			otelValid = false
+		}
+	}
+
 	if (cfgParams.MainOtelExporterHeaderName != "" && cfgParams.MainOtelExporterHeaderValue == "") ||
 		(cfgParams.MainOtelExporterHeaderName == "" && cfgParams.MainOtelExporterHeaderValue != "") {
 		cfgParams.MainOtelExporterHeaderName = ""
@@ -1012,6 +1047,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		(cfgParams.MainOtelExporterHeaderName != "" ||
 			cfgParams.MainOtelExporterHeaderValue != "" ||
 			cfgParams.MainOtelServiceName != "" ||
+			cfgParams.MainOtelTraceContext != "" ||
 			cfgParams.MainOtelTraceInHTTP) {
 		errorText := "ConfigMap key 'otel-exporter-endpoint' is required when other otel fields are set"
 		nl.Error(l, errorText)
@@ -1019,6 +1055,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		otelValid = false
 		cfgParams.MainOtelTraceInHTTP = false
 		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelTraceContext = ""
 		cfgParams.MainOtelExporterHeaderValue = ""
 		cfgParams.MainOtelServiceName = ""
 	}
@@ -1238,6 +1275,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,
+		MainOtelTraceContext:               config.MainOtelTraceContext,
 		ProxyProtocol:                      config.ProxyProtocol,
 		ResolverAddresses:                  config.ResolverAddresses,
 		ResolverIPV6:                       config.ResolverIPV6,
@@ -1266,6 +1304,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		WorkerRlimitNofile:                 config.MainWorkerRlimitNofile,
 		VariablesHashBucketSize:            config.VariablesHashBucketSize,
 		VariablesHashMaxSize:               config.VariablesHashMaxSize,
+		UseForwardedHeaders:                config.UseForwardedHeaders,
 		AppProtectLoadModule:               staticCfgParams.MainAppProtectLoadModule,
 		AppProtectV5LoadModule:             staticCfgParams.MainAppProtectV5LoadModule,
 		AppProtectDosLoadModule:            staticCfgParams.MainAppProtectDosLoadModule,

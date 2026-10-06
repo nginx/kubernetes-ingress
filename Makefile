@@ -11,7 +11,7 @@ WAF_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app prot
 DOS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app protect dos from
 
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.5
+NGINX_OSS_VERSION             ?= 1.31.6
 NGINX_PLUS_VERSION            ?= R37.1
 
 NAP_WAF_VERSION               ?= 37.1+5.715
@@ -59,9 +59,9 @@ PLATFORM                      ?= linux/amd64 ## The platform(s) for dependency i
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.13.2 ## The version of golangci-lint to use
+GOLANGCI_LINT_VERSION         ?= v2.14.0 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.50.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.51.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.12.0 ## The version of gofumpt to use
 

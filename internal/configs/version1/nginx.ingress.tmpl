@@ -11,8 +11,8 @@ upstream {{$upstream.Name}} {
 	{{- range $server := $upstream.UpstreamServers}}
 	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};
 	{{- end}}
-	{{- if $.Keepalive}}
-	keepalive {{$.Keepalive}};
+	{{- if $upstream.Keepalive}}
+	keepalive {{$upstream.Keepalive}};
 	{{- end}}
 	{{- if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
@@ -157,14 +157,21 @@ server {
 	{{- if $server.SSL}}
 	{{- if not $server.GRPCOnly}}
 	{{- if $server.SSLRedirect}}
-	{{- if $server.HealthStatus}}
+	{{- if or $server.HealthStatus $server.ACMEChallengeActive}}
 	set $redirect 0;
 	if ($scheme = http) {
 		set $redirect 1;
 	}
+	{{- if $server.HealthStatus}}
 	if ($request_uri = {{ printf "%q" $server.HealthStatusURI }}) {
 		set $redirect 0;
 	}
+	{{- end}}
+	{{- if $server.ACMEChallengeActive}}
+	if ($uri ~ "^/\.well-known/acme-challenge/") {
+		set $redirect 0;
+	}
+	{{- end}}
 	if ($redirect = 1) {
 		return {{$server.HTTPRedirectCode}} https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
@@ -178,9 +185,22 @@ server {
 	{{- end}}
 
 	{{- if $server.RedirectToHTTPS}}
+	{{- if $server.ACMEChallengeActive}}
+	set $redirect_to_https 0;
+	if ($http_x_forwarded_proto = 'http') {
+		set $redirect_to_https 1;
+	}
+	if ($uri ~ "^/\.well-known/acme-challenge/") {
+		set $redirect_to_https 0;
+	}
+	if ($redirect_to_https = 1) {
+		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
+	}
+	{{- else}}
 	if ($http_x_forwarded_proto = 'http') {
 		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
 	}
+	{{- end}}
 	{{- end}}
 
 	{{- with $server.BasicAuth }}
@@ -192,8 +212,8 @@ server {
 	auth_request {{ printf "%q" $server.ExternalAuth.URI.InternalPath }};
 	{{- if $server.ExternalAuth.SigninURL }}
 	proxy_intercept_errors on;
-	{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
-	error_page 401 = {{ printf "%q" $server.ExternalAuth.SigninURL }};
+	set $external_auth_signin_uri {{ printf "%q" $server.ExternalAuth.SigninURL }};
+	error_page 401 = @external_auth_signin;
 	{{- end }}
 	{{- end }}
 
@@ -249,14 +269,16 @@ server {
 		return {{ .Code }};
 		{{- end }}
 
-		{{- if $location.AuthRequestOff}}
+		{{- if or $location.AuthRequestOff $location.ACMEChallenge}}
 		auth_request off;
 		{{- else if $location.ExternalAuth }}
 		auth_request {{ printf "%q" $location.ExternalAuth.URI.InternalPath }};
 		{{- if $location.ExternalAuth.SigninURL }}
 		proxy_intercept_errors on;
-		{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
-		error_page 401 = {{ printf "%q" $location.ExternalAuth.SigninURL }};
+		set $external_auth_signin_uri {{ printf "%q" $location.ExternalAuth.SigninURL }};
+		error_page 401 = @external_auth_signin;
+		{{- else}}
+		error_page 401 = @external_auth_unauthorized;
 		{{- end }}
 		{{- end }}
 
@@ -313,26 +335,30 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if not $location.AuthRequestOff}}
+		{{- if not (or $location.AuthRequestOff $location.ACMEChallenge)}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
 		{{- end}}
 
+		{{- if $location.ACMEChallenge }}
+		auth_basic off;
+		{{- else }}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
+		{{- end }}
 		{{- end }}
 
 		grpc_connect_timeout {{$location.ProxyConnectTimeout}};
 		grpc_read_timeout {{$location.ProxyReadTimeout}};
 		grpc_send_timeout {{$location.ProxySendTimeout}};
-		grpc_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
+		grpc_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
 		grpc_set_header X-Real-IP $remote_addr;
 		{{- if not $location.DisableForwardedHeaders }}
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-		grpc_set_header X-Forwarded-Host $host;
-		grpc_set_header X-Forwarded-Port $server_port;
-		grpc_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		grpc_set_header X-Forwarded-Host {{if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
+		grpc_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
+		grpc_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		{{- end}}
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
@@ -343,21 +369,35 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- /* HTTP/1.0 has no persistent connections or Upgrade mechanism, so the connection is
+		       closed explicitly (https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
+		       HTTP/2 forbids the hop-by-hop Connection and Upgrade headers (RFC 9113 8.2.2),
+		       so they are omitted when proxying over HTTP/2. */}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
-		{{- if $.Keepalive}}
+		{{- if $location.Upstream.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
-		{{- if not $location.AuthRequestOff}}
+		{{- end}}
+		{{- if not (or $location.AuthRequestOff $location.ACMEChallenge)}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
 		{{- end}}
+		{{- if $location.ACMEChallenge }}
+		auth_basic off;
+		{{- else }}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
+		{{- end }}
 		{{- end }}
 		proxy_connect_timeout {{$location.ProxyConnectTimeout}};
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
@@ -375,13 +415,13 @@ server {
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
-		proxy_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
+		proxy_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
 		proxy_set_header X-Real-IP $remote_addr;
 		{{- if not $location.DisableForwardedHeaders }}
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-		proxy_set_header X-Forwarded-Host $host;
-		proxy_set_header X-Forwarded-Port $server_port;
-		proxy_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		proxy_set_header X-Forwarded-Host {{if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
+		proxy_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
+		proxy_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		{{- end}}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
@@ -457,6 +497,18 @@ server {
 		{{end}}
 	}
 	{{end -}}
+	{{- if hasExternalAuthSignin $server}}
+	location @external_auth_signin {
+		auth_request off;
+		return 302 $external_auth_signin_uri;
+	}
+	{{- end}}
+	{{- if hasExternalAuthNoSignin $server}}
+	location @external_auth_unauthorized {
+		auth_request off;
+		return 401;
+	}
+	{{- end}}
 	{{- if $server.CustomHTTPErrorBackend}}
 	location @custom_default_backend {
 		internal;

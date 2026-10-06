@@ -23,6 +23,7 @@ pythonpath = [
 addopts = "--tb=native -ra --disable-warnings -x -l -v --strict-markers"
 log_cli = true
 markers = [
+    "acme",
     "agentv2",
     "agentv3",
     "annotations",
@@ -105,6 +106,7 @@ markers = [
     "vsr_grpc",
     "vsr_redirects",
     "vsr_multi_regex",
+    "vsr_hostless",
     "vsr_regexes",
     "vsr_rewrite",
     "vsr_routing",

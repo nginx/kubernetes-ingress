@@ -67,7 +67,8 @@ These are invariants — violating them causes architectural drift and makes the
 codebase harder to reason about:
 
 - **Config generation must NOT call the Kubernetes API or access the secret store
-  directly.** It receives pre-resolved filesystem paths via extended resources.
+  directly.** It receives pre-resolved `SecretReference` values containing 
+  filesystem paths and/or validated role-specific data.
 - **Controller must NOT generate NGINX config text or render templates.** It hands
   fully assembled extended resources to the Configurator.
 - **Data model (`types.go`) must NOT import `internal/configs` or `internal/k8s`.**
@@ -108,13 +109,18 @@ Build / update in-memory state → returns []ResourceChange
   │     [configuration.go — FindResourcesForSecret() / FindResourcesForPolicy()]
   │
   ▼
-Resolve secret references → SecretReference{Path, Error}
-  │  [controller.go — createVirtualServerEx() calls secretStore.GetSecret()]
-  │  Secret store writes valid secrets to /etc/nginx/secrets/ on first reference
+Resolve secret references by (namespace/name, role)
+  │  [controller.go — createVirtualServerEx() and add*SecretRefs()
+  │  calls secretStore.GetSecret(key, role)]
+  │  On a store miss, the resolver reads the namespace informer cache.
+  │  Valid file-backed roles are materialized under /etc/nginx/secrets
+  │  on first successful resolution. Later secret updates revalidate and
+  │  rewrite roles that have already been resolved.
   ▼
 Build extended resource (VirtualServerEx)
   │  [controller.go — createVirtualServerEx()]
-  │  Bundles: VirtualServer + VirtualServerRoutes + Endpoints + SecretRefs + Policies
+  │  Bundles: VirtualServer + VirtualServerRoutes + Endpoints + Policies
+  │  + SecretRefKey{Key, Role} → SecretReference{Secret, Path, CRLPath, Error}
   ▼
 Configurator generates NGINX config
   │  [internal/configs/configurator.go — AddOrUpdateVirtualServer()]
@@ -190,60 +196,87 @@ generation:
 
 ## Secret Store
 
-The secret store (`internal/k8s/secrets/`) manages Kubernetes Secrets that NIC
-uses for TLS certificates, JWKs, OIDC client secrets, and more. It sits entirely
-in the **controller layer**.
+The secret store (`internal/k8s/secrets/`) resolves Kubernetes Secrets for the
+specific purpose declared by each reference site. It sits entirely in the
+**controller layer**.
+
+NIC does not infer Secret purpose from `Secret.type` or from the keys present
+in `data`. The reference site supplies a `SecretRole`, and that role determines
+the required keys, validation, materialization, and reload behavior.
 
 ### Two-phase model
 
-**Phase 1 — In-memory validation** (`SecretStore.AddOrUpdateSecret()`):
+**Phase 1 — Reference-gated caching** (`syncSecret()` and `SecretStore.AddOrUpdateSecret()`):
 
-When a Secret event arrives, the store validates the secret (correct type, valid
-TLS cert/key, etc.) and records a `SecretReference{Secret, Error}` in memory.
-It does **not** write to the filesystem unless a path already exists for that
-secret (avoiding leftover files for unreferenced secrets).
+The secret informer watches secrets in the configured namespaces. During reconciliation,
+`syncSecret()` caches referenced and special secrets and evicts unreferenced ones.
+At startup `preSyncSecrets()` temporarily primes the store after the informer caches
+synchronize, preventing resources from observing existing secrets as missing due to queue
+ordering. Initial secrets reconciliation then removes unreferenced entries. If a newly
+referenced secret is absent from the local store, the store can resolve it from the
+synchronized informer cache.
 
-**Phase 2 — Lazy filesystem write** (`SecretStore.GetSecret()`):
+**Phase 2 — Lazy role resolution** (`SecretStore.GetSecret()`):
 
 When the controller builds an extended resource (`createVirtualServerEx()`,
-`createIngressEx()`), it calls `GetSecret()`. If the secret is valid and not yet
-on disk, the store materializes supported secrets under `/etc/nginx/secrets/` via the
-`SecretFileManager` interface (implemented by `Configurator`). The exact filename is
-derived from `<namespace>-<secretName>` rather than a single path, and some secret types
-create multiple files (for example, CA cert/CRL files). Secrets such as OIDC and API key
-secrets are not written to disk, so their `Path` is empty. The returned `SecretReference`
-contains the filesystem `Path` the config generation layer needs when a file-backed secret
-is used.
+`createIngressEx()`, `createTransportServerEx()`), it calls `GetSecret()`. For an 
+existing secret, the store validates and caches the result by `(namespace/name, role)`. 
+Existing invalid secrets are also cached for that role. Missing lookups return an error
+reference with the expected pathbut are not cached, so a later lookup retries the
+informer resolver. Valid file-backedroles are materialized under `/etc/nginx/secrets/`
+using role-specific filenames. Theirexpected `Path` is populated even when the secret is
+missing or invalid, while `CRLPath`is only set for a valid CA-role secret containing
+`ca.crl`. Updates revalidate resolvedroles, and deletion removes their cached references
+and files.
 
-### Supported secret types
+### Secret roles
 
-| Constant | Kubernetes type | Used for |
+Kubernetes `Secret.type` is not used for validation, so any type is accepted. The `Opaque` 
+type is recommended, or `kubernetes.io/tls` for TLS secrets. Legacy `nginx.org/*` and 
+`nginx.com/*` types remain accepted.
+
+| Role | Required or Recognized Keys | Used for |
 | --- | --- | --- |
-| — | `kubernetes.io/tls` | TLS server certificates |
-| `SecretTypeCA` | `nginx.org/ca` | CA cert for mTLS / upstream trust |
-| `SecretTypeJWK` | `nginx.org/jwk` | JWT validation keys |
-| `SecretTypeOIDC` | `nginx.org/oidc` | OIDC client secret |
-| `SecretTypeHtpasswd` | `nginx.org/htpasswd` | HTTP Basic auth |
-| `SecretTypeAPIKey` | `nginx.org/apikey` | API key auth |
-| `SecretTypeLicense` | `nginx.com/license` | NGINX Plus license |
+| `RoleTLS` | Required`tls.crt` and `tls.key` | TLS server certs |
+| `RoleCA` | Required `ca.crt`; optional `ca.crl` | CA cert (mTLS / upstream trust) |
+| `RoleJWK` | Required `jwk` | JWT validation keys |
+| `RoleHtpasswd` | Required `htpasswd` | HTTP Basic auth |
+| `RoleOIDC` | Required `client-secret` | OIDC client secret |
+| `RoleAPIKey` | Client IDs and credentials | API key auth |
+| `RoleLicense` | Required `license.jwt` | NGINX Plus license |
+| `RoleWAFBundle` | Required `token`, or `username` and `password`; optional `ca.crt` | Bundle-fetch credentials |
+
+WAF HTTPS Bundle sources use `RoleTLS` for their client certificate secret.
+N1C and NIM bundle sources use `RoleWAFBundle`. Their `trustedCertSecret`
+references use `RoleCA`.
 
 ### Special secrets
 
-Some secrets are not referenced by user resources but are required by the
-controller itself (default server TLS, wildcard TLS, NGINX Plus license, mgmt
-client cert, mgmt trusted CA). These are handled by
-`handleSpecialSecretUpdate()` in the controller, which triggers an NGINX reload
-directly — independent of any resource re-sync.
+Some secrets are configured directly by the controller rather than referenced
+by workload resources (default server TLS, wildcard TLS, NGINX Plus license, mgmt
+client cert, mgmt trusted CA). The controller assigns roles from the configured
+reference. TLS for the default, wildcard and mgmt client cert secrets, License
+for the license secret and CA for the mgmt trusted CA secret.
+
+One Kubernetes Secret may satisfy multiple special roles. NIC validates all
+matching roles before writing any special representation, writes every required
+fixed path, and aggregates reload behavior so the strongest required action is
+performed once.
+
+A trusted-CA update regenerates all configuration. License and management
+client-auth updates require an NGINX reload. Default and wildcard certificate
+updates can avoid a master reload when dynamic SSL reload is enabled.
 
 ### Key invariant
 
 **The controller resolves secrets and attaches the resolved references; config
 generation consumes `secrets.SecretReference` values only.** The extended
-resources (`VirtualServerEx.SecretRefs`, `IngressEx.SecretRefs`) carry
-`map[string]*secrets.SecretReference`. Config generation may read resolved data
-from those references, including `.Path`, `.Secret.Type`, and secret payload
-from `.Secret.Data` where needed, but it must not call `SecretStore.GetSecret()`
-or the Kubernetes API directly.
+resources (`VirtualServerEx.SecretRefs`, `IngressEx.SecretRefs`, `TransportServerEx.SecretRefs`)
+carry `map[secrets.SecretRefKey]*secrets.SecretReference`. `SecretRefKey` contains
+both the namespaced secret key and its role. Config generation may read `Path`,
+`CRLPath` and role-specific data from `.Secret.Data`, but it must not inspect
+`Secret.type`, call `SecretStore.GetSecret()` or access the Kubernetes API
+directly.
 
 ---
 

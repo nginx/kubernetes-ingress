@@ -30,7 +30,7 @@ kubectl apply -f cafe.yaml -f cafe-secret.yaml
 
 ## Step 2 - Deploy the API Key Auth Secret
 
-Create a secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
+Create a secret of type `Opaque` (or legacy `nginx.org/apikey`) with the name `api-key-client-secret` that will be used for authorization on the server level.
 
 This secret will contain a mapping of client IDs to base64 encoded API Keys.
 

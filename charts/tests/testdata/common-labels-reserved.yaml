@@ -1,0 +1,2 @@
+commonLabels:
+  app.kubernetes.io/name: evil
