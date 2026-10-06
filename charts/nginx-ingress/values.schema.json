@@ -1989,6 +1989,8 @@
             "annotations": {
               "default": {},
               "title": "The annotations Schema",
+              "description": "Deprecated: has no effect. The leader election Lease is created by the Ingress Controller at runtime and is no longer part of the Helm chart.",
+              "deprecated": true,
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
             }
           },
@@ -1998,8 +2000,7 @@
               "externalService": "",
               "ingressLink": "",
               "enableLeaderElection": true,
-              "leaderElectionLockName": "",
-              "annotations": {}
+              "leaderElectionLockName": ""
             }
           ]
         },
@@ -3162,8 +3163,7 @@
           "externalService": "",
           "ingressLink": "",
           "enableLeaderElection": true,
-          "leaderElectionLockName": "",
-          "annotations": {}
+          "leaderElectionLockName": ""
         },
         "pod": {
           "annotations": {},

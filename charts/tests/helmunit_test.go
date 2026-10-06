@@ -495,3 +495,39 @@ func TestHelmNICNetworkPolicyLegacyValues(t *testing.T) {
 		t.Fatalf("expected controller-networkpolicy.yaml to render empty, rendered output:\n%s", output)
 	}
 }
+
+// TestHelmNICLeaderElectionLeaseNotRendered verifies the chart no longer ships
+// the leader election Lease (created by the controller at runtime, see #7573)
+// or the unused leader election ConfigMap, and that the deprecated
+// controller.reportIngressStatus.annotations value is still accepted.
+func TestHelmNICLeaderElectionLeaseNotRendered(t *testing.T) {
+	t.Parallel()
+
+	helmChartPath, err := filepath.Abs("../nginx-ingress")
+	if err != nil {
+		t.Fatal("Failed to open helm chart path ../nginx-ingress")
+	}
+
+	options := helmOptions{
+		namespace:   "default",
+		valuesFiles: []string{"testdata/leader-election-legacy-annotations.yaml"},
+	}
+
+	output, err := renderTemplateE(helmChartPath, "leader-election", options)
+	if err != nil {
+		t.Fatalf("helm template must accept controller.reportIngressStatus.annotations, got: %v", err)
+	}
+
+	if strings.Contains(output, "kind: Lease") {
+		t.Errorf("expected no Lease resource in the rendered chart, rendered output:\n%s", output)
+	}
+	if strings.Contains(output, "controller-leader-election-configmap.yaml") {
+		t.Errorf("expected no leader election ConfigMap in the rendered chart, rendered output:\n%s", output)
+	}
+	if !strings.Contains(output, "-leader-election-lock-name=custom-leader-lock") {
+		t.Errorf("expected the controller to be configured with the lock name, rendered output:\n%s", output)
+	}
+	if !strings.Contains(output, "- custom-leader-lock") {
+		t.Errorf("expected the Role to grant access to the named Lease, rendered output:\n%s", output)
+	}
+}

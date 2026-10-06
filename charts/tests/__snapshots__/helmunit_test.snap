@@ -125,19 +125,6 @@ metadata:
 data:
   {}
 /-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: allow-empty-ingress-host-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: allow-empty-ingress-host
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
-/-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -522,19 +509,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: allow-empty-ingress-host-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: allow-empty-ingress-host
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/allowEmptyIngressHostWithoutCRs - 1]
@@ -566,19 +540,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: allow-empty-ingress-host-no-crs-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -938,19 +899,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: allow-empty-ingress-host-no-crs-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectDOS - 1]
@@ -997,19 +945,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-dos-nginx-ingress-leader-election
-  namespace: appprotect-dos
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -1409,19 +1344,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: appprotect-dos-nginx-ingress-leader-election
-  namespace: appprotect-dos
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-dos
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAF - 1]
@@ -1468,19 +1390,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-waf-nginx-ingress-leader-election
-  namespace: appprotect-waf
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -1876,19 +1785,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: appprotect-waf-nginx-ingress-leader-election
-  namespace: appprotect-waf
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-waf
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFPLM - 1]
@@ -1935,19 +1831,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-waf-plm-nginx-ingress-leader-election
-  namespace: appprotect-waf-plm
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-waf-plm
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2391,19 +2274,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: appprotect-waf-plm-nginx-ingress-leader-election
-  namespace: appprotect-waf-plm
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-waf-plm
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV4AgentV2 - 1]
@@ -2495,19 +2365,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-protect-waf-agentv2-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-waf-agentv2
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2931,19 +2788,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: app-protect-waf-agentv2-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-waf-agentv2
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV4AgentV3 - 1]
@@ -3033,19 +2877,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-protect-waf-agentv3-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-waf-agentv3
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -3463,19 +3294,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: app-protect-waf-agentv3-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-waf-agentv3
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV5 - 1]
@@ -3522,19 +3340,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-wafv5-nginx-ingress-leader-election
-  namespace: appprotect-wafv5
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -3990,19 +3795,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: appprotect-wafv5-nginx-ingress-leader-election
-  namespace: appprotect-wafv5
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-wafv5
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV5AgentV2 - 1]
@@ -4094,19 +3886,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-protect-wafv5-agentv2-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-wafv5-agentv2
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -4573,19 +4352,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: app-protect-wafv5-agentv2-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-wafv5-agentv2
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV5AgentV3 - 1]
@@ -4675,19 +4441,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: app-protect-wafv5-agentv3-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-wafv5-agentv3
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -5148,19 +4901,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: app-protect-wafv5-agentv3-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: app-protect-wafv5-agentv3
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/appProtectWAFV5Resources - 1]
@@ -5207,19 +4947,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: appprotect-wafv5-resources-nginx-ingress-leader-election
-  namespace: appprotect-wafv5
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-wafv5-resources
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -5696,19 +5423,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: appprotect-wafv5-resources-nginx-ingress-leader-election
-  namespace: appprotect-wafv5
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: appprotect-wafv5-resources
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/commonLabels - 1]
@@ -5746,22 +5460,6 @@ metadata:
     team: platform
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: common-labels-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
-    cost-center: "12345"
-    environment: production
-    team: platform
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -6170,22 +5868,6 @@ metadata:
     team: platform
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: common-labels-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
-    cost-center: "12345"
-    environment: production
-    team: platform
 ---
 
 [TestHelmNICTemplate/customResources - 1]
@@ -6217,19 +5899,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: custom-resources-nginx-ingress-leader-election
-  namespace: custom-resources
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -6589,19 +6258,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: custom-resources-nginx-ingress-leader-election
-  namespace: custom-resources
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/daemonset - 1]
@@ -6633,19 +6289,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: daemonset-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -7029,19 +6672,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: daemonset-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/daemonset-readonly - 1]
@@ -7073,19 +6703,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: daemonset-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset-readonly
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -7509,19 +7126,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: daemonset-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset-readonly
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/defaultListenerPortsWithoutCRs - 1]
@@ -7553,19 +7157,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: default-listener-ports-no-crs-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: default-listener-ports-no-crs
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -7925,19 +7516,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: default-listener-ports-no-crs-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: default-listener-ports-no-crs
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/default_values_file - 1]
@@ -7969,19 +7547,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: default-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -8366,19 +7931,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: default-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/deployment-hpa - 1]
@@ -8410,19 +7962,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: deployment-hpa-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: deployment-hpa
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -8839,19 +8378,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: deployment-hpa-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: deployment-hpa
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/deployment-hpa-no-create - 1]
@@ -8883,19 +8409,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: deployment-hpa-no-create-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: deployment-hpa-no-create
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -9279,19 +8792,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: deployment-hpa-no-create-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: deployment-hpa-no-create
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/globalConfig - 1]
@@ -9323,19 +8823,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-configuration-nginx-ingress-leader-election
-  namespace: gc
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -9742,19 +9229,6 @@ spec:
   - name: dns-tcp
     port: 5353
     protocol: TCP
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: global-configuration-nginx-ingress-leader-election
-  namespace: gc
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/globalConfigCustomName - 1]
@@ -9786,19 +9260,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-config-custom-name-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -10202,19 +9663,6 @@ spec:
   - name: dns-udp
     port: 5353
     protocol: UDP
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: global-config-custom-name-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/ingressClass - 1]
@@ -10246,19 +9694,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-class-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -10645,19 +10080,6 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: ingress-class-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/latencyMetricsBuckets - 1]
@@ -10689,19 +10111,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: latency-metrics-buckets-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -11087,19 +10496,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: latency-metrics-buckets-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/listConfigurations - 1]
@@ -11131,19 +10527,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: list-configs-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -11553,19 +10936,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: list-configs-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/loadBalancerClass - 1]
@@ -11597,19 +10967,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: loadbalancerclass-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -11995,19 +11352,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: loadbalancerclass-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/namespace - 1]
@@ -12039,19 +11383,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: namespace-nginx-ingress-leader-election
-  namespace: nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -12436,19 +11767,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: namespace-nginx-ingress-leader-election
-  namespace: nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/networkPolicyDisabled - 1]
@@ -12480,19 +11798,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: network-policy-disabled-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: network-policy-disabled
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -12877,19 +12182,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: network-policy-disabled-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: network-policy-disabled
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/networkPolicyIngress - 1]
@@ -12949,19 +12241,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: network-policy-ingress-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: network-policy-ingress
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -13346,19 +12625,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: network-policy-ingress-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: network-policy-ingress
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/networkPolicyIngressEgress - 1]
@@ -13419,19 +12685,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: network-policy-ingress-egress-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: network-policy-ingress-egress
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -13816,19 +13069,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: network-policy-ingress-egress-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: network-policy-ingress-egress
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/nodePort - 1]
@@ -13860,19 +13100,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nodeport-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: nodeport
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -14258,19 +13485,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: nodeport-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: nodeport
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/nodePortZero - 1]
@@ -14302,19 +13516,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nodeport-zero-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: nodeport-zero
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -14698,19 +13899,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: nodeport-zero-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: nodeport-zero
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/ossAgentV3 - 1]
@@ -14783,19 +13971,6 @@ data:
     collector:
       log:
         path: "stdout"
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: oss-agent-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: oss-agent
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -15202,19 +14377,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: oss-agent-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: oss-agent
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus - 1]
@@ -15261,19 +14423,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -15659,19 +14808,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus-debug - 1]
@@ -15718,19 +14854,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-debug-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -16126,19 +15249,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-debug-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-debug
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus-mgmt - 1]
@@ -16195,19 +15305,6 @@ data:
   resolver-addresses: "example.com"
   resolver-ipv6: "false"
   resolver-valid: "15s"
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -16603,19 +15700,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-mgmt-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus-mgmt-custom-endpoint - 1]
@@ -16663,19 +15747,6 @@ metadata:
 data:
   license-token-secret-name: license-token
   usage-report-endpoint: "11.22.33.44"
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-custom-endpoint-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -17061,19 +16132,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-mgmt-custom-endpoint-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus-mgmt-proxy-host - 1]
@@ -17121,19 +16179,6 @@ metadata:
 data:
   license-token-secret-name: license-token
   usage-report-proxy-host: "44.55.66.77:88"
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-proxy-host-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -17519,19 +16564,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-mgmt-proxy-host-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-proxy-host
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plus-mgmt-proxy-host-auth - 1]
@@ -17579,19 +16611,6 @@ metadata:
 data:
   license-token-secret-name: license-token
   usage-report-proxy-host: "44.55.66.77:88"
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-mgmt-proxy-host-auth-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -17987,19 +17006,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-mgmt-proxy-host-auth-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plusAgentV3 - 1]
@@ -18087,19 +17093,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-agent-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-agent
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -18507,19 +17500,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-agent-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-agent
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/plusAgentV3All - 1]
@@ -18607,19 +17587,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: plus-agent-all-nginx-ingress-leader-election
-  namespace: custom
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-agent-all
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -19027,19 +17994,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: plus-agent-all-nginx-ingress-leader-election
-  namespace: custom
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: plus-agent-all
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/startupStatusValid - 1]
@@ -19071,19 +18025,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: startupstatus-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: startupstatus
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -19479,19 +18420,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: startupstatus-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: startupstatus
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/statefulset - 1]
@@ -19523,19 +18451,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -19936,19 +18851,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/statefulset-config - 1]
@@ -19980,19 +18882,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-config-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-config
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -20394,19 +19283,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-config-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-config
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/statefulset-no-storageclass - 1]
@@ -20438,19 +19314,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-no-storageclass-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-no-storageclass
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -20851,19 +19714,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-no-storageclass-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-no-storageclass
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
 
 [TestHelmNICTemplate/statefulset-readonly - 1]
@@ -20895,19 +19745,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-readonly
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -21344,17 +20181,4 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-lease.yaml
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: statefulset-readonly-nginx-ingress-leader-election
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.8.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-readonly
-    app.kubernetes.io/version: "5.7.0"
-    app.kubernetes.io/managed-by: Helm
 ---
