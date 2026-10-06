@@ -161,6 +161,14 @@ type Configurator struct {
 	// point, so Plus API writes may safely continue even while reloads are
 	// deferred for the rest of the batch. See
 	// https://github.com/nginx/kubernetes-ingress/issues/7778.
+	//
+	// That "safely continue" is qualified by plusAPIWritesAllowed: if a
+	// reload is also deferred (reloadDeferred) the batch has an unapplied
+	// structural change on disk, and Plus upstream names don't encode the
+	// Service or port, so a write computed from the new spec can collide
+	// with — and silently rebind — the live upstream of the same name while
+	// the route table is still the old one. plusAPIWritesAllowed suppresses
+	// the write in that case; the pending reload applies it instead.
 	isPlusAPIEnabled bool
 	// reloadDeferred is set by Reload() whenever it no-ops because
 	// isReloadsEnabled is false, and by deferReload() when an UpdateEndpoints*
@@ -1571,7 +1579,8 @@ func (cnf *Configurator) EnableReloads() {
 // DisableReloads disables NGINX reloads meaning that configuration changes will not be followed by a reload.
 // NGINX Plus API upstream writes are intentionally left enabled: DisableReloads is called when
 // entering batch mode, at which point NGINX is already running a valid config, so applying
-// endpoint changes via the Plus API during the batch is safe. See isPlusAPIEnabled.
+// endpoint changes via the Plus API during the batch is safe — unless a reload is also pending
+// (reloadDeferred), in which case plusAPIWritesAllowed suppresses the write. See isPlusAPIEnabled.
 func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
@@ -1679,8 +1688,28 @@ func (cnf *Configurator) deferReload() {
 	cnf.reloadDeferred = true
 }
 
-func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, config nginx.ServerConfig) error {
+// plusAPIWritesAllowed reports whether it is safe to PATCH a live NGINX Plus upstream.
+// A deferred reload during batch mode means the config on disk has a structural change
+// the running NGINX hasn't applied yet. Plus upstream names (vs_<ns>_<vs>_<upstream>,
+// ts_<ns>_<ts>_<upstream>) encode neither the Service nor the port, so a PATCH computed
+// from the new spec collides with the live upstream of the same name and rebinds it
+// against the *old* route table — sending traffic to the wrong Service until the batch
+// flushes. The written config already carries the new endpoints, so skipping the write
+// loses nothing: the pending batch-end reload applies them atomically.
+//
+// The isReloadsEnabled check is load-bearing. Outside batch mode reloadDeferred also
+// means "the last reload failed"; suppressing writes there would make UpdateEndpointsFor*
+// return early without reaching its own Reload(), stalling endpoint propagation
+// permanently.
+func (cnf *Configurator) plusAPIWritesAllowed() bool {
 	if !cnf.isPlusAPIEnabled {
+		return false
+	}
+	return cnf.isReloadsEnabled || !cnf.reloadDeferred
+}
+
+func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, config nginx.ServerConfig) error {
+	if !cnf.plusAPIWritesAllowed() {
 		return nil
 	}
 
@@ -1688,7 +1717,7 @@ func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, 
 }
 
 func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []string) error {
-	if !cnf.isPlusAPIEnabled {
+	if !cnf.plusAPIWritesAllowed() {
 		return nil
 	}
 

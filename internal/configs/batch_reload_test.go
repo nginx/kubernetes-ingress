@@ -200,17 +200,20 @@ func TestBatchModeDefersOSSReload(t *testing.T) {
 	}
 }
 
-// cafeVSExWithEndpoints builds a minimal VirtualServerEx for a single
-// upstream, used by the batch-mode Plus tests below. endpoint is the sole
-// backing pod IP for the "tea" upstream.
-func cafeVSExWithEndpoints(endpoint string) *VirtualServerEx {
+// cafeVSExWithService builds a minimal VirtualServerEx with a single
+// upstream named "tea", backed by the given Service and endpoint. The
+// upstream name (vs_default_cafe_tea) doesn't change with the Service, which
+// is what makes it usable to simulate a VirtualServer edit that repoints an
+// existing upstream at a different Service without renaming it — see
+// TestBatchModeSkipsPlusAPIWritesWhileStructuralChangePending.
+func cafeVSExWithService(service, endpoint string) *VirtualServerEx {
 	return &VirtualServerEx{
 		VirtualServer: &conf_v1.VirtualServer{
 			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
 			Spec: conf_v1.VirtualServerSpec{
 				Host: "cafe.example.com",
 				Upstreams: []conf_v1.Upstream{
-					{Name: "tea", Service: "tea-svc", Port: 80},
+					{Name: "tea", Service: service, Port: 80},
 				},
 				Routes: []conf_v1.Route{
 					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
@@ -218,18 +221,28 @@ func cafeVSExWithEndpoints(endpoint string) *VirtualServerEx {
 			},
 		},
 		Endpoints: map[string][]string{
-			"default/tea-svc:80": {endpoint},
+			fmt.Sprintf("default/%s:80", service): {endpoint},
 		},
 	}
 }
 
-// dnsTSExWithEndpoints builds a minimal TransportServerEx for a single TCP
-// upstream, used by the TransportServer batch-mode Plus tests below. It uses
-// a plain TCP listener with no Host, so addOrUpdateTransportServer never
-// takes the tlsPassthroughPairs branch — only the stream upstream write via
-// updateStreamServersInPlus is exercised. endpoint is the sole backing pod
-// IP for the "dns-app" upstream.
-func dnsTSExWithEndpoints(endpoint string) *TransportServerEx {
+// cafeVSExWithEndpoints builds a minimal VirtualServerEx for a single
+// upstream, used by the batch-mode Plus tests below. endpoint is the sole
+// backing pod IP for the "tea" upstream.
+func cafeVSExWithEndpoints(endpoint string) *VirtualServerEx {
+	return cafeVSExWithService("tea-svc", endpoint)
+}
+
+// dnsTSExWithService builds a minimal TransportServerEx for a single TCP
+// upstream named "dns-app", backed by the given Service and endpoint. It
+// uses a plain TCP listener with no Host, so addOrUpdateTransportServer
+// never takes the tlsPassthroughPairs branch — only the stream upstream
+// write via updateStreamServersInPlus is exercised. The upstream name
+// (ts_default_dns_dns-app) doesn't change with the Service, which is what
+// makes it usable to simulate a TransportServer edit that repoints an
+// existing upstream at a different Service without renaming it — see
+// TestBatchModeSkipsStreamPlusAPIWritesWhileStructuralChangePending.
+func dnsTSExWithService(service, endpoint string) *TransportServerEx {
 	return &TransportServerEx{
 		TransportServer: &conf_v1.TransportServer{
 			ObjectMeta: meta_v1.ObjectMeta{Name: "dns", Namespace: "default"},
@@ -239,7 +252,7 @@ func dnsTSExWithEndpoints(endpoint string) *TransportServerEx {
 					Protocol: "TCP",
 				},
 				Upstreams: []conf_v1.TransportServerUpstream{
-					{Name: "dns-app", Service: "dns-svc", Port: 5353},
+					{Name: "dns-app", Service: service, Port: 5353},
 				},
 				Action: &conf_v1.TransportServerAction{
 					Pass: "dns-app",
@@ -248,9 +261,16 @@ func dnsTSExWithEndpoints(endpoint string) *TransportServerEx {
 		},
 		ListenerPort: 5353,
 		Endpoints: map[string][]string{
-			"default/dns-svc:5353": {endpoint},
+			fmt.Sprintf("default/%s:5353", service): {endpoint},
 		},
 	}
+}
+
+// dnsTSExWithEndpoints builds a minimal TransportServerEx for a single TCP
+// upstream, used by the TransportServer batch-mode Plus tests below. endpoint
+// is the sole backing pod IP for the "dns-app" upstream.
+func dnsTSExWithEndpoints(endpoint string) *TransportServerEx {
+	return dnsTSExWithService("dns-svc", endpoint)
 }
 
 // TestBatchModeTransportServerEndpointslicesOnlyNoReloadOnPlus is the
@@ -448,6 +468,154 @@ func TestBatchModePlusAPIFailureStillReloadsAtBatchEnd(t *testing.T) {
 	}
 	if got := mgr.reloads.Load(); got != 1 {
 		t.Fatalf("post-batch reload count = %d, want 1 (the Plus API failure fallback must not be silently dropped)", got)
+	}
+}
+
+// TestBatchModeSkipsPlusAPIWritesWhileStructuralChangePending pins the fix
+// for the mixed VirtualServer/EndpointSlice case Plus upstream naming can't
+// disambiguate: a VirtualServer edit repoints upstream "tea" from tea-svc to
+// coffee-svc (route table unchanged — still Pass: "tea") and lands in the
+// same batch as an EndpointSlice event for coffee-svc. Plus upstream names
+// (vs_<ns>_<vs>_<upstream>) don't encode the Service, so a naive API write
+// computed from the new spec would PATCH the live "vs_default_cafe_tea"
+// upstream — still reachable from the *old*, unreloaded route table — with
+// coffee-svc's endpoints, silently sending traffic to the wrong Service
+// until the batch flushes. Configurator.plusAPIWritesAllowed closes this gap
+// by skipping the Plus API write whenever a reload is already deferred; the
+// pending reload applies the new config, and its endpoints, atomically
+// instead.
+func TestBatchModeSkipsPlusAPIWritesWhileStructuralChangePending(t *testing.T) {
+	t.Parallel()
+
+	mgr := newRecordingBatchManager()
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	// Baseline: "tea" upstream backed by tea-svc. AddOrUpdateVirtualServer
+	// mirrors the VS-resource-change path (syncVirtualServer); the
+	// following UpdateEndpointsForVirtualServers mirrors the first
+	// EndpointSlice sync that registers tea-svc's endpoints via the Plus
+	// API.
+	original := cafeVSExWithService("tea-svc", "10.0.0.1:80")
+	if _, err := cnf.AddOrUpdateVirtualServer(original); err != nil {
+		t.Fatalf("baseline AddOrUpdateVirtualServer: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("baseline reload count = %d, want 1", got)
+	}
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{original}); err != nil {
+		t.Fatalf("baseline UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 1 {
+		t.Fatalf("baseline UpdateServersInPlus calls = %d, want 1", got)
+	}
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	// VirtualServer edit: "tea" now points at coffee-svc. The route table
+	// (Pass: "tea") is unchanged, so the live NGINX upstream of the same
+	// name is still being routed to under the old config until the
+	// batch-end reload applies this write.
+	swapped := cafeVSExWithService("coffee-svc", "10.0.0.2:80")
+	if _, err := cnf.AddOrUpdateVirtualServer(swapped); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count = %d, want 1 (deferred during the batch)", got)
+	}
+
+	// EndpointSlice event for coffee-svc lands in the same batch.
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{swapped}); err != nil {
+		t.Fatalf("UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 1 {
+		t.Fatalf("UpdateServersInPlus calls = %d, want 1 (the baseline write only); "+
+			"a second call here would have rebound the live tea-svc upstream to "+
+			"coffee-svc's endpoints while the old route table is still active", got)
+	}
+
+	// Batch end: the deferred reload applies the swap atomically.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 2 {
+		t.Fatalf("post-batch reload count = %d, want 2", got)
+	}
+
+	// The gate is transient: once the reload clears reloadDeferred, Plus API
+	// writes resume applying endpoint churn live, preserving #7778.
+	swapped.Endpoints["default/coffee-svc:80"] = []string{"10.0.0.3:80"}
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{swapped}); err != nil {
+		t.Fatalf("post-batch UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 2 {
+		t.Fatalf("UpdateServersInPlus calls = %d, want 2 (gate must lift once the batch flushes)", got)
+	}
+}
+
+// TestBatchModeSkipsStreamPlusAPIWritesWhileStructuralChangePending is the
+// TransportServer/stream-upstream counterpart to
+// TestBatchModeSkipsPlusAPIWritesWhileStructuralChangePending: "dns-app" is
+// repointed from dns-svc to dns-svc-v2 (Pass: "dns-app" unchanged) in the
+// same batch as an EndpointSlice event for dns-svc-v2, and the stream Plus
+// API write (updateStreamServersInPlus) must stay gated until the
+// batch-end reload applies the new route table.
+func TestBatchModeSkipsStreamPlusAPIWritesWhileStructuralChangePending(t *testing.T) {
+	t.Parallel()
+
+	mgr := newRecordingBatchManager()
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	original := dnsTSExWithService("dns-svc", "10.0.0.1:5353")
+	if _, err := cnf.AddOrUpdateTransportServer(original); err != nil {
+		t.Fatalf("baseline AddOrUpdateTransportServer: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("baseline reload count = %d, want 1", got)
+	}
+	if err := cnf.UpdateEndpointsForTransportServers([]*TransportServerEx{original}); err != nil {
+		t.Fatalf("baseline UpdateEndpointsForTransportServers: %v", err)
+	}
+	if got := mgr.updateStreamServers.Load(); got != 1 {
+		t.Fatalf("baseline UpdateStreamServersInPlus calls = %d, want 1", got)
+	}
+
+	cnf.DisableReloads()
+
+	swapped := dnsTSExWithService("dns-svc-v2", "10.0.0.2:5353")
+	if _, err := cnf.AddOrUpdateTransportServer(swapped); err != nil {
+		t.Fatalf("AddOrUpdateTransportServer: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count = %d, want 1 (deferred during the batch)", got)
+	}
+
+	if err := cnf.UpdateEndpointsForTransportServers([]*TransportServerEx{swapped}); err != nil {
+		t.Fatalf("UpdateEndpointsForTransportServers: %v", err)
+	}
+	if got := mgr.updateStreamServers.Load(); got != 1 {
+		t.Fatalf("UpdateStreamServersInPlus calls = %d, want 1 (the baseline write only); "+
+			"a second call here would have rebound the live dns-svc upstream to "+
+			"dns-svc-v2's endpoints while the old route table is still active", got)
+	}
+
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 2 {
+		t.Fatalf("post-batch reload count = %d, want 2", got)
+	}
+
+	swapped.Endpoints["default/dns-svc-v2:5353"] = []string{"10.0.0.3:5353"}
+	if err := cnf.UpdateEndpointsForTransportServers([]*TransportServerEx{swapped}); err != nil {
+		t.Fatalf("post-batch UpdateEndpointsForTransportServers: %v", err)
+	}
+	if got := mgr.updateStreamServers.Load(); got != 2 {
+		t.Fatalf("UpdateStreamServersInPlus calls = %d, want 2 (gate must lift once the batch flushes)", got)
 	}
 }
 
@@ -782,10 +950,12 @@ func makeVSExWithUpstreams(upstreams, endpoints int) *VirtualServerEx {
 //     wasted config regen cost during batch.
 //   - Plus/BatchOff: template exec + config write + Plus API call (fake).
 //   - Plus/BatchOn : template exec + config write + Plus API call (fake); the
-//     Plus API write is not gated by batch mode (see
-//     Configurator.isPlusAPIEnabled), so this measures the same work as
-//     Plus/BatchOff — Reload is the only thing batch mode defers, and both
-//     cases already skip it on a successful Plus API write.
+//     Plus API write is not gated by batch mode alone (see
+//     Configurator.plusAPIWritesAllowed — it additionally skips the write
+//     while a reload is deferred, which this benchmark never triggers since
+//     every iteration re-applies the same unchanged spec), so this measures
+//     the same work as Plus/BatchOff — Reload is the only thing batch mode
+//     defers, and both cases already skip it on a successful Plus API write.
 //
 // Collect a CPU profile with:
 //
