@@ -566,7 +566,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, cr)
 		for _, u := range cr.Spec.Upstreams {
 			upstreams, healthChecks, statusMatches = generateUpstreams(
-				sslConfig,
+				http2,
 				vsc,
 				u,
 				cr,

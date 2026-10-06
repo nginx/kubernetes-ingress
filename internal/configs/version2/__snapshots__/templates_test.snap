@@ -5457,7 +5457,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -5513,9 +5512,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -5691,7 +5687,6 @@ server {
         auth_request off;
         return 401;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -5747,9 +5742,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -6351,7 +6343,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6407,9 +6398,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -6617,7 +6605,6 @@ server {
         auth_request off;
         return 401;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6673,9 +6660,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -6894,7 +6878,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6950,9 +6933,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -7299,7 +7279,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -7355,9 +7334,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -8303,7 +8279,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -8359,9 +8334,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
