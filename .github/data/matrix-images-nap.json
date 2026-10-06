@@ -25,7 +25,7 @@
       "tag_suffix": "-ubi-agent"
     },
     {
-      "build_os": "ubi-10-plus-nap-agent",
+      "build_os": "ubi-10-plus-nap",
       "image": "nginx-ic-dos/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
@@ -113,7 +113,7 @@
       "tag_suffix": "-agent"
     },
     {
-      "build_os": "debian-plus-nap-agent",
+      "build_os": "debian-plus-nap",
       "image": "nginx-ic-dos/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
