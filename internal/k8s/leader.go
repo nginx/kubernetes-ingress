@@ -81,6 +81,31 @@ func (lbc *LoadBalancerController) leaderElectionIdentity() string {
 	return os.Getenv("POD_NAME")
 }
 
+// leaderElectorStopTimeout bounds how long Stop waits for the Lease release.
+const leaderElectorStopTimeout = 5 * time.Second
+
+// startLeaderElector runs leader election in the background.
+func (lbc *LoadBalancerController) startLeaderElector(ctx context.Context) {
+	lbc.leaderElectorDone = make(chan struct{})
+	go func() {
+		defer close(lbc.leaderElectorDone)
+		lbc.runLeaderElector(ctx)
+	}()
+}
+
+// waitForLeaderElector waits, up to timeout, for leader election to stop so
+// the Lease release is not cut off by process exit.
+func (lbc *LoadBalancerController) waitForLeaderElector(timeout time.Duration) {
+	if lbc.leaderElectorDone == nil {
+		return
+	}
+	select {
+	case <-lbc.leaderElectorDone:
+	case <-time.After(timeout):
+		nl.Warnf(lbc.Logger, "Timed out releasing leader election Lease %s/%s", lbc.metadata.namespace, lbc.leaderElectionLockName)
+	}
+}
+
 // runLeaderElector runs leader election until ctx is canceled.
 // Run also returns when the Lease is lost, so loop to compete for it again.
 func (lbc *LoadBalancerController) runLeaderElector(ctx context.Context) {
