@@ -562,12 +562,14 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& nap-waf.sh
 
 
-############################################# NGINX Plus + App Protect WAF/DoS v4 + Agent v2 on Debian 13 #############################################
+############################################# NGINX Plus + App Protect WAF/DoS v4 on Debian 13 #############################################
 # Base:     debian-plus-nap-base (NGINX Plus + NAP WAF/DoS v4)
-# Adds:     nginx-agent v2
+# Adds:     nginx-agent v2 (for WAF) or nginx-agent v3 (for DoS)
 # Used as:  BUILD_OS=debian-plus-nap
 FROM debian-plus-nap-base AS debian-plus-nap
 ARG AGENT_V2_VERSION
+ARG AGENT_V3_VERSION
+ARG NAP_MODULES
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
@@ -576,7 +578,11 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${AGENT_V2_VERSION}.* \
+	&& if [ "${NAP_MODULES}" = "dos" ]; then \
+	apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${AGENT_V3_VERSION}*; \
+	else \
+	apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${AGENT_V2_VERSION}.*; \
+	fi \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources \
 	&& agent.sh
 
@@ -779,18 +785,24 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& agent.sh
 
 
-############################################# NGINX Plus + App Protect WAF/DoS v4 + Agent v2 on Red Hat UBI 10 #############################################
+############################################# NGINX Plus + App Protect WAF/DoS v4 on Red Hat UBI 10 #############################################
 # Base:     ubi-10-plus-nap-base (NGINX Plus + NAP WAF/DoS v4)
-# Adds:     nginx-agent v2
+# Adds:     nginx-agent v2 (for WAF) or nginx-agent v3 (for DoS)
 # Used as:  BUILD_OS=ubi-10-plus-nap
 FROM ubi-10-plus-nap-base AS ubi-10-plus-nap
 ARG AGENT_V2_VERSION
+ARG AGENT_V3_VERSION
+ARG NAP_MODULES
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	microdnf --nodocs install -y nginx-agent-${AGENT_V2_VERSION}.* \
+	if [ "${NAP_MODULES}" = "dos" ]; then \
+		microdnf --nodocs install -y nginx-agent-${AGENT_V3_VERSION}.*; \
+	else \
+		microdnf --nodocs install -y nginx-agent-${AGENT_V2_VERSION}.*; \
+	fi \
 	&& microdnf clean all \
 	&& agent.sh
 

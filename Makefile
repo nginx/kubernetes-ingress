@@ -331,7 +331,7 @@ debian-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Control
 .PHONY: debian-image-dos-plus
 debian-image-dos-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect DoS)
 	$(DOCKER_CMD) $(PLUS_ARGS) \
-		--build-arg BUILD_OS=debian-plus-nap-agent \
+		--build-arg BUILD_OS=debian-plus-nap \
 		--build-arg NAP_MODULES=dos \
 		--build-arg DOS_PACKAGE_REPO=$(DOS_REPO) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
@@ -406,7 +406,7 @@ ubi-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-10-plus-nap-agent \
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-10-plus-nap \
 		--build-arg NAP_MODULES=dos \
 		--build-arg DOS_PACKAGE_REPO=$(DOS_REPO) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
