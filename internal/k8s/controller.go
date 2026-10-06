@@ -1505,10 +1505,18 @@ func (lbc *LoadBalancerController) sync(task task) {
 
 // removeNamespacedInformer unregisters key, then stops the group Remove
 // returned. Remove waits for in-flight readers, so nothing is still reading it.
+//
+// Also purges key's Policy snapshots from Configuration.policies via
+// DeletePoliciesForNamespace — the one point both namespace-teardown paths
+// (unwatchNamespace's cleanup-then-remove, and syncNamespace's
+// deleted-namespace branch, which calls this directly with no other cleanup)
+// funnel through. See DeletePoliciesForNamespace for why iterating the
+// Policy lister instead misses Policies whose delete task is still queued.
 func (lbc *LoadBalancerController) removeNamespacedInformer(key string) {
 	if nsi := lbc.namespacedInformers.Remove(key); nsi != nil {
 		nsi.stop()
 	}
+	lbc.configuration.DeletePoliciesForNamespace(key)
 }
 
 // unwatchNamespace tears down a namespace that lost its watched label: cleanup
@@ -1584,14 +1592,12 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 			lbc.configuration.DeleteVirtualServerRoute(key)
 		}
 
-		// Policies no longer die with this namespace's informer now that
-		// Configuration.policies is a separate task-ordered store (see its
-		// field doc) rather than a read-through to the informer cache.
-		for _, obj := range nsi.policyLister.List() {
-			pol := obj.(*conf_v1.Policy)
-			key := getResourceKey(&pol.ObjectMeta)
-			lbc.configuration.DeletePolicy(key)
-		}
+		// Policy snapshots are purged separately by removeNamespacedInformer
+		// (via DeletePoliciesForNamespace), not here: iterating nsi.policyLister
+		// misses a Policy whose delete task is still queued when the namespace
+		// is unwatched, since the lister has already evicted it but
+		// Configuration.policies has not yet been told. See
+		// DeletePoliciesForNamespace for the full reasoning.
 	}
 	if nsi.appProtectEnabled {
 		lbc.cleanupUnwatchedAppWafResources(nsi)

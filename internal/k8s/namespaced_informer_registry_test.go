@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -58,6 +60,7 @@ func TestRemoveNamespacedInformerUnregistersAndStops(t *testing.T) {
 	nsi := &namespacedInformer{namespace: "doomed", stopCh: make(chan struct{})}
 	lbc := &LoadBalancerController{
 		namespacedInformers: registryFrom(map[string]*namespacedInformer{"doomed": nsi}),
+		configuration:       createTestConfiguration(),
 	}
 
 	lbc.removeNamespacedInformer("doomed")
@@ -83,6 +86,7 @@ func TestUnwatchNamespaceCleansUpBeforeUnregistering(t *testing.T) {
 	nsi := &namespacedInformer{namespace: "unlabelled", stopCh: make(chan struct{})}
 	lbc := &LoadBalancerController{
 		namespacedInformers: registryFrom(map[string]*namespacedInformer{"unlabelled": nsi}),
+		configuration:       createTestConfiguration(),
 	}
 
 	var (
@@ -220,5 +224,94 @@ func TestStopReleasesWorkerWaitingOnNamespaceCaches(t *testing.T) {
 		default:
 			t.Errorf("namespace %q was not stopped by Stop", nsi.namespace)
 		}
+	}
+}
+
+// TestRemoveNamespacedInformerPurgesPolicySnapshots pins the fix for the Policy
+// snapshot leak on namespace teardown (see Configuration.DeletePoliciesForNamespace).
+// It covers two things in one test:
+//
+//  1. The pending-delete race: a Policy's syncPolicy delete task can still be queued
+//     when its namespace is unwatched. By the time removeNamespacedInformer runs, the
+//     informer's policyLister has already evicted the Policy (ns-a's lister here is
+//     empty), but Configuration.policies has not — so purging by iterating the lister
+//     (the old behavior) would miss it. Purging by namespace key prefix instead must
+//     catch it regardless of lister contents.
+//  2. Scoping: a Policy in a different namespace (ns-b) must survive ns-a's teardown.
+func TestRemoveNamespacedInformerPurgesPolicySnapshots(t *testing.T) {
+	t.Parallel()
+
+	conf := createTestConfiguration()
+	polA := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "ns-a"},
+		Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc"}},
+	}
+	polB := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "ns-b"},
+	}
+	conf.AddOrUpdatePolicy(polA)
+	conf.AddOrUpdatePolicy(polB)
+	conf.UpdatePolicyServiceRef("ns-a", "auth-pol", "auth-svc")
+	conf.UpdatePolicyServiceRef("ns-b", "auth-pol", "other-svc")
+
+	// ns-a's policyLister is empty, simulating a delete already observed by the
+	// informer while the corresponding syncPolicy task is still queued.
+	nsi := &namespacedInformer{
+		namespace:    "ns-a",
+		stopCh:       make(chan struct{}),
+		policyLister: cache.NewStore(cache.MetaNamespaceKeyFunc),
+	}
+	lbc := &LoadBalancerController{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"ns-a": nsi}),
+		configuration:       conf,
+	}
+
+	lbc.removeNamespacedInformer("ns-a")
+
+	if got := conf.GetPolicy("ns-a/auth-pol"); got != nil {
+		t.Errorf("GetPolicy(\"ns-a/auth-pol\") after teardown = %+v, want nil", got)
+	}
+	if _, exists := conf.serviceReferenceChecker.policyServices["ns-a/auth-pol"]; exists {
+		t.Error("policyServices still has an entry for ns-a/auth-pol after teardown")
+	}
+
+	if got := conf.GetPolicy("ns-b/auth-pol"); got != polB {
+		t.Errorf("GetPolicy(\"ns-b/auth-pol\") after ns-a teardown = %+v, want %+v (unrelated namespace must survive)", got, polB)
+	}
+	if _, exists := conf.serviceReferenceChecker.policyServices["ns-b/auth-pol"]; !exists {
+		t.Error("policyServices lost the entry for ns-b/auth-pol after an unrelated namespace's teardown")
+	}
+}
+
+// TestSyncNamespaceDeletedBranchPurgesPolicySnapshots drives the actual deleted-
+// namespace branch of syncNamespace (as opposed to the label-removed branch covered by
+// TestUnwatchNamespaceCleansUpBeforeUnregistering), which previously did no Policy
+// cleanup at all — not even the lister-based cleanup the label-removed branch had.
+func TestSyncNamespaceDeletedBranchPurgesPolicySnapshots(t *testing.T) {
+	t.Parallel()
+
+	conf := createTestConfiguration()
+	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "gone-ns"}}
+	conf.AddOrUpdatePolicy(pol)
+
+	nsi := &namespacedInformer{namespace: "gone-ns", stopCh: make(chan struct{})}
+	lbc := &LoadBalancerController{
+		Logger:              nl.LoggerFromContext(context.Background()),
+		client:              fake.NewClientset(),
+		configuration:       conf,
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"gone-ns": nsi}),
+		// Empty: "gone-ns" is absent, taking syncNamespace's !exists branch. The
+		// follow-up client.Get (also a miss) is what distinguishes "label removed"
+		// from "namespace deleted" within that branch.
+		namespaceLabeledLister: cache.NewStore(cache.MetaNamespaceKeyFunc),
+	}
+
+	lbc.syncNamespace(task{Key: "gone-ns"})
+
+	if got := lbc.namespacedInformers.Get("gone-ns"); got != nil {
+		t.Errorf("namespacedInformers.Get(\"gone-ns\") after syncNamespace = %v, want nil", got)
+	}
+	if got := conf.GetPolicy("gone-ns/auth-pol"); got != nil {
+		t.Errorf("GetPolicy(\"gone-ns/auth-pol\") after syncNamespace deleted the namespace = %+v, want nil", got)
 	}
 }

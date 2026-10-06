@@ -1019,6 +1019,234 @@ func BenchmarkUpdateEndpointsForVirtualServers(b *testing.B) {
 	}
 }
 
+// TestBatchModeSkipsPlusAPIWritesAfterPartialPolicyUpdate pins the fix for the
+// gap in AddOrUpdateVirtualServers/AddOrUpdateIngresses/AddOrUpdateResources/
+// addOrUpdateIngressesAndVirtualServers (see TestBulkUpdateEntryPointsMarkBatchDirtyOnPartialFailure
+// below): internal/k8s/policy.go's syncPolicy calls AddOrUpdateVirtualServers with every
+// VirtualServer referencing a changed Policy. Before the fix, a failure partway through
+// that batch (one VirtualServer's config successfully rewritten with a new ExternalAuth
+// AuthServiceName, a later VirtualServer in the same call failing to render) left
+// reloadDeferred false — because AddOrUpdateVirtualServers returned on the helper's error
+// without going through Reload() or deferReload(). That makes plusAPIWritesAllowed return
+// true mid-batch: a same-batch EndpointSlice event for the new auth Service could PATCH
+// the live vs_exauth_<ns>_<pol> upstream — which encodes neither the Service nor the
+// port — rebinding it while NGINX is still proxying auth traffic under the old
+// AuthServiceName's URI/TLS settings. This test exercises the same hazard shape with a
+// plain upstream (vs_default_cafe_tea) rather than the exauth one, matching the
+// pre-existing TestBatchModeSkipsPlusAPIWritesWhileStructuralChangePending convention —
+// the upstream-naming hazard is identical either way. See
+// Configurator.plusAPIWritesAllowed.
+func TestBatchModeSkipsPlusAPIWritesAfterPartialPolicyUpdate(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failOnNameManager{recordingBatchManager: newRecordingBatchManager(), failName: "vs_default_cafe2"}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	// Baseline: "tea" upstream backed by auth-v1, applied outside the batch — mirrors
+	// syncVirtualServer's initial AddOrUpdateVirtualServer followed by the first
+	// EndpointSlice sync for auth-v1's endpoints.
+	original := cafeVSExWithService("auth-v1", "10.0.0.1:80")
+	if _, err := cnf.AddOrUpdateVirtualServer(original); err != nil {
+		t.Fatalf("baseline AddOrUpdateVirtualServer: %v", err)
+	}
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{original}); err != nil {
+		t.Fatalf("baseline UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 1 {
+		t.Fatalf("baseline UpdateServersInPlus calls = %d, want 1", got)
+	}
+
+	// sync() enters batch mode for the Policy task.
+	cnf.DisableReloads()
+
+	// "cafe" is repointed at auth-v2 (Pass: "tea" unchanged, so the live upstream of the
+	// same name — vs_default_cafe_tea — is still routed under auth-v1 until the
+	// batch-end reload applies this write). "cafe2", a second VirtualServer referencing
+	// the same Policy in the same AddOrUpdateVirtualServers call, fails to render.
+	swapped := cafeVSExWithService("auth-v2", "10.0.0.2:80")
+	bad := cafeVSExWithService("auth-v2", "10.0.0.3:80")
+	bad.VirtualServer.Name = "cafe2"
+	bad.VirtualServer.Spec.Host = "cafe2.example.com"
+
+	if _, err := cnf.AddOrUpdateVirtualServers([]*VirtualServerEx{swapped, bad}); err == nil {
+		t.Fatal("AddOrUpdateVirtualServers: expected error from simulated CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count = %d, want 1 (deferred during the batch)", got)
+	}
+
+	// EndpointSlice event for auth-v2 lands in the same batch — the exact scenario
+	// plusAPIWritesAllowed exists to gate.
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{swapped}); err != nil {
+		t.Fatalf("UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 1 {
+		t.Fatalf("UpdateServersInPlus calls = %d, want 1 (the baseline write only); "+
+			"a second call here would have rebound the live vs_default_cafe_tea upstream "+
+			"to auth-v2's endpoints while NGINX is still proxying the old auth-v1 route "+
+			"table/auth config", got)
+	}
+
+	// Batch end: the deferred reload applies the swap atomically.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 2 {
+		t.Fatalf("post-batch reload count = %d, want 2", got)
+	}
+
+	// The gate is transient: once the reload clears reloadDeferred, Plus API writes
+	// resume applying endpoint churn live.
+	swapped.Endpoints["default/auth-v2:80"] = []string{"10.0.0.4:80"}
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{swapped}); err != nil {
+		t.Fatalf("post-batch UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 2 {
+		t.Fatalf("UpdateServersInPlus calls = %d, want 2 (gate must lift once the batch flushes)", got)
+	}
+}
+
+// TestBulkUpdateEntryPointsMarkBatchDirtyOnPartialFailure covers the four bulk
+// Configurator entry points that previously returned on a partial-write error without
+// marking the batch dirty: AddOrUpdateVirtualServers, AddOrUpdateIngresses,
+// AddOrUpdateResources, and addOrUpdateIngressesAndVirtualServers (called by
+// AddOrUpdateAppProtectResource/AddOrUpdateResourcesThatUseDosProtected). Each loops
+// over a slice of resources and used to `return` directly on the first error instead of
+// going through deferReload or Reload() — unlike the single-resource AddOrUpdate*
+// wrappers, which already called deferReload on error. The fix moved deferReload into
+// the underlying addOrUpdateVirtualServer/addOrUpdateIngress helpers themselves (see
+// Configurator.deferReload), so every caller — these four included — now inherits it
+// automatically.
+func TestBulkUpdateEntryPointsMarkBatchDirtyOnPartialFailure(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		call func(cnf *Configurator, good, bad *VirtualServerEx) error
+	}{
+		{
+			name: "AddOrUpdateVirtualServers",
+			call: func(cnf *Configurator, good, bad *VirtualServerEx) error {
+				_, err := cnf.AddOrUpdateVirtualServers([]*VirtualServerEx{good, bad})
+				return err
+			},
+		},
+		{
+			name: "AddOrUpdateResources",
+			call: func(cnf *Configurator, good, bad *VirtualServerEx) error {
+				_, err := cnf.AddOrUpdateResources(ExtendedResources{VirtualServerExes: []*VirtualServerEx{good, bad}}, false)
+				return err
+			},
+		},
+		{
+			name: "addOrUpdateIngressesAndVirtualServers",
+			call: func(cnf *Configurator, good, bad *VirtualServerEx) error {
+				_, err := cnf.addOrUpdateIngressesAndVirtualServers(nil, nil, []*VirtualServerEx{good, bad})
+				return err
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			good := cafeVSExWithEndpoints("10.0.0.1:80")
+			bad := cafeVSExWithEndpoints("10.0.0.2:80")
+			bad.VirtualServer.Name = "cafe2"
+			bad.VirtualServer.Spec.Host = "cafe2.example.com"
+
+			mgr := &failOnNameManager{recordingBatchManager: newRecordingBatchManager(), failName: "vs_default_cafe2"}
+			cnf := createTestConfiguratorWithManager(t, mgr)
+
+			// sync() enters batch mode.
+			cnf.DisableReloads()
+
+			if err := tc.call(cnf, good, bad); err == nil {
+				t.Fatalf("%s: expected error from simulated CreateConfig failure, got nil", tc.name)
+			}
+			if got := mgr.reloads.Load(); got != 0 {
+				t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+			}
+
+			// Batch end: "good"'s written-but-unapplied config must still get a reload.
+			cnf.EnableReloads()
+			if err := cnf.ReloadForBatchUpdates(false); err != nil {
+				t.Fatalf("ReloadForBatchUpdates: %v", err)
+			}
+			if got := mgr.reloads.Load(); got != 1 {
+				t.Fatalf("post-batch reload count = %d, want 1 (the good resource's partial write must not be silently dropped)", got)
+			}
+		})
+	}
+}
+
+// TestBatchModeAddOrUpdateIngressesPartialWriteStillReloads pins the fix to
+// AddOrUpdateIngresses, the bulk-Ingress counterpart to
+// TestBulkUpdateEntryPointsMarkBatchDirtyOnPartialFailure's VirtualServer cases:
+// AddOrUpdateIngresses loops over ingExes and used to return directly on the first
+// addOrUpdateIngress error, without going through deferReload or Reload().
+func TestBatchModeAddOrUpdateIngressesPartialWriteStillReloads(t *testing.T) {
+	t.Parallel()
+
+	good := createCafeIngressEx()
+	bad := createCafeIngressEx()
+	bad.Ingress.Name = "cafe-ingress-2"
+
+	mgr := &failOnNameManager{recordingBatchManager: newRecordingBatchManager(), failName: "default-cafe-ingress-2"}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = false
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	if _, err := cnf.AddOrUpdateIngresses([]*IngressEx{&good, &bad}); err == nil {
+		t.Fatal("AddOrUpdateIngresses: expected error from simulated CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+	}
+
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the good Ingress's partial write must not be silently dropped)", got)
+	}
+}
+
+// TestDeleteIngressPartialWriteStillReloads pins the fix to Configurator.DeleteIngress:
+// DeleteConfig already removed the Ingress's own file from disk before
+// syncDefaultServerConfig can fail, so that deletion must not be lost if the caller's
+// own Reload() (skipReload=false) is never reached because DeleteIngress returns first.
+func TestDeleteIngressPartialWriteStillReloads(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failOnDefaultServerManager{recordingBatchManager: newRecordingBatchManager()}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	if err := cnf.DeleteIngress("default/cafe-ingress", false); err == nil {
+		t.Fatal("DeleteIngress: expected error from simulated default-server CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+	}
+
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the already-deleted Ingress config must not be silently dropped)", got)
+	}
+}
+
 // diskManager wraps FakeManager and replaces CreateConfig with a real disk
 // write into a tmpdir, matching what LocalManager.CreateConfig does in
 // production (createFileAndWrite: os.Create + Write + Close, no fsync).

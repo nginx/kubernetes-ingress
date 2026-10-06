@@ -20,10 +20,12 @@ import (
 // For that batch shape, ReloadForBatchUpdates relies entirely on
 // Configurator.reloadDeferred to know a written-but-unapplied config is
 // pending (see the invariant documented on Configurator.deferReload). Every
-// entry on this list has been checked to either honor that invariant on its
-// own error paths (the four UpdateEndpoints*/three AddOrUpdate* write paths)
-// or to not need to (the two state-only accessors, which never write NGINX
-// config).
+// entry on this list has been checked to either honor that invariant or to
+// not need to (the two state-only accessors, which never write NGINX
+// config). The four UpdateEndpoints* entries route their own errors through
+// Configurator.deferReload directly; the three AddOrUpdate* entries inherit
+// it automatically because their underlying addOrUpdate* helpers call it
+// themselves on every error path (see Configurator.deferReload).
 //
 // If this test fails because it found a method NOT on this list: a new
 // Configurator call was added somewhere reachable from an endpointslice-only

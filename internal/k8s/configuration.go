@@ -1203,6 +1203,37 @@ func (c *Configuration) DeletePolicy(key string) {
 	delete(c.policies, key)
 }
 
+// DeletePoliciesForNamespace purges every Policy snapshot (and its external-auth
+// service-reference tracking) for namespace ns, independent of what the namespaced
+// informer's Policy lister currently contains.
+//
+// Called by LoadBalancerController.removeNamespacedInformer on both namespace
+// teardown paths (label removed, namespace deleted) instead of iterating
+// nsi.policyLister: a Policy delete task can still be queued-but-unprocessed when its
+// namespace stops being watched, in which case the lister no longer has it but
+// Configuration.policies still does. Purging by key prefix here catches that case; the
+// namespace-deleted path previously did no Policy cleanup at all. Without this, a
+// re-watch of the same namespace never re-queues a delete for an object that no
+// longer exists, so getPolicies would resolve the stale, deleted Policy indefinitely —
+// see the Configuration.policies field doc for why that is a live-config hazard on
+// NGINX Plus, not just a memory leak.
+func (c *Configuration) DeletePoliciesForNamespace(ns string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	prefix := ns + "/"
+	for key := range c.policies {
+		if strings.HasPrefix(key, prefix) {
+			delete(c.policies, key)
+		}
+	}
+	for key := range c.serviceReferenceChecker.policyServices {
+		if strings.HasPrefix(key, prefix) {
+			delete(c.serviceReferenceChecker.policyServices, key)
+		}
+	}
+}
+
 // GetPolicy returns the Policy resource for key (namespace/name), or nil if it hasn't
 // been synced (or has been deleted). Returns the raw stored policy with no
 // IngressClass or validation filtering — see the policies field doc.
