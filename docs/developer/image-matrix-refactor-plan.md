@@ -53,9 +53,10 @@ concurrency group and collide their caches.
 
 - All four matrix files migrated to the `build_os` / `image` / `tag_suffix`
   schema.
-- `matrix-images-nap.json`: dropped the agent-v2 DoS-only rows
-  (`debian-plus-nap|dos`, `ubi-10-plus-nap|dos`). DoS-only is now built from
-  the `-agent` (v3) stage only, matching `Makefile` targets
+- `matrix-images-nap.json`: DoS-only (`nap_modules: dos`) is built once, from
+  the standard `debian-plus-nap` / `ubi-10-plus-nap` stages, which install
+  nginx-agent v3 when `NAP_MODULES=dos` (see `build/Dockerfile`). The `-agent`
+  DoS-only rows are dropped, matching `Makefile` targets
   `debian-image-dos-plus` / `ubi-image-dos-plus`.
 - Naming standardised on the values actually documented/published live:
   `nginx-plus-ingress` (not `nginx-ingress-plus`) and `nginx-ic-nap-dos` (not
@@ -180,10 +181,10 @@ fanout must land in the same PR:
 
 **Required fix**
 
-12. `matrix-smoke-nap.json` — repoint the `debian-plus-nap|dos` and
-    `ubi-10-plus-nap|dos` rows to their `-agent` `build_os` equivalents.
-    These reference the two rows dropped from `matrix-images-nap.json`;
-    without this fix those smoke jobs pull a tag nothing builds.
+12. `matrix-smoke-nap.json` — retains `debian-plus-nap|dos` and
+    `ubi-10-plus-nap|dos` rows; with `plus-nap` installing Agent v3
+    directly for DoS, smoke jobs pull the standard `<tag>` and `<tag>-ubi`
+    images without needing `-agent` equivalents.
     (`debian-plus-nap-agent|waf` for `AGENT_V3_NAP` is already correct and
     stays as-is.)
 
@@ -222,5 +223,3 @@ fanout must land in the same PR:
   actually uses it as a tag suffix, with `debian` as the sentinel for "no
   suffix". Natural candidate to rename to `tag_suffix` once the smoke/
   regression matrices are migrated.
-- `build/Dockerfile:786` defines an orphan `ubi-10-plus-agent` stage with no
-  matrix row and no Makefile target referencing it.
