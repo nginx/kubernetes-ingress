@@ -48,6 +48,9 @@ const (
 	Delete Operation = iota
 	// AddOrUpdate the config of the resource
 	AddOrUpdate
+	// UpdateStatus updates resource status and events without regenerating NGINX config.
+	// Used when a VirtualServer warning set changes but the rendered configuration does not.
+	UpdateStatus
 )
 
 // Resource represents a configuration resource.
@@ -222,8 +225,11 @@ func NewMinionConfiguration(ing *networking.Ingress) *MinionConfiguration {
 
 // VirtualServerConfiguration holds a VirtualServer along with its VirtualServerRoutes.
 type VirtualServerConfiguration struct {
-	VirtualServer               *conf_v1.VirtualServer
-	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
+	VirtualServer       *conf_v1.VirtualServer
+	VirtualServerRoutes []*conf_v1.VirtualServerRoute
+	// ChallengeRoutes holds synthetic VirtualServerRoutes built from cert-manager ACME HTTP-01 solver Ingresses.
+	// They are kept apart from VirtualServerRoutes so they never enter the VSR->VS index or VSR status updates.
+	ChallengeRoutes             []*conf_v1.VirtualServerRoute
 	VirtualServerRouteSelectors map[string][]string
 	Warnings                    []string
 	HTTPPort                    int
@@ -283,6 +289,16 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 
 	for i := range vsc.VirtualServerRoutes {
 		if !compareObjectMetas(&vsc.VirtualServerRoutes[i].ObjectMeta, &vsConfig.VirtualServerRoutes[i].ObjectMeta) {
+			return false
+		}
+	}
+
+	if len(vsc.ChallengeRoutes) != len(vsConfig.ChallengeRoutes) {
+		return false
+	}
+
+	for i := range vsc.ChallengeRoutes {
+		if !compareObjectMetas(&vsc.ChallengeRoutes[i].ObjectMeta, &vsConfig.ChallengeRoutes[i].ObjectMeta) {
 			return false
 		}
 	}
@@ -1207,10 +1223,26 @@ func (c *Configuration) findResourcesForResourceReference(namespace string, name
 				continue
 			}
 
+			found := false
 			for _, vsr := range impl.VirtualServerRoutes {
 				if checker.IsReferencedByVirtualServerRoute(namespace, name, vsr) {
 					result = append(result, r)
+					found = true
 					break
+				}
+			}
+			if found {
+				continue
+			}
+
+			// ACME challenge routes reference only their solver Service. Match them for Service/Endpoints
+			// lookups so solver endpoint changes reach the challenge upstream; never for other reference kinds.
+			if _, isServiceChecker := checker.(*serviceReferenceChecker); isServiceChecker {
+				for _, cr := range impl.ChallengeRoutes {
+					if checker.IsReferencedByVirtualServerRoute(namespace, name, cr) {
+						result = append(result, r)
+						break
+					}
 				}
 			}
 		case *TransportServerConfiguration:
@@ -1248,6 +1280,11 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 
 	c.vsrsWithChangedRefs = detectChangesInVSRReferences(c.vsrToVSConfigs, newVSRToVSConfigs, c.virtualServerRoutes)
 
+	// Retain the previous hosts so warning-only diffs can be detected after
+	// listener warnings are attached to newResources.
+	oldHosts := c.hosts
+
+	// safe to update hosts
 	c.hosts = newHosts
 	c.vsrToVSConfigs = newVSRToVSConfigs
 
@@ -1268,6 +1305,11 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 	c.addProblemsForOrphanMinions(newProblems)
 	c.addProblemsForOrphanOrIgnoredVsrs(newProblems)
 	c.addWarningsForVirtualServersWithMissConfiguredListeners(newResources)
+
+	// Report VirtualServer warning-set changes even when IsEqual skipped a reload.
+	// IsEqual is the reload predicate and intentionally ignores Warnings; reporting
+	// must not depend on that predicate or rejected resources stay silently Valid.
+	changes = append(changes, createVirtualServerWarningChanges(oldHosts, newHosts, changes)...)
 
 	newOrUpdatedProblems := detectChangesInProblems(newProblems, c.hostProblems)
 
@@ -1396,8 +1438,11 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 }
 
 func (c *Configuration) addWarningsForVirtualServersWithMissConfiguredListeners(resources map[string]Resource) {
-	for _, r := range resources {
-		vsc, ok := r.(*VirtualServerConfiguration)
+	// Sorted so that VirtualServers sharing a host append their warnings in a
+	// stable order; otherwise slices.Equal on the warnings would flap between
+	// rebuilds and emit spurious UpdateStatus changes.
+	for _, key := range getSortedResourceKeys(resources) {
+		vsc, ok := resources[key].(*VirtualServerConfiguration)
 		if !ok {
 			continue
 		}
@@ -1591,6 +1636,49 @@ func createResourceChangesForHosts(removedHosts []string, updatedHosts []string,
 	return append(deleteChanges, changes...)
 }
 
+// createVirtualServerWarningChanges emits UpdateStatus changes for VirtualServers
+// whose warning set changed while IsEqual still considers the resource unchanged.
+// Resources already present in existing changes are skipped so a reload (or
+// delete) remains the single reporting path for that object.
+func createVirtualServerWarningChanges(oldHosts map[string]Resource, newHosts map[string]Resource, existing []ResourceChange) []ResourceChange {
+	alreadyChanged := make(map[string]struct{}, len(existing))
+	for _, c := range existing {
+		alreadyChanged[c.Resource.GetKeyWithKind()] = struct{}{}
+	}
+
+	var changes []ResourceChange
+
+	for _, h := range getSortedResourceKeys(newHosts) {
+		newVSC, ok := newHosts[h].(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+
+		key := newVSC.GetKeyWithKind()
+		if _, skip := alreadyChanged[key]; skip {
+			continue
+		}
+
+		oldR, exists := oldHosts[h]
+		if !exists {
+			continue
+		}
+		oldVSC, ok := oldR.(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+
+		if !slices.Equal(oldVSC.Warnings, newVSC.Warnings) {
+			changes = append(changes, ResourceChange{
+				Op:       UpdateStatus,
+				Resource: newVSC,
+			})
+		}
+	}
+
+	return changes
+}
+
 func createResourceChangesForListeners(
 	removedListeners []listenerHostKey,
 	updatedListeners []listenerHostKey,
@@ -1741,12 +1829,14 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		vs := c.virtualServers[key]
 
 		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
+
+		// Challenge routes are kept out of VirtualServerRoutes so they never enter the VSR->VS index or VSR status updates.
 		for _, vsr := range challengesVSR {
-			if vs.Spec.Host == vsr.Spec.Host {
-				vsrs = append(vsrs, vsr)
+			if vs.Spec.Host == vsr.Spec.Host && vs.Namespace == vsr.Namespace {
+				resource.ChallengeRoutes = append(resource.ChallengeRoutes, vsr)
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1814,10 +1904,19 @@ func (c *Configuration) isChallengeIngress(ing *networking.Ingress) bool {
 	return ing.Labels["acme.cert-manager.io/http01-solver"] == "true"
 }
 
+// convertIngressToVSR converts a cert-manager HTTP-01 solver Ingress into a synthetic VirtualServerRoute.
+// It returns nil, so the Ingress is handled as a regular Ingress, unless the Ingress path and backend
+// service look like an ACME challenge and a VirtualServer in the same namespace owns the host.
+// The subroute path is the raw Ingress path, regardless of PathType.
 func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.VirtualServerRoute {
 	rule := ing.Spec.Rules[0]
+	path := rule.HTTP.Paths[0]
 
-	if !c.isChallengeIngressOwnerVs(rule.Host) {
+	if !configs.IsACMEChallengeLocation(path.Path, path.Backend.Service.Name) {
+		return nil
+	}
+
+	if !c.isChallengeIngressOwnerVs(rule.Host, ing.Namespace) {
 		return nil
 	}
 
@@ -1825,6 +1924,9 @@ func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.Vi
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
+			// IsEqual compares challenge routes by generation, so an in-place solver Ingress update
+			// must change it.
+			Generation: ing.Generation,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
 			Host: rule.Host,
@@ -1849,10 +1951,10 @@ func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.Vi
 	return vs
 }
 
-func (c *Configuration) isChallengeIngressOwnerVs(host string) bool {
+func (c *Configuration) isChallengeIngressOwnerVs(host, namespace string) bool {
 	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
 		vs := c.virtualServers[key]
-		if host == vs.Spec.Host {
+		if host == vs.Spec.Host && namespace == vs.Namespace {
 			return true
 		}
 	}
@@ -1966,9 +2068,15 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		vsr *conf_v1.VirtualServerRoute
 	}
 	var matched []matchedVSR
+	// Count label matches separately from the validated result set. A selector
+	// that matches a VSR later rejected by ValidateVirtualServerRouteForVirtualServer
+	// already emits an accurate per-VSR warning; treating an empty validated
+	// set as "matched nothing" would add a spurious second warning.
+	labelMatches := 0
 
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
+			labelMatches++
 			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
@@ -1978,6 +2086,16 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
 	}
+
+	if labelMatches == 0 {
+		warnings = append(warnings, fmt.Sprintf("VirtualServerRoute routeSelector %s matched no VirtualServerRoutes", selectorStr))
+	}
+
+	// The loop above ranges over a map, so the per-route "is invalid" warnings
+	// arrive in a random order. Warnings are compared with slices.Equal when
+	// deciding whether to emit an UpdateStatus, so a reorder alone would look
+	// like a change and flood the status with differently ordered messages.
+	sort.Strings(warnings)
 
 	// Sort before building the output slices.  The vsrs slice ends up as
 	// VirtualServerConfiguration.VirtualServerRoutes, which

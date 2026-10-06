@@ -172,6 +172,9 @@ type Server struct {
 	CustomHTTPErrorBackend string
 
 	AppRoot string
+
+	// ACMEChallengeActive is true when the server has at least one ACME HTTP-01 challenge location.
+	ACMEChallengeActive bool
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -276,6 +279,8 @@ type Location struct {
 	EgressMTLS                 *version2.EgressMTLS
 	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
+	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
+	ACMEChallenge bool
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

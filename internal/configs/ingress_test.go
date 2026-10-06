@@ -48,6 +48,156 @@ func TestGenerateNginxCfg(t *testing.T) {
 	}
 }
 
+func acmeChallengeIngressPath(pathType networking.PathType, serviceName string) networking.HTTPIngressPath {
+	return networking.HTTPIngressPath{
+		Path:     "/.well-known/acme-challenge/tok",
+		PathType: &pathType,
+		Backend: networking.IngressBackend{
+			Service: &networking.IngressServiceBackend{
+				Name: serviceName,
+				Port: networking.ServiceBackendPort{
+					Number: 8089,
+				},
+			},
+		},
+	}
+}
+
+func TestGenerateNginxCfgACMEChallengeLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		extraPath    *networking.HTTPIngressPath
+		wantPath     string
+		wantFlagged  bool
+		wantSrvFlag  bool
+		wantNumFlags int
+	}{
+		{
+			name:         "exact path to solver service",
+			extraPath:    new(acmeChallengeIngressPath(networking.PathTypeExact, "cm-acme-http-solver-abcde")),
+			wantPath:     "= /.well-known/acme-challenge/tok",
+			wantFlagged:  true,
+			wantSrvFlag:  true,
+			wantNumFlags: 1,
+		},
+		{
+			name:         "implementation specific path to solver service",
+			extraPath:    new(acmeChallengeIngressPath(networking.PathTypeImplementationSpecific, "cm-acme-http-solver-abcde")),
+			wantPath:     "/.well-known/acme-challenge/tok",
+			wantFlagged:  true,
+			wantSrvFlag:  true,
+			wantNumFlags: 1,
+		},
+		{
+			name:         "challenge path to non-solver service",
+			extraPath:    new(acmeChallengeIngressPath(networking.PathTypeExact, "coffee-svc")),
+			wantPath:     "= /.well-known/acme-challenge/tok",
+			wantFlagged:  false,
+			wantSrvFlag:  false,
+			wantNumFlags: 0,
+		},
+		{
+			name:         "no challenge path",
+			wantSrvFlag:  false,
+			wantNumFlags: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			isPlus := false
+			ingEx := createCafeIngressEx()
+			ingEx.Endpoints["cm-acme-http-solver-abcde8089"] = []string{"10.0.0.3:8089"}
+			ingEx.Endpoints["coffee-svc8089"] = []string{"10.0.0.1:8089"}
+			if tc.extraPath != nil {
+				rule := &ingEx.Ingress.Spec.Rules[0]
+				rule.HTTP.Paths = append(rule.HTTP.Paths, *tc.extraPath)
+			}
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &ingEx,
+				isPlus:        isPlus,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), isPlus),
+			})
+			if len(warnings) != 0 {
+				t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+			}
+			if len(result.Servers) != 1 {
+				t.Fatalf("generateNginxCfg() returned %d servers, want 1", len(result.Servers))
+			}
+
+			server := result.Servers[0]
+			if server.ACMEChallengeActive != tc.wantSrvFlag {
+				t.Errorf("Server.ACMEChallengeActive = %v, want %v", server.ACMEChallengeActive, tc.wantSrvFlag)
+			}
+
+			numFlags := 0
+			found := false
+			for _, loc := range server.Locations {
+				if loc.ACMEChallenge {
+					numFlags++
+				}
+				if tc.extraPath != nil && loc.Path == tc.wantPath {
+					found = true
+					if loc.ACMEChallenge != tc.wantFlagged {
+						t.Errorf("Location %q ACMEChallenge = %v, want %v", loc.Path, loc.ACMEChallenge, tc.wantFlagged)
+					}
+				}
+			}
+			if tc.extraPath != nil && !found {
+				t.Errorf("no location with path %q generated", tc.wantPath)
+			}
+			if numFlags != tc.wantNumFlags {
+				t.Errorf("got %d flagged locations, want %d", numFlags, tc.wantNumFlags)
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesACMEChallengeOnMinion(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	minion := mergeableIngresses.Minions[0]
+	rule := &minion.Ingress.Spec.Rules[0]
+	rule.HTTP.Paths = append(rule.HTTP.Paths, acmeChallengeIngressPath(networking.PathTypeExact, "cm-acme-http-solver-abcde"))
+	minion.Endpoints["cm-acme-http-solver-abcde8089"] = []string{"10.0.0.3:8089"}
+	minion.ValidMinionPaths["/.well-known/acme-challenge/tok"] = true
+
+	isPlus := false
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), isPlus),
+		isPlus:        isPlus,
+		staticParams:  &StaticConfigParams{},
+	})
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("generateNginxCfgForMergeableIngresses() returned %d servers, want 1", len(result.Servers))
+	}
+
+	if !result.Servers[0].ACMEChallengeActive {
+		t.Error("Server.ACMEChallengeActive = false, want true")
+	}
+
+	var flagged []string
+	for _, loc := range result.Servers[0].Locations {
+		if loc.ACMEChallenge {
+			flagged = append(flagged, loc.Path)
+		}
+	}
+	if len(flagged) != 1 || flagged[0] != "= /.well-known/acme-challenge/tok" {
+		t.Errorf("flagged locations = %v, want [= /.well-known/acme-challenge/tok]", flagged)
+	}
+}
+
 func TestGenerateNginxCfgForAddHeaderInherit(t *testing.T) {
 	t.Parallel()
 

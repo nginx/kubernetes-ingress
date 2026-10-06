@@ -4937,3 +4937,285 @@ func vsLocationBlock(t *testing.T, conf string, header string) string {
 	}
 	return rest
 }
+
+const (
+	acmeChallengeTestPath     = "/.well-known/acme-challenge/tok"
+	acmeChallengeRedirectExpr = `if ($uri ~ "^/\.well-known/acme-challenge/")`
+	// acmeChallengeTestLocArg is the challenge location argument as rendered: VirtualServer
+	// challenge locations are exact-match so regex routes cannot capture the token.
+	acmeChallengeTestLocArg = `= "` + acmeChallengeTestPath + `"`
+)
+
+// acmeChallengeTestLocation returns a fresh ACME HTTP-01 challenge location.
+func acmeChallengeTestLocation() Location {
+	return Location{
+		Path:                "= " + acmeChallengeTestPath,
+		ProxyConnectTimeout: "30s",
+		ProxyReadTimeout:    "31s",
+		ProxySendTimeout:    "32s",
+		ClientMaxBodySize:   "1m",
+		ProxyPass:           "http://vs_default_cafe_cm-acme-http-solver-abcde",
+		ServiceName:         "cm-acme-http-solver-abcde",
+		ACMEChallenge:       true,
+	}
+}
+
+// acmeChallengeTestCfg returns a copy of base whose Server serves loc next to a plain "/coffee"
+// location. The locations slice is built fresh so the shared package-level fixtures are never
+// mutated by tests running in parallel.
+func acmeChallengeTestCfg(base VirtualServerConfig, loc Location) VirtualServerConfig {
+	cfg := base
+	cfg.Server.ACMEChallengeActive = true
+	cfg.Server.Locations = []Location{
+		{
+			Path:                "/coffee",
+			ProxyConnectTimeout: "30s",
+			ProxyReadTimeout:    "31s",
+			ProxySendTimeout:    "32s",
+			ClientMaxBodySize:   "1m",
+			ProxyPass:           "http://coffee-v1",
+			ServiceName:         "coffee-svc",
+		},
+		loc,
+	}
+	return cfg
+}
+
+// locationBlock returns the text of the location block whose header is `location <path> {`, up to
+// and including its matching closing brace. path is the location argument as rendered, for
+// example `"/tea"` or `= "/tea"`.
+func locationBlock(t *testing.T, conf, path string) string {
+	t.Helper()
+
+	header := "location " + path + " {"
+	start := strings.Index(conf, header)
+	if start == -1 {
+		t.Fatalf("no %q in generated config:\n%s", header, conf)
+	}
+
+	depth := 0
+	for i := start + len(header) - 1; i < len(conf); i++ {
+		switch conf[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return conf[start : i+1]
+			}
+		}
+	}
+	t.Fatalf("no closing brace for %q in generated config", header)
+	return ""
+}
+
+func assertCount(t *testing.T, text, substr string, want int) {
+	t.Helper()
+	if got := strings.Count(text, substr); got != want {
+		t.Errorf("want %d occurrences of %q, got %d in:\n%s", want, substr, got, text)
+	}
+}
+
+func testVirtualServerACMEChallengeRedirectBypass(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
+	t.Helper()
+
+	cfg := acmeChallengeTestCfg(base, acmeChallengeTestLocation())
+	cfg.Server.TLSRedirect = &TLSRedirect{BasedOn: "$scheme", Code: 301}
+
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	assertCount(t, conf, acmeChallengeRedirectExpr, 1)
+	assertCount(t, conf, "location "+acmeChallengeTestLocArg+" {", 1)
+	assertCount(t, conf, `^/\\.well-known`, 0)
+	assertCount(t, conf, "set $vs_redirect_to_https 0;", 2)
+	assertCount(t, conf, "set $vs_redirect_to_https 1;", 1)
+	assertCount(t, conf, "if ($vs_redirect_to_https = 1) {", 1)
+	assertCount(t, conf, "return 301 https://$host$request_uri;", 1)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxACMEChallengeRedirectBypass(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeRedirectBypass(t, newTmplExecutorNGINX(t), virtualServerCfg)
+}
+
+func TestVirtualServerForNginxPlusACMEChallengeRedirectBypass(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeRedirectBypass(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
+}
+
+// acmeChallengeAuthTestCfg returns a config with server-level basic auth and external auth whose
+// challenge location also carries location-level basic auth, external auth and API key, to prove
+// that the template suppresses them rather than emitting them next to the "off" directives.
+func acmeChallengeAuthTestCfg(base VirtualServerConfig) VirtualServerConfig {
+	extAuth := &ExternalAuth{
+		URI: &AuthURI{
+			Service:      "oauth2-proxy",
+			Upstream:     "vs_exauth_default_external-auth-policy",
+			Path:         "/oauth2/auth",
+			InternalPath: "/_external_auth/oauth2/auth",
+		},
+		SigninRedirectBasePath: "/oauth2",
+	}
+	loc := acmeChallengeTestLocation()
+	loc.BasicAuth = &BasicAuth{Secret: "/etc/nginx/secrets/location-htpasswd", Realm: "location realm"}
+	loc.ExternalAuth = extAuth
+	loc.APIKey = &APIKey{Header: []string{"X-API-Key"}, MapName: "apikey_auth_client_name_loc"}
+
+	cfg := acmeChallengeTestCfg(base, loc)
+	cfg.Server.TLSRedirect = &TLSRedirect{BasedOn: "$scheme", Code: 301}
+	cfg.Server.BasicAuth = &BasicAuth{Secret: "/etc/nginx/secrets/server-htpasswd", Realm: "server realm"}
+	cfg.Server.ExternalAuth = extAuth
+	return cfg
+}
+
+func assertACMEChallengeLocationOSSAuthOff(t *testing.T, block string) {
+	t.Helper()
+	assertCount(t, block, "auth_basic off;", 1)
+	assertCount(t, block, "auth_request off;", 1)
+	assertCount(t, block, `auth_basic "`, 0)
+	assertCount(t, block, "auth_basic_user_file", 0)
+	assertCount(t, block, `auth_request "/`, 0)
+	assertCount(t, block, "auth_request /", 0)
+	assertCount(t, block, "error_page 401", 0)
+}
+
+func TestVirtualServerForNginxACMEChallengeWithAuth(t *testing.T) {
+	t.Parallel()
+
+	cfg := acmeChallengeAuthTestCfg(virtualServerCfg)
+	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	block := locationBlock(t, conf, acmeChallengeTestLocArg)
+	assertACMEChallengeLocationOSSAuthOff(t, block)
+	assertCount(t, conf, "auth_jwt", 0)
+	assertCount(t, conf, "auth_oidc", 0)
+
+	coffee := locationBlock(t, conf, `"/coffee"`)
+	assertCount(t, coffee, "auth_basic off;", 0)
+	assertCount(t, coffee, "auth_request off;", 0)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxPlusACMEChallengeWithAuth(t *testing.T) {
+	t.Parallel()
+
+	cfg := acmeChallengeAuthTestCfg(virtualServerCfgPlus)
+	data, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	block := locationBlock(t, conf, acmeChallengeTestLocArg)
+	assertACMEChallengeLocationOSSAuthOff(t, block)
+	assertCount(t, block, "auth_jwt off;", 1)
+	assertCount(t, block, "auth_oidc off;", 1)
+
+	coffee := locationBlock(t, conf, `"/coffee"`)
+	for _, unwanted := range []string{"auth_basic off;", "auth_request off;", "auth_jwt off;", "auth_oidc off;"} {
+		assertCount(t, coffee, unwanted, 0)
+	}
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxPlusACMEChallengeWithJWTAndOIDC(t *testing.T) {
+	t.Parallel()
+
+	loc := acmeChallengeTestLocation()
+	loc.JWTAuth = &JWTAuth{
+		Key:      "default/jwt-policy-loc",
+		Realm:    "location api",
+		Token:    "$http_token",
+		KeyCache: "1h",
+		JwksURI: JwksURI{
+			JwksScheme: "https",
+			JwksHost:   "idp.example.com",
+			JwksPath:   "/keys",
+		},
+	}
+	loc.OIDC = true
+	loc.OIDCProviderName = "oidc_default_my_provider_default_cafe"
+
+	cfg := acmeChallengeTestCfg(virtualServerCfgPlus, loc)
+	cfg.Server.TLSRedirect = &TLSRedirect{BasedOn: "$scheme", Code: 301}
+	cfg.Server.JWTAuth = &JWTAuth{Realm: "server api", Secret: "jwk-secret"}
+	cfg.Server.OIDCProviderName = "oidc_default_my_provider_default_cafe"
+	cfg.Server.OIDC = &OIDC{
+		AuthEndpoint:          "https://idp.example.com/auth",
+		ClientID:              "test-client",
+		ClientSecret:          "test-secret",
+		JwksURI:               "https://idp.example.com/jwks",
+		TokenEndpoint:         "https://idp.example.com/token",
+		EndSessionEndpoint:    "https://idp.example.com/logout",
+		PostLogoutRedirectURI: "https://example.com/logout",
+		Scope:                 "openid+profile+email",
+		AccessTokenEnable:     true,
+	}
+
+	data, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	block := locationBlock(t, conf, acmeChallengeTestLocArg)
+	assertCount(t, block, "auth_jwt off;", 1)
+	assertCount(t, block, "auth_oidc off;", 1)
+	assertCount(t, block, "auth_basic off;", 1)
+	assertCount(t, block, "auth_request off;", 1)
+	for _, unwanted := range []string{
+		`auth_jwt "`,
+		"auth_jwt_key_file",
+		"auth_jwt_key_request",
+		"auth_jwt_key_cache",
+		"@do_oidc_flow",
+		"auth_oidc oidc_default_my_provider_default_cafe;",
+		"$access_token",
+		"error_page 401",
+	} {
+		assertCount(t, block, unwanted, 0)
+	}
+
+	// Server-level auth stays in place, so non-challenge locations remain protected.
+	assertCount(t, conf, `auth_jwt "server api";`, 1)
+	assertCount(t, conf, "auth_oidc oidc_default_my_provider_default_cafe;", 1)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func testVirtualServerRedirectNoChallengeUnchanged(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
+	t.Helper()
+
+	cfg := base
+	cfg.Server.TLSRedirect = &TLSRedirect{BasedOn: "$scheme", Code: 301}
+	cfg.Server.ACMEChallengeActive = false
+
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	assertCount(t, conf, "vs_redirect_to_https", 0)
+	assertCount(t, conf, "acme-challenge", 0)
+	assertCount(t, conf, "if ($scheme = 'http') {\n        return 301 https://$host$request_uri;\n    }", 1)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxRedirectNoChallengeUnchanged(t *testing.T) {
+	t.Parallel()
+	testVirtualServerRedirectNoChallengeUnchanged(t, newTmplExecutorNGINX(t), virtualServerCfg)
+}
+
+func TestVirtualServerForNginxPlusRedirectNoChallengeUnchanged(t *testing.T) {
+	t.Parallel()
+	testVirtualServerRedirectNoChallengeUnchanged(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
+}

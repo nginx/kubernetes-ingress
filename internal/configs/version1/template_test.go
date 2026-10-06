@@ -9029,3 +9029,301 @@ func locationBlock(t *testing.T, conf string, header string) string {
 	}
 	return rest
 }
+
+const (
+	acmeChallengeTestPath     = "/.well-known/acme-challenge/tok"
+	acmeChallengeTestHeader   = `location = "/.well-known/acme-challenge/tok" {`
+	acmeChallengeRedirectExpr = `if ($uri ~ "^/\.well-known/acme-challenge/")`
+)
+
+// acmeChallengeIngressLocation returns a fresh Exact-path ACME HTTP-01 challenge location.
+func acmeChallengeIngressLocation() Location {
+	return Location{
+		Path:                "= " + acmeChallengeTestPath,
+		ServiceName:         "cm-acme-http-solver-abcde",
+		Upstream:            testUpstream,
+		ProxyConnectTimeout: "10s",
+		ProxyReadTimeout:    "10s",
+		ProxySendTimeout:    "10s",
+		ClientMaxBodySize:   "1m",
+		ProxyPass:           "http://test",
+		ACMEChallenge:       true,
+	}
+}
+
+// acmeChallengeIngressCfg returns a copy of ingressCfg whose single server has an active challenge
+// and serves loc followed by a plain "/tea" location. The server and its locations are built
+// fresh so the shared package-level fixture is never mutated by tests running in parallel.
+func acmeChallengeIngressCfg(loc Location) IngressNginxConfig {
+	cfg := ingressCfg
+	server := ingressCfg.Servers[0]
+	server.ACMEChallengeActive = true
+	server.Locations = []Location{
+		loc,
+		{
+			Path:                "/tea",
+			ServiceName:         "tea-svc",
+			Upstream:            testUpstreamWithKeepalive,
+			ProxyConnectTimeout: "10s",
+			ProxyReadTimeout:    "10s",
+			ProxySendTimeout:    "10s",
+			ClientMaxBodySize:   "2m",
+			ProxyPass:           "http://test",
+		},
+	}
+	cfg.Servers = []Server{server}
+	return cfg
+}
+
+func executeIngressTmpl(t *testing.T, tmpl *template.Template, cfg IngressNginxConfig) string {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	if err := tmpl.Execute(buf, cfg); err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	return buf.String()
+}
+
+func assertCount(t *testing.T, text, substr string, want int) {
+	t.Helper()
+	if got := strings.Count(text, substr); got != want {
+		t.Errorf("want %d occurrences of %q, got %d in:\n%s", want, substr, got, text)
+	}
+}
+
+var ingressTemplates = []struct {
+	name    string
+	newTmpl func(t *testing.T) *template.Template
+	plus    bool
+}{
+	{name: "nginx", newTmpl: newNGINXIngressTmpl},
+	{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl, plus: true},
+}
+
+func TestExecuteTemplatesForACMEChallengeSSLRedirect(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := acmeChallengeIngressCfg(acmeChallengeIngressLocation())
+			conf := executeIngressTmpl(t, tt.newTmpl(t), cfg)
+
+			assertCount(t, conf, acmeChallengeRedirectExpr, 1)
+			assertCount(t, conf, `^/\\.well-known`, 0)
+			assertCount(t, conf, "set $redirect 0;", 2)
+			assertCount(t, conf, "set $redirect 1;", 1)
+			assertCount(t, conf, "if ($redirect = 1) {", 1)
+			assertCount(t, conf, "return 301 https://$host:443$request_uri;", 1)
+			assertCount(t, conf, "if ($request_uri = ", 0)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+func TestExecuteTemplatesForACMEChallengeSSLRedirectWithHealthStatus(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := acmeChallengeIngressCfg(acmeChallengeIngressLocation())
+			cfg.Servers[0].HealthStatus = true
+			cfg.Servers[0].HealthStatusURI = "/nginx-health"
+			conf := executeIngressTmpl(t, tt.newTmpl(t), cfg)
+
+			assertCount(t, conf, acmeChallengeRedirectExpr, 1)
+			assertCount(t, conf, `if ($request_uri = "/nginx-health") {`, 1)
+			assertCount(t, conf, "set $redirect 0;", 3)
+			assertCount(t, conf, "set $redirect 1;", 1)
+			assertCount(t, conf, "if ($redirect = 1) {", 1)
+			assertCount(t, conf, "return 301 https://$host:443$request_uri;", 1)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+func TestExecuteTemplatesForACMEChallengeRedirectToHTTPS(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := acmeChallengeIngressCfg(acmeChallengeIngressLocation())
+			cfg.Servers[0].SSLRedirect = false
+			cfg.Servers[0].RedirectToHTTPS = true
+			conf := executeIngressTmpl(t, tt.newTmpl(t), cfg)
+
+			assertCount(t, conf, acmeChallengeRedirectExpr, 1)
+			assertCount(t, conf, "set $redirect_to_https 0;", 2)
+			assertCount(t, conf, "if ($http_x_forwarded_proto = 'http') {\n\t\tset $redirect_to_https 1;\n\t}", 1)
+			assertCount(t, conf, "if ($redirect_to_https = 1) {\n\t\treturn 301 https://$host$request_uri;\n\t}", 1)
+			assertCount(t, conf, "return 301 https://$host$request_uri;", 1)
+			assertCount(t, conf, "$redirect ", 0)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+// TestExecuteTemplatesForACMEChallengeWithBasicAuth sets server and location basic auth plus a
+// location snippet that would re-add auth_basic, and checks the challenge location replaces all of
+// it with a single "auth_basic off;" in both the HTTP and gRPC branches.
+func TestExecuteTemplatesForACMEChallengeWithBasicAuth(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		for _, grpc := range []bool{false, true} {
+			name := tt.name + "/http"
+			if grpc {
+				name = tt.name + "/grpc"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				loc := acmeChallengeIngressLocation()
+				loc.GRPC = grpc
+				loc.BasicAuth = &BasicAuth{Realm: "location realm", Secret: "/etc/nginx/secrets/location-htpasswd"}
+				loc.LocationSnippets = []string{`auth_basic "x";`}
+				loc.ExternalAuth = &version2.ExternalAuth{URI: &version2.AuthURI{InternalPath: "/_external_auth/loc"}}
+				cfg := acmeChallengeIngressCfg(loc)
+				cfg.Servers[0].BasicAuth = &BasicAuth{Realm: "server realm", Secret: "/etc/nginx/secrets/server-htpasswd"}
+				cfg.Servers[0].ExternalAuth = &version2.ExternalAuth{URI: &version2.AuthURI{InternalPath: "/_external_auth/server"}}
+				conf := executeIngressTmpl(t, tt.newTmpl(t), cfg)
+
+				block := locationBlock(t, conf, acmeChallengeTestHeader)
+				assertCount(t, block, "auth_basic off;", 1)
+				assertCount(t, block, "auth_request off;", 1)
+				assertCount(t, block, `auth_basic "`, 0)
+				assertCount(t, block, "auth_basic_user_file", 0)
+				assertCount(t, block, `auth_request "/`, 0)
+				assertCount(t, block, "error_page 401 = @external_auth", 0)
+				if tt.plus {
+					assertCount(t, block, "auth_jwt off;", 1)
+					assertCount(t, block, "auth_oidc off;", 1)
+				} else {
+					assertCount(t, conf, "auth_jwt", 0)
+					assertCount(t, conf, "auth_oidc", 0)
+				}
+
+				// Server-level auth is kept so the rest of the host stays protected.
+				assertCount(t, conf, `auth_basic "server realm";`, 1)
+				assertCount(t, conf, `auth_request "/_external_auth/server";`, 1)
+				tea := locationBlock(t, conf, `location "/tea" {`)
+				assertCount(t, tea, "auth_basic off;", 0)
+				assertCount(t, tea, "auth_request off;", 0)
+				snaps.MatchSnapshot(t, conf)
+			})
+		}
+	}
+}
+
+func TestExecuteTemplatesForACMEChallengeWithJWT(t *testing.T) {
+	t.Parallel()
+	for _, grpc := range []bool{false, true} {
+		name := "http"
+		if grpc {
+			name = "grpc"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			loc := acmeChallengeIngressLocation()
+			loc.GRPC = grpc
+			loc.JWTAuth = &JWTAuth{
+				Key:                  "/etc/nginx/secrets/location-key.jwk",
+				Realm:                "location realm",
+				Token:                "$cookie_auth_token",
+				RedirectLocationName: "@login_url-default-cafe-ingress",
+			}
+			loc.OIDCProviderName = "oidc_default_provider"
+			cfg := acmeChallengeIngressCfg(loc)
+			cfg.Servers[0].OIDCProviderName = "oidc_default_provider"
+			conf := executeIngressTmpl(t, newNGINXPlusIngressTmpl(t), cfg)
+
+			block := locationBlock(t, conf, acmeChallengeTestHeader)
+			assertCount(t, block, "auth_jwt off;", 1)
+			assertCount(t, block, "auth_oidc off;", 1)
+			assertCount(t, block, "auth_basic off;", 1)
+			assertCount(t, block, "auth_request off;", 1)
+			for _, unwanted := range []string{`auth_jwt "`, "auth_jwt_key_file", "error_page 401 @login_url", "auth_oidc oidc_default_provider;"} {
+				assertCount(t, block, unwanted, 0)
+			}
+
+			// Server-level JWT and OIDC stay in place.
+			assertCount(t, conf, `auth_jwt "closed site" token=$cookie_auth_token;`, 1)
+			assertCount(t, conf, "auth_oidc oidc_default_provider;", 1)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+// TestExecuteTemplatesForACMEChallengeMergeable renders a master server with minion locations,
+// one of which is the challenge, and checks only the flagged minion location is exempted.
+func TestExecuteTemplatesForACMEChallengeMergeable(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			challenge := acmeChallengeIngressLocation()
+			challenge.MinionIngress = &Ingress{
+				Name:        "cm-acme-http-solver-abcde",
+				Namespace:   "default",
+				Annotations: map[string]string{"nginx.org/mergeable-ingress-type": "minion"},
+			}
+			challenge.BasicAuth = &BasicAuth{Realm: "minion realm", Secret: "/etc/nginx/secrets/minion-htpasswd"}
+			challenge.JWTAuth = &JWTAuth{Key: "/etc/nginx/secrets/minion-key.jwk", Realm: "minion realm"}
+
+			cfg := acmeChallengeIngressCfg(challenge)
+			cfg.Ingress.Annotations = map[string]string{"nginx.org/mergeable-ingress-type": "master"}
+			cfg.Servers[0].BasicAuth = &BasicAuth{Realm: "master realm", Secret: "/etc/nginx/secrets/master-htpasswd"}
+			tea := cfg.Servers[0].Locations[1]
+			tea.MinionIngress = &Ingress{
+				Name:        "tea-minion",
+				Namespace:   "default",
+				Annotations: map[string]string{"nginx.org/mergeable-ingress-type": "minion"},
+			}
+			tea.BasicAuth = &BasicAuth{Realm: "tea realm", Secret: "/etc/nginx/secrets/tea-htpasswd"}
+			cfg.Servers[0].Locations = []Location{cfg.Servers[0].Locations[0], tea}
+			conf := executeIngressTmpl(t, tt.newTmpl(t), cfg)
+
+			assertCount(t, conf, acmeChallengeRedirectExpr, 1)
+			block := locationBlock(t, conf, acmeChallengeTestHeader)
+			assertCount(t, block, "# location for minion default/cm-acme-http-solver-abcde", 1)
+			assertCount(t, block, "auth_basic off;", 1)
+			assertCount(t, block, `auth_basic "`, 0)
+			if tt.plus {
+				assertCount(t, block, "auth_jwt off;", 1)
+				assertCount(t, block, `auth_jwt "`, 0)
+			}
+
+			teaBlock := locationBlock(t, conf, `location "/tea" {`)
+			assertCount(t, teaBlock, `auth_basic "tea realm";`, 1)
+			assertCount(t, teaBlock, "auth_basic off;", 0)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+func TestExecuteTemplatesForIngressRedirectNoChallengeUnchanged(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := acmeChallengeIngressCfg(Location{
+				Path:                "/coffee",
+				ServiceName:         "coffee-svc",
+				Upstream:            testUpstream,
+				ProxyConnectTimeout: "10s",
+				ProxyReadTimeout:    "10s",
+				ProxySendTimeout:    "10s",
+				ClientMaxBodySize:   "1m",
+				ProxyPass:           "http://test",
+			})
+			cfg.Servers[0].ACMEChallengeActive = false
+			cfg.Servers[0].RedirectToHTTPS = true
+			conf := executeIngressTmpl(t, tt.newTmpl(t), cfg)
+
+			assertCount(t, conf, "acme-challenge", 0)
+			assertCount(t, conf, "redirect_to_https", 0)
+			assertCount(t, conf, "$redirect", 0)
+			assertCount(t, conf, "auth_basic off;", 0)
+			assertCount(t, conf, "if ($scheme = http) {\n\t\treturn 301 https://$host:443$request_uri;\n\t}", 1)
+			assertCount(t, conf, "if ($http_x_forwarded_proto = 'http') {\n\t\treturn 301 https://$host$request_uri;\n\t}", 1)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}

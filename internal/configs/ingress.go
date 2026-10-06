@@ -819,6 +819,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		server.Locations = locations
+		server.ACMEChallengeActive = hasACMEChallengeLocation(locations)
 		server.HealthChecks = healthChecks
 		server.GRPCOnly = grpcOnly
 		server.HasGRPCLocations = hasGRPCLocations
@@ -1199,6 +1200,16 @@ func (ingEx *IngressEx) proxyHTTPVersionForBackend(configured string, backend *n
 	return resolveProxyHTTPVersion(configured, ingEx.ServiceAppProtocols[key])
 }
 
+// hasACMEChallengeLocation reports whether any of the locations serves an ACME HTTP-01 challenge.
+func hasACMEChallengeLocation(locs []version1.Location) bool {
+	for _, loc := range locs {
+		if loc.ACMEChallenge {
+			return true
+		}
+	}
+	return false
+}
+
 func createLocation(p locationParams) version1.Location {
 	cfg := p.cfg
 	loc := version1.Location{
@@ -1232,6 +1243,7 @@ func createLocation(p locationParams) version1.Location {
 		LocationSnippets:         cfg.LocationSnippets,
 		ServiceName:              p.serviceName,
 	}
+	loc.ACMEChallenge = IsACMEChallengeLocation(loc.Path, p.serviceName)
 
 	return loc
 }
@@ -1578,6 +1590,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	masterServer.HealthChecks = healthChecks
 	masterServer.Locations = append(masterInternalLocations, locations...)
+	masterServer.ACMEChallengeActive = hasACMEChallengeLocation(masterServer.Locations)
 	masterServer.HasGRPCLocations = hasGRPCLocations
 	masterServer.GRPCOnly = hasGRPCLocations && grpcOnly
 
