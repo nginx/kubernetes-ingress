@@ -1033,7 +1033,7 @@ func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *co
 		}
 	}
 
-	for _, vsr := range vsEx.VirtualServerRoutes {
+	for _, vsr := range slices.Concat(vsEx.VirtualServerRoutes, vsEx.ChallengeRoutes) {
 		for _, upstream := range vsr.Spec.Upstreams {
 			ns, name := configs.ParseServiceReference(upstream.Service, vsr.Namespace)
 			if ns == svcNamespace && name == serviceName && !upstream.UseClusterIP {
@@ -3848,6 +3848,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		virtualServerEx.HTTPIPv6 = vsc.HTTPIPv6
 		virtualServerEx.HTTPSIPv4 = vsc.HTTPSIPv4
 		virtualServerEx.HTTPSIPv6 = vsc.HTTPSIPv6
+		virtualServerEx.ChallengeRoutes = vsc.ChallengeRoutes
 	}
 
 	if virtualServer.Spec.TLS != nil && virtualServer.Spec.TLS.Secret != "" {
@@ -3931,25 +3932,6 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	externalNameSvcs := make(map[string]bool)
 	podsByIP := make(map[string]configs.PodInfo)
 
-	// generateBackupEndpoints takes the Upstream, determines if backup and backup port are defined.
-	// If backup and backup port are defined it generates a backup server entry for the upstream.
-	// Backup Service is of type ExternalName.
-	generateBackupEndpoints := func(endpoints map[string][]string, u conf_v1.Upstream) {
-		if u.Backup == "" || u.BackupPort == nil {
-			return
-		}
-		backupEndpointsKey := configs.GenerateEndpointsKey(virtualServer.Namespace, u.Backup, u.Subselector, *u.BackupPort)
-		backupEndps, external, err := lbc.getEndpointsForUpstream(virtualServer.Namespace, u.Backup, *u.BackupPort)
-		if err != nil {
-			nl.Warnf(l, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
-		}
-		if err == nil && external {
-			externalNameSvcs[configs.GenerateExternalNameSvcKey(virtualServer.Namespace, u.Backup)] = true
-		}
-		bendps := getIPAddressesFromEndpoints(backupEndps)
-		endpoints[backupEndpointsKey] = bendps
-	}
-
 	for _, u := range virtualServer.Spec.Upstreams {
 		serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, virtualServer.Namespace)
 		endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
@@ -3994,7 +3976,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			}
 		}
 
-		generateBackupEndpoints(endpoints, u)
+		lbc.generateBackupEndpoints(l, virtualServer.Namespace, u, endpoints, externalNameSvcs)
 		endpoints[endpointsKey] = endps
 
 		if appProtocol := lbc.getAppProtocolForUpstream(serviceNamespace, serviceName, u.Port); appProtocol != "" {
@@ -4142,55 +4124,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			}
 		}
 
-		for _, u := range vsr.Spec.Upstreams {
-			serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, vsr.Namespace)
-			endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
+		lbc.resolveVSRUpstreamEndpoints(l, virtualServer.Namespace, vsr, endpoints, externalNameSvcs, podsByIP, serviceAppProtocols)
+	}
 
-			var endps []string
-			if u.UseClusterIP {
-				s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
-				if err != nil {
-					nl.Warnf(l, "Error getting Service for Upstream %v: %v", u.Service, err)
-				} else {
-					endps = append(endps, fmt.Sprintf("%s:%d", s.Spec.ClusterIP, u.Port))
-				}
-
-			} else {
-				var podEndps []podEndpoint
-				var err error
-				if len(u.Subselector) > 0 {
-					podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
-				} else {
-					var external bool
-					podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
-
-					if err == nil && external && lbc.isNginxPlus {
-						externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
-					}
-				}
-				if err != nil {
-					nl.Warnf(l, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
-				}
-
-				endps = getIPAddressesFromEndpoints(podEndps)
-
-				if lbc.isNginxPlus || lbc.isLatencyMetricsEnabled {
-					for _, endpoint := range podEndps {
-						podsByIP[endpoint.Address] = configs.PodInfo{
-							Name:         endpoint.PodName,
-							MeshPodOwner: endpoint.MeshPodOwner,
-						}
-					}
-				}
-			}
-
-			generateBackupEndpoints(endpoints, u)
-			endpoints[endpointsKey] = endps
-
-			if appProtocol := lbc.getAppProtocolForUpstream(serviceNamespace, serviceName, u.Port); appProtocol != "" {
-				serviceAppProtocols[endpointsKey] = appProtocol
-			}
-		}
+	for _, cr := range virtualServerEx.ChallengeRoutes {
+		lbc.resolveVSRUpstreamEndpoints(l, virtualServer.Namespace, cr, endpoints, externalNameSvcs, podsByIP, serviceAppProtocols)
 	}
 
 	lbc.generateExternalAuthEndpoints(policies, endpoints)
@@ -4203,6 +4141,88 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	virtualServerEx.PodsByIP = podsByIP
 
 	return &virtualServerEx
+}
+
+// generateBackupEndpoints determines if backup and backup port are defined for the Upstream.
+// If they are, it generates a backup server entry for the upstream. The backup Service is of type ExternalName
+// and is looked up in vsNamespace, the namespace of the owning VirtualServer.
+func (lbc *LoadBalancerController) generateBackupEndpoints(l *slog.Logger, vsNamespace string, u conf_v1.Upstream, endpoints map[string][]string, externalNameSvcs map[string]bool) {
+	if u.Backup == "" || u.BackupPort == nil {
+		return
+	}
+	backupEndpointsKey := configs.GenerateEndpointsKey(vsNamespace, u.Backup, u.Subselector, *u.BackupPort)
+	backupEndps, external, err := lbc.getEndpointsForUpstream(vsNamespace, u.Backup, *u.BackupPort)
+	if err != nil {
+		nl.Warnf(l, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
+	}
+	if err == nil && external {
+		externalNameSvcs[configs.GenerateExternalNameSvcKey(vsNamespace, u.Backup)] = true
+	}
+	bendps := getIPAddressesFromEndpoints(backupEndps)
+	endpoints[backupEndpointsKey] = bendps
+}
+
+// resolveVSRUpstreamEndpoints resolves the endpoints of every upstream of a VirtualServerRoute
+// (including synthetic ACME challenge routes) and records them in the given maps.
+// vsNamespace is the namespace of the owning VirtualServer, used to look up backup Services.
+func (lbc *LoadBalancerController) resolveVSRUpstreamEndpoints(
+	l *slog.Logger,
+	vsNamespace string,
+	vsr *conf_v1.VirtualServerRoute,
+	endpoints map[string][]string,
+	externalNameSvcs map[string]bool,
+	podsByIP map[string]configs.PodInfo,
+	serviceAppProtocols map[string]string,
+) {
+	for _, u := range vsr.Spec.Upstreams {
+		serviceNamespace, serviceName := configs.ParseServiceReference(u.Service, vsr.Namespace)
+		endpointsKey := configs.GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)
+
+		var endps []string
+		if u.UseClusterIP {
+			s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
+			if err != nil {
+				nl.Warnf(l, "Error getting Service for Upstream %v: %v", u.Service, err)
+			} else {
+				endps = append(endps, fmt.Sprintf("%s:%d", s.Spec.ClusterIP, u.Port))
+			}
+
+		} else {
+			var podEndps []podEndpoint
+			var err error
+			if len(u.Subselector) > 0 {
+				podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
+			} else {
+				var external bool
+				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
+
+				if err == nil && external && lbc.isNginxPlus {
+					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
+				}
+			}
+			if err != nil {
+				nl.Warnf(l, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
+			}
+
+			endps = getIPAddressesFromEndpoints(podEndps)
+
+			if lbc.isNginxPlus || lbc.isLatencyMetricsEnabled {
+				for _, endpoint := range podEndps {
+					podsByIP[endpoint.Address] = configs.PodInfo{
+						Name:         endpoint.PodName,
+						MeshPodOwner: endpoint.MeshPodOwner,
+					}
+				}
+			}
+		}
+
+		lbc.generateBackupEndpoints(l, vsNamespace, u, endpoints, externalNameSvcs)
+		endpoints[endpointsKey] = endps
+
+		if appProtocol := lbc.getAppProtocolForUpstream(serviceNamespace, serviceName, u.Port); appProtocol != "" {
+			serviceAppProtocols[endpointsKey] = appProtocol
+		}
+	}
 }
 
 func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*conf_v1.Policy, endpoints map[string][]string) {

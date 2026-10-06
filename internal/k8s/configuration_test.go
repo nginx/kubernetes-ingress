@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -1395,7 +1396,10 @@ func TestAddVirtualServerWithExistingVirtualServerRoute(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid"},
+				Warnings: []string{
+					"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid",
+					"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes",
+				},
 			},
 		},
 	}
@@ -3803,7 +3807,8 @@ func TestChallengeIngressToVSR(t *testing.T) {
 			Resource: &VirtualServerConfiguration{
 				VirtualServer:               vs,
 				VirtualServerRouteSelectors: map[string][]string{},
-				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
+				VirtualServerRoutes:         nil,
+				ChallengeRoutes:             []*conf_v1.VirtualServerRoute{vsr1},
 				Warnings:                    nil,
 			},
 		},
@@ -3895,6 +3900,245 @@ func TestChallengeIngressNoVSR(t *testing.T) {
 	}
 	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
 		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+// assertChallengeIngressNotAttached checks that a solver Ingress was not turned into a challenge route
+// and was handled as a regular Ingress that lost its host to the VirtualServer.
+func assertChallengeIngressNotAttached(t *testing.T, configuration *Configuration, changes []ResourceChange, vs *conf_v1.VirtualServer, ing *networking.Ingress) {
+	t.Helper()
+
+	for _, c := range changes {
+		if vsConfig, ok := c.Resource.(*VirtualServerConfiguration); ok && len(vsConfig.ChallengeRoutes) > 0 {
+			t.Errorf("expected no VirtualServerConfiguration with ChallengeRoutes, got %v", vsConfig.ChallengeRoutes)
+		}
+	}
+
+	host := ing.Spec.Rules[0].Host
+	holder, ok := configuration.hosts[host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected host %s to be held by a VirtualServerConfiguration, got %T", host, configuration.hosts[host])
+	}
+	if holder.VirtualServer != vs {
+		t.Errorf("expected host %s to be held by VirtualServer %s/%s", host, vs.Namespace, vs.Name)
+	}
+	if len(holder.ChallengeRoutes) != 0 {
+		t.Errorf("expected no ChallengeRoutes on VirtualServer, got %v", holder.ChallengeRoutes)
+	}
+
+	_, resources, _ := configuration.buildHostsAndResources()
+	r, exists := resources[getResourceKeyWithKind(ingressKind, &ing.ObjectMeta)]
+	if !exists {
+		t.Fatalf("expected Ingress %s/%s to be handled as an IngressConfiguration", ing.Namespace, ing.Name)
+	}
+	ingConfig, ok := r.(*IngressConfiguration)
+	if !ok {
+		t.Fatalf("expected *IngressConfiguration, got %T", r)
+	}
+	wantWarning := fmt.Sprintf("host %s is taken by another resource", host)
+	if !slices.Contains(ingConfig.Warnings, wantWarning) {
+		t.Errorf("expected warning %q on Ingress, got %v", wantWarning, ingConfig.Warnings)
+	}
+}
+
+// TestChallengeIngressInPlaceUpdateUpdatesVirtualServer verifies that editing an attached solver
+// Ingress in place (same name, new generation and challenge path) produces a VirtualServer update
+// that carries the new challenge route.
+func TestChallengeIngressInPlaceUpdateUpdatesVirtualServer(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+	configuration.AddOrUpdateVirtualServer(vs)
+
+	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/old", "cm-acme-http-solver-test")
+	ing.Generation = 1
+	configuration.AddOrUpdateIngress(ing)
+
+	updatedIng := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/new", "cm-acme-http-solver-test")
+	updatedIng.CreationTimestamp = ing.CreationTimestamp
+	updatedIng.Generation = 2
+
+	expectedRoute := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/new")
+	expectedRoute.Generation = 2
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
+				ChallengeRoutes:             []*conf_v1.VirtualServerRoute{expectedRoute},
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(updatedIng)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected changes (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() returned unexpected problems: %v", problems)
+	}
+}
+
+func TestChallengeIngressDifferentNamespaceNotAttached(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
+	ing.Namespace = "other"
+
+	configuration.AddOrUpdateVirtualServer(vs)
+	changes, _ := configuration.AddOrUpdateIngress(ing)
+
+	assertChallengeIngressNotAttached(t, configuration, changes, vs, ing)
+}
+
+func TestChallengeIngressNonSolverServiceNotAttached(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "tea-svc")
+
+	configuration.AddOrUpdateVirtualServer(vs)
+	changes, _ := configuration.AddOrUpdateIngress(ing)
+
+	assertChallengeIngressNotAttached(t, configuration, changes, vs, ing)
+}
+
+func TestChallengeRoutesNotInVSRIndex(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
+	syntheticVSR := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/test")
+
+	configuration.AddOrUpdateVirtualServer(vs)
+	configuration.AddOrUpdateIngress(ing)
+
+	vsConfig, ok := configuration.hosts["foo.example.com"].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected host to be held by a VirtualServerConfiguration, got %T", configuration.hosts["foo.example.com"])
+	}
+	if diff := cmp.Diff([]*conf_v1.VirtualServerRoute{syntheticVSR}, vsConfig.ChallengeRoutes); diff != "" {
+		t.Errorf("unexpected ChallengeRoutes (-want +got):\n%s", diff)
+	}
+	if len(vsConfig.VirtualServerRoutes) != 0 {
+		t.Errorf("expected no VirtualServerRoutes, got %v", vsConfig.VirtualServerRoutes)
+	}
+
+	if got := configuration.GetVirtualServersForVirtualServerRoute(syntheticVSR); len(got) != 0 {
+		t.Errorf("expected no VirtualServers for the synthetic challenge route, got %v", got)
+	}
+
+	for _, vsr := range configuration.GetVirtualServerRoutesWithChangedReferences() {
+		if vsr.Namespace == ing.Namespace && vsr.Name == ing.Name {
+			t.Errorf("expected synthetic challenge route %s/%s not to be reported as a changed reference", vsr.Namespace, vsr.Name)
+		}
+	}
+}
+
+func TestHostlessVSRWithACMEPathIsNotChallengeRoute(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "shared",
+		},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			IngressClass: "nginx",
+			Upstreams: []conf_v1.Upstream{
+				{
+					Name:    "solver",
+					Service: "cm-acme-http-solver-fake",
+					Port:    8089,
+				},
+			},
+			Subroutes: []conf_v1.Route{
+				{
+					Path: "/.well-known/acme-challenge/x",
+					Action: &conf_v1.Action{
+						Pass: "solver",
+					},
+				},
+			},
+		},
+	}
+	vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com", []conf_v1.Route{
+		{Path: "/.well-known/acme-challenge/", Route: "default/shared"},
+	})
+
+	configuration.AddOrUpdateVirtualServerRoute(vsr)
+	_, problems := configuration.AddOrUpdateVirtualServer(vs)
+	if len(problems) != 0 {
+		t.Errorf("expected no problems, got %v", problems)
+	}
+
+	vsConfig, ok := configuration.hosts["foo.example.com"].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected host to be held by a VirtualServerConfiguration, got %T", configuration.hosts["foo.example.com"])
+	}
+	if diff := cmp.Diff([]*conf_v1.VirtualServerRoute{vsr}, vsConfig.VirtualServerRoutes); diff != "" {
+		t.Errorf("unexpected VirtualServerRoutes (-want +got):\n%s", diff)
+	}
+	if len(vsConfig.ChallengeRoutes) != 0 {
+		t.Errorf("expected no ChallengeRoutes, got %v", vsConfig.ChallengeRoutes)
+	}
+}
+
+func TestIsEqualForVirtualServersChallengeRoutes(t *testing.T) {
+	t.Parallel()
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+	challenge := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/test")
+
+	challengeWithUpdatedGen := challenge.DeepCopy()
+	challengeWithUpdatedGen.Generation++
+
+	withChallenges := func(routes ...*conf_v1.VirtualServerRoute) *VirtualServerConfiguration {
+		vsConfig := NewVirtualServerConfiguration(vs, nil, nil, []string{})
+		vsConfig.ChallengeRoutes = routes
+		return vsConfig
+	}
+
+	tests := []struct {
+		vsConfig1 *VirtualServerConfiguration
+		vsConfig2 *VirtualServerConfiguration
+		expected  bool
+		msg       string
+	}{
+		{
+			vsConfig1: withChallenges(challenge),
+			vsConfig2: withChallenges(challenge),
+			expected:  true,
+			msg:       "same challenge routes",
+		},
+		{
+			vsConfig1: withChallenges(challenge),
+			vsConfig2: withChallenges(),
+			expected:  false,
+			msg:       "one challenge route vs none",
+		},
+		{
+			vsConfig1: withChallenges(challenge),
+			vsConfig2: withChallenges(challengeWithUpdatedGen),
+			expected:  false,
+			msg:       "challenge routes with different generation",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			if result := test.vsConfig1.IsEqual(test.vsConfig2); result != test.expected {
+				t.Errorf("IsEqual() returned %v but expected %v", result, test.expected)
+			}
+		})
 	}
 }
 
@@ -5693,6 +5937,7 @@ func TestMatchVSwithVSRusingSelector(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
+				Warnings:                    []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
 			},
 		},
 	}
@@ -5759,7 +6004,10 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid"},
+				Warnings: []string{
+					"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid",
+					"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes",
+				},
 			},
 		},
 	}
@@ -5784,6 +6032,7 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1, vsr2},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
+				Warnings:                    []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
 			},
 		},
 	}
@@ -6310,7 +6559,21 @@ func TestValidateVSRSelectors(t *testing.T) {
 			expectedVSRSelectors: map[string][]string{
 				"app=route": {},
 			},
-			expectedWarns: nil,
+			expectedWarns: []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
+		},
+		{
+			name: "VSR exists but labels do not match",
+			route: &conf_v1.Route{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
+			vsHost:       "cafe.example.com",
+			vsrs:         []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("tea", "default", "cafe.example.com", "/", map[string]string{"app": "other"})},
+			expectedVSRs: nil,
+			expectedVSRSelectors: map[string][]string{
+				"app=route": {},
+			},
+			expectedWarns: []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
 		},
 		{
 			name: "VSR exists but host mismatch",
@@ -6353,6 +6616,115 @@ func TestValidateVSRSelectors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestLostVirtualServerRouteWarnsForNamedAndSelectorAttachment verifies that
+// losing a VirtualServerRoute is reported the same way for both attachment
+// methods. Named `route:` already warned; routeSelector previously stayed
+// silent and left the VirtualServer Valid. Warnings on VirtualServerConfiguration
+// are what the controller uses to set State: Warning.
+func TestLostVirtualServerRouteWarnsForNamedAndSelectorAttachment(t *testing.T) {
+	t.Parallel()
+
+	newCafeResources := func() (*conf_v1.VirtualServer, *conf_v1.VirtualServerRoute, *conf_v1.VirtualServerRoute) {
+		namedVSR := createTestVirtualServerRoute("coffee-named", "default", "cafe.example.com", "/coffee")
+		selectorVSR := createTestVirtualServerRouteWithLabels("tea-selected", "default", "cafe.example.com", "/tea", map[string]string{"route-group": "cafe"})
+		vs := createTestVirtualServerWithRoutes("cafe", "cafe.example.com", []conf_v1.Route{
+			{Path: "/coffee", Route: "default/coffee-named"},
+			{Path: "/tea", RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"route-group": "cafe"}}},
+		})
+		return vs, namedVSR, selectorVSR
+	}
+
+	t.Run("both attachments present: no warnings", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+
+		changes, problems := configuration.AddOrUpdateVirtualServer(vs)
+		if diff := cmp.Diff([]ConfigurationProblem(nil), problems); diff != "" {
+			t.Errorf("problems (-want +got):\n%s", diff)
+		}
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig, ok := changes[0].Resource.(*VirtualServerConfiguration)
+		if !ok {
+			t.Fatalf("expected VirtualServerConfiguration, got %T", changes[0].Resource)
+		}
+		if diff := cmp.Diff([]string(nil), vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("named route deleted: warning", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+		configuration.AddOrUpdateVirtualServer(vs)
+
+		changes, problems := configuration.DeleteVirtualServerRoute("default/coffee-named")
+		if diff := cmp.Diff([]ConfigurationProblem(nil), problems); diff != "" {
+			t.Errorf("problems (-want +got):\n%s", diff)
+		}
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig := changes[0].Resource.(*VirtualServerConfiguration)
+		want := []string{"VirtualServerRoute default/coffee-named doesn't exist or invalid"}
+		if diff := cmp.Diff(want, vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("selector route deleted: warning", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+		configuration.AddOrUpdateVirtualServer(vs)
+
+		changes, problems := configuration.DeleteVirtualServerRoute("default/tea-selected")
+		if diff := cmp.Diff([]ConfigurationProblem(nil), problems); diff != "" {
+			t.Errorf("problems (-want +got):\n%s", diff)
+		}
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig := changes[0].Resource.(*VirtualServerConfiguration)
+		want := []string{"VirtualServerRoute routeSelector route-group=cafe matched no VirtualServerRoutes"}
+		if diff := cmp.Diff(want, vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("selector route ingressClassName changed: warning", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+		configuration.AddOrUpdateVirtualServer(vs)
+
+		unowned := selectorVSR.DeepCopy()
+		unowned.Generation++
+		unowned.Spec.IngressClass = "other"
+
+		changes, _ := configuration.AddOrUpdateVirtualServerRoute(unowned)
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig := changes[0].Resource.(*VirtualServerConfiguration)
+		want := []string{"VirtualServerRoute routeSelector route-group=cafe matched no VirtualServerRoutes"}
+		if diff := cmp.Diff(want, vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
 }
 
 // selectorTestVSRCount is the number of VSRs registered under a single
@@ -8057,4 +8429,53 @@ func TestConfigurationPolicyStore(t *testing.T) {
 
 	// DeletePolicy on a key that was never added must not panic.
 	cfg.DeletePolicy("default/never-added")
+}
+
+func TestFindResourcesForServiceIncludesChallengeRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("attached challenge route", func(t *testing.T) {
+		t.Parallel()
+		configuration := createTestConfiguration()
+
+		vs := createTestVirtualServer("virtualserver", "foo.example.com")
+		ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
+		configuration.AddOrUpdateVirtualServer(vs)
+		configuration.AddOrUpdateIngress(ing)
+
+		vsConfig, ok := configuration.hosts["foo.example.com"].(*VirtualServerConfiguration)
+		if !ok || len(vsConfig.ChallengeRoutes) != 1 {
+			t.Fatalf("expected a VirtualServerConfiguration with 1 challenge route, got %T %+v", configuration.hosts["foo.example.com"], configuration.hosts["foo.example.com"])
+		}
+
+		want := []Resource{vsConfig}
+		if diff := cmp.Diff(want, configuration.FindResourcesForService("default", "cm-acme-http-solver-test")); diff != "" {
+			t.Errorf("FindResourcesForService() mismatch (-want +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(want, configuration.FindResourcesForEndpoints("default", "cm-acme-http-solver-test")); diff != "" {
+			t.Errorf("FindResourcesForEndpoints() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("challenge Ingress in another namespace is not attached", func(t *testing.T) {
+		t.Parallel()
+		configuration := createTestConfiguration()
+
+		vs := createTestVirtualServer("virtualserver", "foo.example.com")
+		ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
+		ing.Namespace = "other"
+		configuration.AddOrUpdateVirtualServer(vs)
+		configuration.AddOrUpdateIngress(ing)
+
+		for _, r := range configuration.FindResourcesForService("other", "cm-acme-http-solver-test") {
+			if vsConfig, ok := r.(*VirtualServerConfiguration); ok && vsConfig.VirtualServer.Name == vs.Name {
+				t.Errorf("expected VirtualServer %s/%s not to be returned for an unattached solver Service", vs.Namespace, vs.Name)
+			}
+		}
+		for _, r := range configuration.FindResourcesForService("default", "cm-acme-http-solver-test") {
+			if vsConfig, ok := r.(*VirtualServerConfiguration); ok && vsConfig.VirtualServer.Name == vs.Name {
+				t.Errorf("expected VirtualServer %s/%s not to be returned for an unattached solver Service", vs.Namespace, vs.Name)
+			}
+		}
+	})
 }

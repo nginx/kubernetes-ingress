@@ -97,9 +97,24 @@ server {
     {{- end }}
 
     {{- with $s.TLSRedirect }}
+    {{- if $s.ACMEChallengeActive }}
+    {{- /* ACME HTTP-01 challenges must be answered over plain HTTP. The exemption has to
+           live at server level: rewrite-module directives here run before location selection. */}}
+    set $vs_redirect_to_https 0;
+    if ({{ .BasedOn }} = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return {{ .Code }} https://$host$request_uri;
+    }
+    {{- else }}
     if ({{ .BasedOn }} = 'http') {
         return {{ .Code }} https://$host$request_uri;
     }
+    {{- end }}
     {{- end }}
 
     server_tokens "{{ $s.ServerTokens }}";
@@ -310,7 +325,7 @@ server {
         {{ $snippet }}
         {{- end }}
 
-        {{- if $l.AuthRequestOff }}
+        {{- if or $l.AuthRequestOff $l.ACMEChallenge }}
         auth_request off;
         {{- else if $l.ExternalAuth }}
         auth_request {{ printf "%q" $l.ExternalAuth.URI.InternalPath }};
@@ -357,11 +372,18 @@ server {
             {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
         {{- end }}
 
+        {{- if $l.ACMEChallenge }}
+        auth_basic off;
+        {{- else }}
         {{- with $l.BasicAuth }}
         auth_basic {{ printf "%q" .Realm }};
         auth_basic_user_file {{ .Secret }};
         {{- end }}
+        {{- end }}
 
+        {{- if $l.ACMEChallenge }}
+        {{- /* auth_request off is emitted above; a second auth_request would fail nginx -t. */}}
+        {{- else }}
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";
         set $header_query_value {{ makeHeaderQueryValue $l.APIKey }};
@@ -372,6 +394,7 @@ server {
         {{- else }}
         {{- with $s.APIKey }}
         set $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
+        {{- end }}
         {{- end }}
         {{- end }}
 

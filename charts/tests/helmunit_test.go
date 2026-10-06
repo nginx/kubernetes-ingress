@@ -26,9 +26,10 @@ func TestHelmNICTemplate(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		valuesFile  string
-		releaseName string
-		namespace   string
+		valuesFile    string
+		releaseName   string
+		namespace     string
+		templateFiles []string
 	}{
 		"default values file": {
 			valuesFile:  "",
@@ -225,6 +226,18 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "nodeport-zero",
 			namespace:   "default",
 		},
+		"additionalServices": {
+			valuesFile:    "testdata/additional-services.yaml",
+			releaseName:   "additional-services",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
+		"additionalServicesCommonLabels": {
+			valuesFile:    "testdata/additional-services-common-labels.yaml",
+			releaseName:   "additional-services-common-labels",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
@@ -243,6 +256,11 @@ func TestHelmNICTemplate(t *testing.T) {
 		"allowEmptyIngressHostWithoutCRs": {
 			valuesFile:  "testdata/allow-empty-ingress-host-no-crs.yaml",
 			releaseName: "allow-empty-ingress-host-no-crs",
+			namespace:   "default",
+		},
+		"defaultListenerPortsWithoutCRs": {
+			valuesFile:  "testdata/default-listener-ports-no-crs.yaml",
+			releaseName: "default-listener-ports-no-crs",
 			namespace:   "default",
 		},
 		"commonLabels": {
@@ -271,7 +289,12 @@ func TestHelmNICTemplate(t *testing.T) {
 				options.valuesFiles = []string{tc.valuesFile}
 			}
 
-			output := renderTemplate(t, helmChartPath, tc.releaseName, options)
+			var extraArgs []string
+			for _, f := range tc.templateFiles {
+				extraArgs = append(extraArgs, "--show-only", f)
+			}
+
+			output := renderTemplate(t, helmChartPath, tc.releaseName, options, extraArgs...)
 
 			assertNoDuplicateYAMLKeys(t, output)
 
@@ -333,6 +356,42 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "global-config-empty-name",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"additionalServiceWithoutPorts": {
+			valuesFile:        "testdata/additional-service-without-ports.yaml",
+			releaseName:       "additional-service-without-ports",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"missing property 'ports'"},
+		},
+		"additionalServiceExternalName": {
+			valuesFile:        "testdata/additional-service-external-name.yaml",
+			releaseName:       "additional-service-external-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"value must be one of 'ClusterIP', 'NodePort', 'LoadBalancer'"},
+		},
+		"additionalServiceEmptyPorts": {
+			valuesFile:        "testdata/additional-service-empty-ports.yaml",
+			releaseName:       "additional-service-empty-ports",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"minItems: got 0, want 1"},
+		},
+		"additionalServiceNameCollision": {
+			valuesFile:        "testdata/additional-service-name-collision.yaml",
+			releaseName:       "additional-service-name-collision",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"additional Service name \"duplicate-service\" must not match the primary controller Service name"},
+		},
+		"additionalServiceInvalidName": {
+			valuesFile:        "testdata/additional-service-invalid-name.yaml",
+			releaseName:       "additional-service-invalid-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'Invalid_Name' does not match pattern"},
+		},
+		"additionalServiceReservedLabel": {
+			valuesFile:        "testdata/additional-service-reserved-label.yaml",
+			releaseName:       "additional-service-reserved-label",
+			namespace:         "default",
+			expectedErrorMsgs: []string{`label "app.kubernetes.io/managed-by" is managed by the chart and cannot be overridden`},
 		},
 		"latencyMetricsBucketsInvalid": {
 			valuesFile:        "testdata/latency-metrics-buckets-invalid.yaml",

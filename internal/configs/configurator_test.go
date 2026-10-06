@@ -2006,6 +2006,25 @@ func TestUpstreamsForHost_VirtualServerRoutes(t *testing.T) {
 	}
 }
 
+func TestUpstreamsForVirtualServerIncludesChallengeRoutes(t *testing.T) {
+	t.Parallel()
+
+	tcnf := createTestConfigurator(t)
+	vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+
+	got := tcnf.upstreamsForVirtualServer(&vsEx)
+
+	var found bool
+	for _, name := range got {
+		if name == acmeTestChallengeUpstream {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("want %q in upstreamsForVirtualServer result, got %v", acmeTestChallengeUpstream, got)
+	}
+}
+
 func TestUpstreamsForHost_DoesNotReturnUpstreamsOnBogusHostname(t *testing.T) {
 	t.Parallel()
 

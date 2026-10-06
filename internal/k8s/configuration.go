@@ -225,8 +225,11 @@ func NewMinionConfiguration(ing *networking.Ingress) *MinionConfiguration {
 
 // VirtualServerConfiguration holds a VirtualServer along with its VirtualServerRoutes.
 type VirtualServerConfiguration struct {
-	VirtualServer               *conf_v1.VirtualServer
-	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
+	VirtualServer       *conf_v1.VirtualServer
+	VirtualServerRoutes []*conf_v1.VirtualServerRoute
+	// ChallengeRoutes holds synthetic VirtualServerRoutes built from cert-manager ACME HTTP-01 solver Ingresses.
+	// They are kept apart from VirtualServerRoutes so they never enter the VSR->VS index or VSR status updates.
+	ChallengeRoutes             []*conf_v1.VirtualServerRoute
 	VirtualServerRouteSelectors map[string][]string
 	Warnings                    []string
 	HTTPPort                    int
@@ -286,6 +289,16 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 
 	for i := range vsc.VirtualServerRoutes {
 		if !compareObjectMetas(&vsc.VirtualServerRoutes[i].ObjectMeta, &vsConfig.VirtualServerRoutes[i].ObjectMeta) {
+			return false
+		}
+	}
+
+	if len(vsc.ChallengeRoutes) != len(vsConfig.ChallengeRoutes) {
+		return false
+	}
+
+	for i := range vsc.ChallengeRoutes {
+		if !compareObjectMetas(&vsc.ChallengeRoutes[i].ObjectMeta, &vsConfig.ChallengeRoutes[i].ObjectMeta) {
 			return false
 		}
 	}
@@ -1291,10 +1304,26 @@ func (c *Configuration) findResourcesForResourceReference(namespace string, name
 				continue
 			}
 
+			found := false
 			for _, vsr := range impl.VirtualServerRoutes {
 				if checker.IsReferencedByVirtualServerRoute(namespace, name, vsr) {
 					result = append(result, r)
+					found = true
 					break
+				}
+			}
+			if found {
+				continue
+			}
+
+			// ACME challenge routes reference only their solver Service. Match them for Service/Endpoints
+			// lookups so solver endpoint changes reach the challenge upstream; never for other reference kinds.
+			if _, isServiceChecker := checker.(*serviceReferenceChecker); isServiceChecker {
+				for _, cr := range impl.ChallengeRoutes {
+					if checker.IsReferencedByVirtualServerRoute(namespace, name, cr) {
+						result = append(result, r)
+						break
+					}
 				}
 			}
 		case *TransportServerConfiguration:
@@ -1881,12 +1910,14 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		vs := c.virtualServers[key]
 
 		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
+
+		// Challenge routes are kept out of VirtualServerRoutes so they never enter the VSR->VS index or VSR status updates.
 		for _, vsr := range challengesVSR {
-			if vs.Spec.Host == vsr.Spec.Host {
-				vsrs = append(vsrs, vsr)
+			if vs.Spec.Host == vsr.Spec.Host && vs.Namespace == vsr.Namespace {
+				resource.ChallengeRoutes = append(resource.ChallengeRoutes, vsr)
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1954,10 +1985,19 @@ func (c *Configuration) isChallengeIngress(ing *networking.Ingress) bool {
 	return ing.Labels["acme.cert-manager.io/http01-solver"] == "true"
 }
 
+// convertIngressToVSR converts a cert-manager HTTP-01 solver Ingress into a synthetic VirtualServerRoute.
+// It returns nil, so the Ingress is handled as a regular Ingress, unless the Ingress path and backend
+// service look like an ACME challenge and a VirtualServer in the same namespace owns the host.
+// The subroute path is the raw Ingress path, regardless of PathType.
 func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.VirtualServerRoute {
 	rule := ing.Spec.Rules[0]
+	path := rule.HTTP.Paths[0]
 
-	if !c.isChallengeIngressOwnerVs(rule.Host) {
+	if !configs.IsACMEChallengeLocation(path.Path, path.Backend.Service.Name) {
+		return nil
+	}
+
+	if !c.isChallengeIngressOwnerVs(rule.Host, ing.Namespace) {
 		return nil
 	}
 
@@ -1965,6 +2005,9 @@ func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.Vi
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
+			// IsEqual compares challenge routes by generation, so an in-place solver Ingress update
+			// must change it.
+			Generation: ing.Generation,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
 			Host: rule.Host,
@@ -1989,10 +2032,10 @@ func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.Vi
 	return vs
 }
 
-func (c *Configuration) isChallengeIngressOwnerVs(host string) bool {
+func (c *Configuration) isChallengeIngressOwnerVs(host, namespace string) bool {
 	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
 		vs := c.virtualServers[key]
-		if host == vs.Spec.Host {
+		if host == vs.Spec.Host && namespace == vs.Namespace {
 			return true
 		}
 	}
@@ -2106,9 +2149,15 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		vsr *conf_v1.VirtualServerRoute
 	}
 	var matched []matchedVSR
+	// Count label matches separately from the validated result set. A selector
+	// that matches a VSR later rejected by ValidateVirtualServerRouteForVirtualServer
+	// already emits an accurate per-VSR warning; treating an empty validated
+	// set as "matched nothing" would add a spurious second warning.
+	labelMatches := 0
 
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
+			labelMatches++
 			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
@@ -2117,6 +2166,10 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 			}
 			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
+	}
+
+	if labelMatches == 0 {
+		warnings = append(warnings, fmt.Sprintf("VirtualServerRoute routeSelector %s matched no VirtualServerRoutes", selectorStr))
 	}
 
 	// The loop above ranges over a map, so the per-route "is invalid" warnings
