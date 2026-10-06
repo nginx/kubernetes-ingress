@@ -50,6 +50,7 @@ Supporting images built outside this Dockerfile:
 - `.github/data/matrix-images-nap.json` builds both halves of each pair for WAF and WAF+DoS (`nap_modules: waf` and `nap_modules: waf,dos`). DoS-only (`nap_modules: dos`) builds on the standard `plus-nap` stages (`debian-plus-nap` and `ubi-10-plus-nap`), which conditionally install Agent v3 when `NAP_MODULES=dos`, publishing Agent v3 under standard tags without redundant `-agent` image variants.
 - Both the **local Makefile targets** (`debian-image-dos-plus`, `ubi-image-dos-plus`) and the CI matrix use `plus-nap` (`debian-plus-nap`, `ubi-10-plus-nap`) with Agent v3 for DoS-only images.
 - Python e2e tests distinguish the two agents with the `agentv2` / `agentv3` pytest markers.
+- Matrix row schema and the checklist for adding an image: [docs/developer/image-matrices.md](../../../docs/developer/image-matrices.md).
 
 ---
 

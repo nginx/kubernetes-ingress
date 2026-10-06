@@ -175,6 +175,8 @@ Because the stages are decoupled and live in separate repos, a transient failure
 
 Image variants and test configurations are defined in JSON under `.github/data/`:
 
+The `matrix-images-*.json` rows use `build_os` / `image` / `tag_suffix` and are checked by `.github/scripts/validate-image-matrices.sh`. See [docs/developer/image-matrices.md](../../../docs/developer/image-matrices.md) for the schema and the checklist for adding an image.
+
 - `matrix-images-oss.json`: debian, alpine, ubi (amd64 + arm64)
 - `matrix-images-plus.json`: debian-plus, alpine-plus, alpine-plus-fips, ubi-10-plus
 - `matrix-images-plus-lts.json`: LTS Plus image definitions
