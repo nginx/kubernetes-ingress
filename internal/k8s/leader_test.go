@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -589,5 +590,68 @@ func TestEnsureLeaseOwner_IsBoundedByTimeout(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("ensureLeaseOwner blocked on a stalled Lease request instead of timing out")
+	}
+}
+
+func TestLeaseOwnerCheckedCallback_SkipsHandlerWhenCanceled(t *testing.T) {
+	t.Parallel()
+	requested := make(chan struct{})
+	var once sync.Once
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		once.Do(func() { close(requested) })
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	owner := deploymentOwnerRef()
+	lbc := &LoadBalancerController{
+		client:                 kubernetes.NewForConfigOrDie(&rest.Config{Host: srv.URL}),
+		Logger:                 nl.LoggerFromContext(context.Background()),
+		leaderElectionLockName: testLeaseName,
+		leaseOwner:             &owner,
+		metadata:               controllerMetadata{namespace: testLeaseNamespace},
+	}
+
+	var called atomic.Bool
+	callback := lbc.leaseOwnerCheckedCallback(func(context.Context) { called.Store(true) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		callback(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-requested:
+	case <-time.After(5 * time.Second):
+		cancel()
+		t.Fatal("timed out waiting for the Lease owner request")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("callback did not return after the context was canceled")
+	}
+	if called.Load() {
+		t.Error("expected the status handler not to run after leadership was canceled")
+	}
+}
+
+func TestLeaseOwnerCheckedCallback_RunsHandler(t *testing.T) {
+	t.Parallel()
+	owner := deploymentOwnerRef()
+	lbc := &LoadBalancerController{
+		client:                 fake.NewClientset(),
+		Logger:                 nl.LoggerFromContext(context.Background()),
+		leaderElectionLockName: testLeaseName,
+		leaseOwner:             &owner,
+		metadata:               controllerMetadata{namespace: testLeaseNamespace},
+	}
+	var called atomic.Bool
+	lbc.leaseOwnerCheckedCallback(func(context.Context) { called.Store(true) })(context.Background())
+	if !called.Load() {
+		t.Error("expected the status handler to run")
 	}
 }

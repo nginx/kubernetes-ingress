@@ -283,6 +283,19 @@ func createLeaderHandler(lbc *LoadBalancerController) leaderelection.LeaderCallb
 	}
 }
 
+// leaseOwnerCheckedCallback wraps OnStartedLeading to first restore the Lease
+// owner, which an older replica may have dropped. It skips the handler if
+// leadership ended meanwhile, so no status is written after losing the Lease.
+func (lbc *LoadBalancerController) leaseOwnerCheckedCallback(onStartedLeading func(context.Context)) func(context.Context) {
+	return func(ctx context.Context) {
+		lbc.ensureLeaseOwner(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		onStartedLeading(ctx)
+	}
+}
+
 // addLeaderHandler adds the handler for leader election to the controller
 func (lbc *LoadBalancerController) addLeaderHandler(leaderHandler leaderelection.LeaderCallbacks) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaseOwnerLookupTimeout)
@@ -295,12 +308,7 @@ func (lbc *LoadBalancerController) addLeaderHandler(leaderHandler leaderelection
 	lbc.leaseOwner = owner
 
 	if owner != nil && leaderHandler.OnStartedLeading != nil {
-		onStartedLeading := leaderHandler.OnStartedLeading
-		leaderHandler.OnStartedLeading = func(ctx context.Context) {
-			// An older replica may have recreated the Lease without an owner.
-			lbc.ensureLeaseOwner(ctx)
-			onStartedLeading(ctx)
-		}
+		leaderHandler.OnStartedLeading = lbc.leaseOwnerCheckedCallback(leaderHandler.OnStartedLeading)
 	}
 
 	lbc.leaderElector, err = newLeaderElector(lbc.client, leaderHandler, lbc.metadata.namespace, lbc.leaderElectionLockName, lbc.leaderElectionIdentity(), owner)
