@@ -341,6 +341,7 @@ func main() {
 		CertManagerEnabled:           *enableCertManager,
 		ExternalDNSEnabled:           *enableExternalDNS,
 		IsIPV6Disabled:               *disableIPV6,
+		ClusterDomain:                *clusterDomain,
 		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
 		AllowEmptyIngressHost:        *allowEmptyIngressHost,
 		WatchNamespaceLabel:          *watchNamespaceLabel,

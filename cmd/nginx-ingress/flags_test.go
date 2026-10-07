@@ -509,3 +509,17 @@ func assertPLMFlagsRefs(t *testing.T, refs plmSecretRefs, wantCredentials, wantC
 		t.Errorf("validatePLMFlags: ClientSSL = %q, want %q", got, wantClientSSL)
 	}
 }
+
+func TestValidateClusterDomain(t *testing.T) {
+	t.Parallel()
+	for _, domain := range []string{"cluster.local", "example.internal", "k8s"} {
+		if err := validateClusterDomain(domain); err != nil {
+			t.Errorf("validateClusterDomain(%q) returned an error for a valid domain: %v", domain, err)
+		}
+	}
+	for _, domain := range []string{"", "cluster.local.", "cluster..local", "Cluster.Local", "cluster.local;", "-cluster.local"} {
+		if err := validateClusterDomain(domain); err == nil {
+			t.Errorf("validateClusterDomain(%q) returned no error for an invalid domain", domain)
+		}
+	}
+}

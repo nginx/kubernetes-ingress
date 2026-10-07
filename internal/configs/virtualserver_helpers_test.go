@@ -4208,3 +4208,64 @@ func TestCreateUpstreamsForPlusSkipsExternalNameServices(t *testing.T) {
 		t.Errorf("createUpstreamsForPlus() returned %v, expected only the upstream vs_default_cafe_juice", result)
 	}
 }
+
+func TestHeadlessServiceWithUseClusterIPIsResolvedOnlyForUseClusterIPUpstreams(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "coffee", Service: "coffee-svc", Port: 80, UseClusterIP: true},
+					{Name: "coffee-pods", Service: "coffee-svc", Port: 8080},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/coffee", Action: &conf_v1.Action{Pass: "coffee"}},
+					{Path: "/coffee-pods", Action: &conf_v1.Action{Pass: "coffee-pods"}},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/coffee-svc:80":   {"coffee-svc.default.svc.cluster.local:8080"},
+			"default/coffee-svc:8080": {"10.0.0.20:8080"},
+		},
+		HeadlessSvcs: map[string]bool{"default/coffee-svc": true},
+	}
+
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, true, &StaticConfigParams{}, false, nil)
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", warnings)
+	}
+
+	want := map[string]version2.Upstream{
+		"vs_default_cafe_coffee": {
+			Servers: []version2.UpstreamServer{{Address: "coffee-svc.default.svc.cluster.local:8080"}},
+			Resolve: true,
+		},
+		"vs_default_cafe_coffee-pods": {
+			Servers: []version2.UpstreamServer{{Address: "10.0.0.20:8080"}},
+			Resolve: false,
+		},
+	}
+	if len(result.Upstreams) != len(want) {
+		t.Fatalf("GenerateVirtualServerConfig returned %d upstreams, expected %d", len(result.Upstreams), len(want))
+	}
+	for _, ups := range result.Upstreams {
+		if !cmp.Equal(want[ups.Name].Servers, ups.Servers) {
+			t.Errorf("upstream %s: %s", ups.Name, cmp.Diff(want[ups.Name].Servers, ups.Servers))
+		}
+		if ups.Resolve != want[ups.Name].Resolve {
+			t.Errorf("upstream %s: Resolve = %v, expected %v", ups.Name, ups.Resolve, want[ups.Name].Resolve)
+		}
+	}
+
+	plusUpstreams := createUpstreamsForPlus(&virtualServerEx, &ConfigParams{Context: context.Background()}, &StaticConfigParams{})
+	if len(plusUpstreams) != 1 || plusUpstreams[0].Name != "vs_default_cafe_coffee-pods" {
+		t.Errorf("createUpstreamsForPlus() returned %v, expected only the upstream vs_default_cafe_coffee-pods", plusUpstreams)
+	}
+}

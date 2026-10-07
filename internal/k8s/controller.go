@@ -255,6 +255,7 @@ type LoadBalancerController struct {
 	updateAllConfigsOnBatch       bool
 	enableBatchReload             bool
 	isIPV6Disabled                bool
+	clusterDomain                 string
 	namespaceWatcherController    cache.Controller
 	telemetryCollector            *telemetry.Collector
 	telemetryChan                 chan struct{}
@@ -340,6 +341,7 @@ type NewLoadBalancerControllerInput struct {
 	CertManagerEnabled           bool
 	ExternalDNSEnabled           bool
 	IsIPV6Disabled               bool
+	ClusterDomain                string
 	IsDirectiveAutoadjustEnabled bool
 	WatchNamespaceLabel          string
 	EnableTelemetryReporting     bool
@@ -390,6 +392,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		isPrometheusEnabled:          input.IsPrometheusEnabled,
 		isLatencyMetricsEnabled:      input.IsLatencyMetricsEnabled,
 		isIPV6Disabled:               input.IsIPV6Disabled,
+		clusterDomain:                input.ClusterDomain,
 		weightChangesDynamicReload:   input.DynamicWeightChangesReload,
 		nginxConfigMapName:           input.ConfigMaps,
 		mgmtConfigMapName:            input.MGMTConfigMap,
@@ -3867,6 +3870,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	endpoints := make(map[string][]string)
 	serviceAppProtocols := make(map[string]string)
 	externalNameSvcs := make(map[string]bool)
+	headlessSvcs := make(map[string]bool)
 	podsByIP := make(map[string]configs.PodInfo)
 
 	for _, u := range virtualServer.Spec.Upstreams {
@@ -3875,13 +3879,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 
 		var endps []string
 		if u.UseClusterIP {
-			s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
-			if err != nil {
-				nl.Warnf(l, "Error getting Service for Upstream %v: %v", u.Service, err)
-			} else {
-				endps = append(endps, ipv6SafeAddrPort(s.Spec.ClusterIP, int32(u.Port)))
-			}
-
+			endps = lbc.getClusterIPEndpointsForUpstream(l, serviceNamespace, serviceName, u, headlessSvcs)
 		} else {
 			var podEndps []podEndpoint
 			var err error
@@ -4061,11 +4059,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			}
 		}
 
-		lbc.resolveVSRUpstreamEndpoints(l, virtualServer.Namespace, vsr, endpoints, externalNameSvcs, podsByIP, serviceAppProtocols)
+		lbc.resolveVSRUpstreamEndpoints(l, virtualServer.Namespace, vsr, endpoints, externalNameSvcs, headlessSvcs, podsByIP, serviceAppProtocols)
 	}
 
 	for _, cr := range virtualServerEx.ChallengeRoutes {
-		lbc.resolveVSRUpstreamEndpoints(l, virtualServer.Namespace, cr, endpoints, externalNameSvcs, podsByIP, serviceAppProtocols)
+		lbc.resolveVSRUpstreamEndpoints(l, virtualServer.Namespace, cr, endpoints, externalNameSvcs, headlessSvcs, podsByIP, serviceAppProtocols)
 	}
 
 	lbc.generateExternalAuthEndpoints(policies, endpoints)
@@ -4074,6 +4072,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	virtualServerEx.ServiceAppProtocols = serviceAppProtocols
 	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
 	virtualServerEx.ExternalNameSvcs = externalNameSvcs
+	virtualServerEx.HeadlessSvcs = headlessSvcs
 	virtualServerEx.Policies = createPolicyMap(policies)
 	virtualServerEx.PodsByIP = podsByIP
 
@@ -4108,6 +4107,7 @@ func (lbc *LoadBalancerController) resolveVSRUpstreamEndpoints(
 	vsr *conf_v1.VirtualServerRoute,
 	endpoints map[string][]string,
 	externalNameSvcs map[string]bool,
+	headlessSvcs map[string]bool,
 	podsByIP map[string]configs.PodInfo,
 	serviceAppProtocols map[string]string,
 ) {
@@ -4117,13 +4117,7 @@ func (lbc *LoadBalancerController) resolveVSRUpstreamEndpoints(
 
 		var endps []string
 		if u.UseClusterIP {
-			s, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
-			if err != nil {
-				nl.Warnf(l, "Error getting Service for Upstream %v: %v", u.Service, err)
-			} else {
-				endps = append(endps, fmt.Sprintf("%s:%d", s.Spec.ClusterIP, u.Port))
-			}
-
+			endps = lbc.getClusterIPEndpointsForUpstream(l, serviceNamespace, serviceName, u, headlessSvcs)
 		} else {
 			var podEndps []podEndpoint
 			var err error
@@ -4778,6 +4772,59 @@ func getEndpointsFromEndpointSlicesForSubselectedPods(targetPort int32, pods []*
 	}
 
 	return makePodEndpoints(pods, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, svcEndpointSlices)))
+}
+
+// getClusterIPEndpointsForUpstream returns the endpoint of an upstream with use-cluster-ip.
+// For a headless Service, which has no cluster IP, it returns the fully qualified domain name of the Service
+// with the target port, and marks the Service in headlessSvcs so that NGINX resolves the pod addresses at runtime.
+func (lbc *LoadBalancerController) getClusterIPEndpointsForUpstream(
+	l *slog.Logger,
+	serviceNamespace string,
+	serviceName string,
+	u conf_v1.Upstream,
+	headlessSvcs map[string]bool,
+) []string {
+	svc, err := lbc.getServiceForUpstream(serviceNamespace, serviceName, u.Port)
+	if err != nil {
+		nl.Warnf(l, "Error getting Service for Upstream %v: %v", u.Service, err)
+		return nil
+	}
+
+	if !isHeadless(svc) {
+		return []string{ipv6SafeAddrPort(svc.Spec.ClusterIP, int32(u.Port))}
+	}
+
+	endpoint, err := getHeadlessServiceEndpoint(svc, u.Port, lbc.clusterDomain)
+	if err != nil {
+		nl.Warnf(l, "Error getting endpoint of headless Service for Upstream %v: %v", u.Service, err)
+		return nil
+	}
+	headlessSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
+	return []string{endpoint}
+}
+
+// getHeadlessServiceEndpoint returns the fully qualified domain name of a headless Service with the target port of the Service port.
+// DNS records of a headless Service point to the pods directly, so the target port is used instead of the Service port.
+// Named target ports are not supported, as they can differ between pods and are not part of DNS A records.
+func getHeadlessServiceEndpoint(svc *api_v1.Service, port uint16, clusterDomain string) (string, error) {
+	for _, svcPort := range svc.Spec.Ports {
+		if svcPort.Port != int32(port) {
+			continue
+		}
+
+		targetPort := svcPort.Port
+		switch {
+		case svcPort.TargetPort == intstr.IntOrString{}:
+		case svcPort.TargetPort.Type == intstr.Int:
+			targetPort = svcPort.TargetPort.IntVal
+		default:
+			return "", fmt.Errorf("named target port %q of port %d is not supported", svcPort.TargetPort.StrVal, port)
+		}
+
+		return net.JoinHostPort(fmt.Sprintf("%s.%s.svc.%s", svc.Name, svc.Namespace, clusterDomain), strconv.Itoa(int(targetPort))), nil
+	}
+
+	return "", fmt.Errorf("no port %d in service %s", port, svc.Name)
 }
 
 func ipv6SafeAddrPort(addr string, port int32) string {
