@@ -84,6 +84,25 @@ Downgrade or drop a finding when any of these apply:
 7. **Verify claims before commenting.** Grep for the symbol, read the referenced file, run `make lint`/`make test` if in doubt.
 8. **Run the completeness gate** below before writing anything.
 9. **Produce the review** in the Output Format below.
+10. **Clean up.** Leave no trace of the review -- see below.
+
+### Local checkout and cleanup
+
+This section applies only to reviews run on a developer's machine, where a review can leave worktrees, branches and scratch files behind. The GitHub Copilot Code Review bot can skip it.
+
+- Never write to the user's checkout. Run anything that can write files -- `make test` (go-snaps writes missing snapshots outside CI), `make test-update-snaps`, `make update-codegen`, `make update-crds`, `make format` -- in a throwaway worktree: `git fetch origin pull/<n>/head:pr-<n> && git worktree add /tmp/pr-<n> pr-<n>` for a PR, `git worktree add --detach /tmp/pr-head HEAD` for the current branch.
+- Pass environment variables per command (`GH_PAGER=cat gh pr view <n>`); never `export` them in the shared shell.
+- Delete only what this review created, and ask before removing older leftovers.
+- Do not wipe shared caches as cleanup: no `go clean -cache`, `docker system prune` or `git gc --prune=now`.
+
+When the review is done, remove what it created, then confirm `git status --short` matches what it showed before the review:
+
+```sh
+git worktree remove /tmp/pr-<n> && git branch -D pr-<n>
+rm -f /tmp/<scratch files>
+docker rmi <image>  # only if it was not present before the review
+git worktree list && git branch --list 'pr-*' && git status --short
+```
 
 ## Severity ladder
 
