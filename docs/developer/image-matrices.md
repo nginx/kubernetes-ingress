@@ -151,10 +151,9 @@ The weekly cron in `update-docker-images.yml` (`0 1 * * 0`) is restricted by Git
 reads `main`'s `patch-images.json` and picks the tag to patch with `git tag --sort=-version:refname | head -n1`,
 the newest tag overall.
 
-Release branches are not affected by a rename on `main`. The `update-docker-images.yml` checkout has no `ref`,
-local reusable workflows resolve against the caller's ref, and the `plus-release.yml` calls pass
-`branch: release-X.Y`, so a release branch keeps the paths it was cut with. The two GCR paths coexist as
-separate repositories.
+A rename on `main` also has to reach the newest release branch. The cron publishes from that branch, using its
+own `copy-images.sh`, so the `target_image` dev path in `patch-images.json` must match that script's source
+prefix. Older release branches are not patched by the cron and can keep the old name.
 
 The risk is the gap between the rename landing on `main` and the first release cut under the new name. In that
 window the cron looks for `release/<new-path>/...:<latest-tag>`, which does not exist. Before merging a rename,
