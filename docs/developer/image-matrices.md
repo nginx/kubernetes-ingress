@@ -91,7 +91,13 @@ CI builds and publishes 25 images from the OSS, Plus and NAP matrices, plus 1 LT
 | `nginx-ic-dos/nginx-plus-ingress` | NAP DoS-only | none, `-ubi` | 2 | amd64 |
 | `nginx-ic-nap-dos/nginx-plus-ingress` | NAP WAF+DoS | none, `-ubi`, `-agent`, `-ubi-agent` | 4 | amd64 |
 | | | **Total** | **25** | |
-| `nginx-ic/lts/nginx-plus-ingress` | Plus LTS | debian only (none) | 1 | amd64, arm64 |
+
+The LTS matrix has one row, `debian-plus` with no tag suffix. It builds into the same dev repo as regular Plus,
+`nginx-ic/nginx-plus-ingress`, and is told apart by its tag. It is built by `release-prep-lts.yml`, not by the
+regular CI flow, and the `/lts/` path (`nginx-ic/lts/nginx-plus-ingress`) only exists after the build: in
+`docker-mgmt-test` staging, in the release GCR, and in the NGINX registry. The `config-plus-*-lts*` configs and
+`patch-images-lts.json` set those paths. Do not add `/lts/` to the matrix `image`, or the staging copy will read
+a repo the build never writes to.
 
 AWS and Azure marketplace tags (`-mktpl`) are not in the matrices. They are produced at release time by the
 publish configs.

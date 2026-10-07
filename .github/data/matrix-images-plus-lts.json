@@ -2,7 +2,7 @@
   "include": [
     {
       "build_os": "debian-plus",
-      "image": "nginx-ic/lts/nginx-plus-ingress",
+      "image": "nginx-ic/nginx-plus-ingress",
       "platforms": "linux/arm64, linux/amd64",
       "target": "goreleaser",
       "tag_suffix": ""
