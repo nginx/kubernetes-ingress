@@ -578,7 +578,21 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if resolverAddresses, exists := GetMapKeyAsStringSlice(cfgm.Data, "resolver-addresses", cfgm, ","); exists {
-		cfgParams.ResolverAddresses = resolverAddresses
+		resolverAddressesOk := true
+		for i, addr := range resolverAddresses {
+			addr = strings.TrimSpace(addr)
+			resolverAddresses[i] = addr
+			if err := validation.ValidateResolverAddress(addr); err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid resolver address: %v", cfgm.Namespace, cfgm.Name, "resolver-addresses", err)
+				nl.Warn(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+				resolverAddressesOk = false
+			}
+		}
+		if resolverAddressesOk {
+			cfgParams.ResolverAddresses = resolverAddresses
+		}
 	}
 
 	if resolverIpv6, exists, err := GetMapKeyAsBool(cfgm.Data, "resolver-ipv6", cfgm); exists {
@@ -592,11 +606,27 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if resolverValid, exists := cfgm.Data["resolver-valid"]; exists {
-		cfgParams.ResolverValid = resolverValid
+		resolverValidTime, err := ParseTime(resolverValid)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s", cfgm.Namespace, cfgm.Name, "resolver-valid", resolverValid)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else {
+			cfgParams.ResolverValid = resolverValidTime
+		}
 	}
 
 	if resolverTimeout, exists := cfgm.Data["resolver-timeout"]; exists {
-		cfgParams.ResolverTimeout = resolverTimeout
+		resolverTimeoutTime, err := ParseTime(resolverTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s key %s contains invalid nginx time: %s, eg. 10s", cfgm.Namespace, cfgm.Name, "resolver-timeout", resolverTimeout)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else {
+			cfgParams.ResolverTimeout = resolverTimeoutTime
+		}
 	}
 
 	if keepaliveTimeout, exists := cfgm.Data["keepalive-timeout"]; exists {
@@ -882,7 +912,7 @@ func parseConfigMapZoneSync(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *Confi
 			return nil, errors.New(errorText)
 		}
 		for _, addr := range zoneSyncResolverAddresses {
-			if err := validation.ValidateHost(addr); err != nil {
+			if err := validation.ValidateResolverAddress(addr); err != nil {
 				nl.Warn(l, err)
 				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 				return nil, err

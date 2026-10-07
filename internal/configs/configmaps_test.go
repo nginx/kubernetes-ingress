@@ -3439,20 +3439,72 @@ func TestParseConfigMapResolver(t *testing.T) {
 			t.Parallel()
 			cm := &v1.ConfigMap{
 				Data: map[string]string{
-					"resolver-addresses": "kube-dns.kube-system.svc.cluster.local,10.0.0.10",
+					"resolver-addresses": "kube-dns.kube-system.svc.cluster.local, 10.0.0.10:53,[2001:db8::53]:53",
 					"resolver-ipv6":      "false",
 					"resolver-valid":     "5s",
-					"resolver-timeout":   "10s",
+					"resolver-timeout":   "10",
 				},
 			}
 			result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, false, false, false, false, true, makeEventLogger())
 
 			assert.True(t, configOk)
-			assert.Equal(t, []string{"kube-dns.kube-system.svc.cluster.local", "10.0.0.10"}, result.ResolverAddresses)
+			assert.Equal(t, []string{"kube-dns.kube-system.svc.cluster.local", "10.0.0.10:53", "[2001:db8::53]:53"}, result.ResolverAddresses)
 			assert.False(t, result.ResolverIPV6)
 			assert.Equal(t, "5s", result.ResolverValid)
 			assert.Equal(t, "10s", result.ResolverTimeout)
 		})
+	}
+}
+
+func TestParseConfigMapResolverInvalidValues(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		data map[string]string
+		msg  string
+	}{
+		{
+			data: map[string]string{"resolver-addresses": "10.0.0.10;"},
+			msg:  "address with a semicolon",
+		},
+		{
+			data: map[string]string{"resolver-addresses": "10.0.0.10 valid=1s"},
+			msg:  "address with a space",
+		},
+		{
+			data: map[string]string{"resolver-addresses": "10.0.0.10;\nresolver evil"},
+			msg:  "address with a newline",
+		},
+		{
+			data: map[string]string{"resolver-addresses": "kube-dns.kube-system.svc.cluster.local,not a host"},
+			msg:  "one valid and one invalid address",
+		},
+		{
+			data: map[string]string{"resolver-valid": "10x"},
+			msg:  "invalid resolver-valid",
+		},
+		{
+			data: map[string]string{"resolver-valid": "5s; resolver evil"},
+			msg:  "resolver-valid with a semicolon",
+		},
+		{
+			data: map[string]string{"resolver-timeout": "abc"},
+			msg:  "invalid resolver-timeout",
+		},
+	}
+
+	for _, nginxPlus := range []bool{false, true} {
+		for _, test := range tests {
+			t.Run(fmt.Sprintf("nginxPlus=%v/%s", nginxPlus, test.msg), func(t *testing.T) {
+				t.Parallel()
+				cm := &v1.ConfigMap{Data: test.data}
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, false, false, false, false, true, makeEventLogger())
+
+				assert.False(t, configOk)
+				assert.Nil(t, result.ResolverAddresses)
+				assert.Equal(t, NewDefaultConfigParams(context.Background(), nginxPlus).ResolverValid, result.ResolverValid)
+				assert.Equal(t, NewDefaultConfigParams(context.Background(), nginxPlus).ResolverTimeout, result.ResolverTimeout)
+			})
+		}
 	}
 }
 
