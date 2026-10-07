@@ -25,10 +25,11 @@ validate_matrix_file() {
     return 1
   fi
 
-  local count
-  count=$(jq '.include | length' "$file" 2>/dev/null || echo 0)
-  if [ "$count" -eq 0 ]; then
-    echo "❌ Error: No include entries found in $file"
+  # include must be a non-empty array of objects. jq `length` also accepts strings,
+  # objects and numbers, and this function is called from an `if`, so `set -e` does
+  # not stop on later jq failures -- check the shape explicitly.
+  if ! jq -e '(.include | type == "array") and (.include | length > 0) and (.include | all(type == "object"))' "$file" >/dev/null 2>&1; then
+    echo "❌ Error: 'include' must be a non-empty array of objects (valid JSON) in $file"
     return 1
   fi
 

@@ -110,7 +110,17 @@ assert_validate fail "duplicate identity key in oss matrix" '{
   ]
 }'
 
-# 7. File type is derived from the basename, not the directory path
+# 7. include must be a non-empty array of objects (jq `length` accepts scalars/objects)
+assert_validate fail "include is a string" '{"include": "abc"}'
+assert_validate fail "include is an object" '{"include": {"build_os": "debian"}}'
+assert_validate fail "include is a number" '{"include": 5}'
+assert_validate fail "include is null" '{"include": null}'
+assert_validate fail "include is empty array" '{"include": []}'
+assert_validate fail "include is missing" '{}'
+assert_validate fail "include contains a non-object" '{"include": ["debian"]}'
+assert_validate fail "file is not valid json" '{"include": ['
+
+# 8. File type is derived from the basename, not the directory path
 assert_validate pass "oss matrix in a directory whose name contains 'nap' and 'plus'" '{
   "include": [
     {"build_os": "debian", "image": "nginx-ic/nginx-ingress", "tag_suffix": "", "platforms": "linux/amd64"}
