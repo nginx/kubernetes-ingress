@@ -834,6 +834,26 @@ func TestGenerateUpstreamForExternalNameService(t *testing.T) {
 	}
 }
 
+func TestGenerateUpstreamForExternalNameServiceWithZeroZoneSizeForNGINX(t *testing.T) {
+	t.Parallel()
+	name := "test-upstream"
+	upstream := conf_v1.Upstream{Service: name}
+	cfgParams := ConfigParams{Context: context.Background(), UpstreamZoneSize: "0"}
+
+	vsc := newVirtualServerConfigurator(&cfgParams, false, true, &StaticConfigParams{}, false, &fakeBV)
+	result := vsc.generateUpstream(nil, name, upstream, true, []string{"example.com:80"}, nil)
+
+	if !result.Resolve {
+		t.Errorf("generateUpstream() returned Resolve false, expected true")
+	}
+	if result.UpstreamZoneSize != "0" {
+		t.Errorf("generateUpstream() returned UpstreamZoneSize %q, expected %q", result.UpstreamZoneSize, "0")
+	}
+	if len(vsc.warnings) != 1 {
+		t.Errorf("generateUpstream() returned %d warnings, expected 1", len(vsc.warnings))
+	}
+}
+
 func TestGenerateUpstreamWithNTLM(t *testing.T) {
 	t.Parallel()
 	name := "test-upstream"
@@ -2468,6 +2488,80 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 		{
 			upstream: conf_v1.Upstream{
 				Service: name,
+				Port:    80,
+			},
+			vsEx: &VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+					},
+				},
+				Endpoints: map[string][]string{
+					"test-namespace/test:80": {"example.com:80"},
+				},
+				ExternalNameSvcs: map[string]bool{
+					"test-namespace/test": true,
+				},
+			},
+			isPlus:               false,
+			isResolverConfigured: true,
+			expected:             []string{"example.com:80"},
+			msg:                  "ExternalName service (OSS)",
+		},
+		{
+			upstream: conf_v1.Upstream{
+				Service: name,
+				Port:    80,
+			},
+			vsEx: &VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+					},
+				},
+				Endpoints: map[string][]string{
+					"test-namespace/test:80": {"example.com:80"},
+				},
+				ExternalNameSvcs: map[string]bool{
+					"test-namespace/test": true,
+				},
+			},
+			isPlus:               false,
+			isResolverConfigured: false,
+			warningsExpected:     true,
+			expected:             []string{nginx502Server},
+			msg:                  "ExternalName service without resolver configured (OSS) falls back to the 502 server",
+		},
+		{
+			upstream: conf_v1.Upstream{
+				Service: "other-namespace/test",
+				Port:    80,
+			},
+			vsEx: &VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+					},
+				},
+				Endpoints: map[string][]string{
+					"other-namespace/test:80": {"example.com:80"},
+				},
+				ExternalNameSvcs: map[string]bool{
+					"other-namespace/test": true,
+				},
+			},
+			isPlus:               false,
+			isResolverConfigured: false,
+			warningsExpected:     true,
+			expected:             []string{nginx502Server},
+			msg:                  "ExternalName service in another namespace without resolver configured (OSS)",
+		},
+		{
+			upstream: conf_v1.Upstream{
+				Service: name,
 				Port:    8080,
 			},
 			vsEx: &VirtualServerEx{
@@ -4078,5 +4172,39 @@ func TestAddHSTSToLocationsWithAddHeaders(t *testing.T) {
 					test.locations, test.expected)
 			}
 		})
+	}
+}
+
+func TestCreateUpstreamsForPlusSkipsExternalNameServices(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+					{Name: "coffee", Service: "coffee/coffee-svc", Port: 80},
+					{Name: "juice", Service: "juice-svc", Port: 80},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80":   {"tea.example.com:80"},
+			"coffee/coffee-svc:80": {"coffee.example.com:80"},
+			"default/juice-svc:80": {"10.0.0.20:80"},
+		},
+		ExternalNameSvcs: map[string]bool{
+			"default/tea-svc":   true,
+			"coffee/coffee-svc": true,
+		},
+	}
+
+	result := createUpstreamsForPlus(&virtualServerEx, &ConfigParams{Context: context.Background()}, &StaticConfigParams{})
+
+	if len(result) != 1 || result[0].Name != "vs_default_cafe_juice" {
+		t.Errorf("createUpstreamsForPlus() returned %v, expected only the upstream vs_default_cafe_juice", result)
 	}
 }

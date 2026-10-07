@@ -1288,7 +1288,7 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 		}
 
 		var upsServers []version1.UpstreamServer
-		// Always false for NGINX OSS
+		// Servers of ExternalName services are resolved by NGINX at runtime, which requires a resolver
 		_, isExternalNameSvc := ingEx.ExternalNameSvcs[backend.Service.Name]
 		if isExternalNameSvc && !isResolverConfigured {
 			nl.Warnf(l, "A resolver must be configured for Type ExternalName service %s, no upstream servers will be created", backend.Service.Name)
@@ -1315,6 +1315,9 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 
 	ups.LBMethod = cfg.LBMethod
 	ups.UpstreamZoneSize = cfg.UpstreamZoneSize
+	if !isPlus && ups.UpstreamZoneSize == "0" && ups.HasResolvedServers() {
+		nl.Warnf(l, "Upstream %s resolves servers at runtime, which requires a shared memory zone: upstream-zone-size \"0\" is ignored and the default size 256k is used", name)
+	}
 	ups.StickyCookie = stickyCookie
 	if cfg.Keepalive > 0 {
 		ups.Keepalive = fmt.Sprint(cfg.Keepalive)

@@ -162,6 +162,12 @@ http {
     otel_trace_context {{ .MainOtelTraceContext }};
     {{- end}}
     {{- end}}
+    {{- if .ResolverAddresses }}
+    {{ makeResolver .ResolverAddresses .ResolverValid (boolToPointerBool .ResolverIPV6) }}
+    {{- end }}
+    {{- if .ResolverTimeout }}
+    resolver_timeout {{ .ResolverTimeout }};
+    {{- end }}
     {{- if .NginxStatus}}
     # stub_status
     server {
@@ -223,6 +229,12 @@ stream {
 
     {{- range $value := .StreamSnippets}}
     {{$value}}{{end}}
+    {{- if .ResolverAddresses }}
+    {{ makeResolver .ResolverAddresses .ResolverValid (boolToPointerBool .ResolverIPV6) }}
+    {{- end }}
+    {{- if .ResolverTimeout }}
+    resolver_timeout {{ .ResolverTimeout }};
+    {{- end }}
 
     map_hash_max_size {{.MapHashMaxSize}};
     {{if .MapHashBucketSize}}map_hash_bucket_size {{.MapHashBucketSize}};{{end}}

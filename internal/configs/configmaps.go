@@ -578,14 +578,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if resolverAddresses, exists := GetMapKeyAsStringSlice(cfgm.Data, "resolver-addresses", cfgm, ","); exists {
-		if nginxPlus {
-			cfgParams.ResolverAddresses = resolverAddresses
-		} else {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-addresses")
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configOk = false
-		}
+		cfgParams.ResolverAddresses = resolverAddresses
 	}
 
 	if resolverIpv6, exists, err := GetMapKeyAsBool(cfgm.Data, "resolver-ipv6", cfgm); exists {
@@ -594,37 +587,16 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 			configOk = false
 		} else {
-			if nginxPlus {
-				cfgParams.ResolverIPV6 = resolverIpv6
-			} else {
-				errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-ipv6")
-				nl.Warn(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			}
+			cfgParams.ResolverIPV6 = resolverIpv6
 		}
 	}
 
 	if resolverValid, exists := cfgm.Data["resolver-valid"]; exists {
-		if nginxPlus {
-			cfgParams.ResolverValid = resolverValid
-		} else {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-valid")
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configOk = false
-		}
+		cfgParams.ResolverValid = resolverValid
 	}
 
 	if resolverTimeout, exists := cfgm.Data["resolver-timeout"]; exists {
-		if nginxPlus {
-			cfgParams.ResolverTimeout = resolverTimeout
-		} else {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-timeout")
-			nl.Warn(l, errorText)
-			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-			configOk = false
-		}
+		cfgParams.ResolverTimeout = resolverTimeout
 	}
 
 	if keepaliveTimeout, exists := cfgm.Data["keepalive-timeout"]; exists {

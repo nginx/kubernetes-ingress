@@ -3431,3 +3431,40 @@ func TestParseConfigMapUseForwardedHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestParseConfigMapResolver(t *testing.T) {
+	t.Parallel()
+	for _, nginxPlus := range []bool{false, true} {
+		t.Run(fmt.Sprintf("nginxPlus=%v", nginxPlus), func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{
+				Data: map[string]string{
+					"resolver-addresses": "kube-dns.kube-system.svc.cluster.local,10.0.0.10",
+					"resolver-ipv6":      "false",
+					"resolver-valid":     "5s",
+					"resolver-timeout":   "10s",
+				},
+			}
+			result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, false, false, false, false, true, makeEventLogger())
+
+			assert.True(t, configOk)
+			assert.Equal(t, []string{"kube-dns.kube-system.svc.cluster.local", "10.0.0.10"}, result.ResolverAddresses)
+			assert.False(t, result.ResolverIPV6)
+			assert.Equal(t, "5s", result.ResolverValid)
+			assert.Equal(t, "10s", result.ResolverTimeout)
+		})
+	}
+}
+
+func TestParseConfigMapResolverInvalidIPV6(t *testing.T) {
+	t.Parallel()
+	cm := &v1.ConfigMap{
+		Data: map[string]string{
+			"resolver-ipv6": "not-a-bool",
+		},
+	}
+	result, configOk := ParseConfigMap(context.Background(), cm, false, false, false, false, false, true, makeEventLogger())
+
+	assert.False(t, configOk)
+	assert.True(t, result.ResolverIPV6)
+}

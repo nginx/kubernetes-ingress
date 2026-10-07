@@ -840,6 +840,76 @@ func TestVirtualServerForNginx(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestExecuteVirtualServerTemplateWithResolvedUpstreamsForNGINX(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	vsCfg := virtualServerCfg
+	vsCfg.Upstreams = []Upstream{
+		{
+			Name: "vs_default_cafe_tea",
+			Servers: []UpstreamServer{
+				{Address: "tea.example.com:80"},
+			},
+			Resolve:          true,
+			MaxFails:         1,
+			FailTimeout:      "10s",
+			UpstreamZoneSize: "512k",
+		},
+		{
+			Name: "vs_default_cafe_coffee",
+			Servers: []UpstreamServer{
+				{Address: "coffee.example.com:80"},
+			},
+			Resolve:          true,
+			MaxFails:         1,
+			FailTimeout:      "10s",
+			UpstreamZoneSize: "0",
+		},
+		{
+			Name: "vs_default_cafe_juice",
+			Servers: []UpstreamServer{
+				{Address: "10.0.0.20:80"},
+			},
+			MaxFails:         1,
+			FailTimeout:      "10s",
+			UpstreamZoneSize: "0",
+		},
+	}
+	got, err := executor.ExecuteVirtualServerTemplate(&vsCfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	upstreams := string(got)
+	for _, want := range []string{
+		"zone vs_default_cafe_tea 512k;",
+		"server tea.example.com:80 max_fails=1 fail_timeout=10s max_conns=0 resolve;",
+		"zone vs_default_cafe_coffee 256k;",
+		"server coffee.example.com:80 max_fails=1 fail_timeout=10s max_conns=0 resolve;",
+		"server 10.0.0.20:80 max_fails=1 fail_timeout=10s max_conns=0;",
+	} {
+		if !strings.Contains(upstreams, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	if strings.Contains(upstreams, "zone vs_default_cafe_juice") {
+		t.Errorf("want no zone for upstream vs_default_cafe_juice with zone size 0")
+	}
+	snaps.MatchSnapshot(t, upstreams)
+}
+
+func TestExecuteTemplateForTransportServerWithResolverForNGINX(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteTransportServerTemplate(&transportServerCfgWithResolver)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	if !strings.Contains(string(got), " resolve;") {
+		t.Errorf("want resolve parameter in generated config")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
 func TestTransportServerForNginxPlus(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)

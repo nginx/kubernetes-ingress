@@ -2969,6 +2969,89 @@ func TestGetServiceForIngressBackendNamespaceNotWatched(t *testing.T) {
 	}
 }
 
+func TestGetExternalEndpointsForIngressBackend(t *testing.T) {
+	t.Parallel()
+
+	svcWithoutPorts := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "external-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Type:         api_v1.ServiceTypeExternalName,
+			ExternalName: "my.service.example.com",
+		},
+	}
+	svcWithPorts := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "external-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Type:         api_v1.ServiceTypeExternalName,
+			ExternalName: "my.service.example.com",
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 8080},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		backendPort networking.ServiceBackendPort
+		svc         *api_v1.Service
+		want        []podEndpoint
+		wantErr     bool
+	}{
+		{
+			name:        "numeric port with a Service without ports",
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			svc:         svcWithoutPorts,
+			want:        []podEndpoint{{Address: "my.service.example.com:80"}},
+		},
+		{
+			name:        "numeric port with a Service with ports",
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			svc:         svcWithPorts,
+			want:        []podEndpoint{{Address: "my.service.example.com:80"}},
+		},
+		{
+			name:        "named port found in the Service",
+			backendPort: networking.ServiceBackendPort{Name: "http"},
+			svc:         svcWithPorts,
+			want:        []podEndpoint{{Address: "my.service.example.com:8080"}},
+		},
+		{
+			name:        "named port missing in the Service",
+			backendPort: networking.ServiceBackendPort{Name: "grpc"},
+			svc:         svcWithPorts,
+			wantErr:     true,
+		},
+		{
+			name:        "named port with a Service without ports",
+			backendPort: networking.ServiceBackendPort{Name: "http"},
+			svc:         svcWithoutPorts,
+			wantErr:     true,
+		},
+	}
+
+	lbc := &LoadBalancerController{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := &networking.IngressBackend{
+				Service: &networking.IngressServiceBackend{Name: test.svc.Name, Port: test.backendPort},
+			}
+			got, err := lbc.getExternalEndpointsForIngressBackend(backend, test.svc)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("getExternalEndpointsForIngressBackend() returned %v, want an error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("getExternalEndpointsForIngressBackend() returned an error: %v", err)
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("getExternalEndpointsForIngressBackend() returned %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestGetEndpointsForIngressBackendNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
@@ -7415,5 +7498,181 @@ func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
 	}
 	if lbc.virtualServerRequiresEndpointsUpdate(vsEx, "other", "cm-acme-http-solver-abcde") {
 		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
+	}
+}
+
+func TestGetEndpointsForIngressBackendExternalName(t *testing.T) {
+	t.Parallel()
+
+	svc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ext-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Type:         api_v1.ServiceTypeExternalName,
+			ExternalName: "ext.example.com",
+			Ports:        []api_v1.ServicePort{{Name: "http", Port: 8080}},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		backendPort networking.ServiceBackendPort
+		want        []podEndpoint
+		wantErr     bool
+	}{
+		{
+			name:        "numeric port",
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			want:        []podEndpoint{{Address: "ext.example.com:80"}},
+		},
+		{
+			name:        "named port",
+			backendPort: networking.ServiceBackendPort{Name: "http"},
+			want:        []podEndpoint{{Address: "ext.example.com:8080"}},
+		},
+		{
+			name:        "missing named port",
+			backendPort: networking.ServiceBackendPort{Name: "missing"},
+			wantErr:     true,
+		},
+	}
+
+	for _, isPlus := range []bool{false, true} {
+		for _, tc := range tests {
+			t.Run(fmt.Sprintf("nginxPlus=%v/%s", isPlus, tc.name), func(t *testing.T) {
+				t.Parallel()
+
+				// An ExternalName Service has no EndpointSlices, which is what routes it to the external branch.
+				nsi := &namespacedInformer{
+					endpointSliceLister: storeToEndpointSliceLister{Store: cache.NewStore(cache.MetaNamespaceKeyFunc)},
+				}
+				lbc := &LoadBalancerController{
+					isNginxPlus:         isPlus,
+					namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": nsi}),
+					Logger:              nl.LoggerFromContext(context.Background()),
+				}
+				backend := &networking.IngressBackend{
+					Service: &networking.IngressServiceBackend{Name: svc.Name, Port: tc.backendPort},
+				}
+
+				got, isExternal, err := lbc.getEndpointsForIngressBackend(backend, svc)
+				if tc.wantErr {
+					if err == nil {
+						t.Fatalf("getEndpointsForIngressBackend() returned nil error, want an error")
+					}
+					if isExternal {
+						t.Error("getEndpointsForIngressBackend() returned isExternal=true on error, want false")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("getEndpointsForIngressBackend() returned error: %v", err)
+				}
+				if !isExternal {
+					t.Error("getEndpointsForIngressBackend() returned isExternal=false, want true for an ExternalName Service")
+				}
+				if diff := cmp.Diff(tc.want, got); diff != "" {
+					t.Errorf("getEndpointsForIngressBackend() mismatch (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+func newExternalNameServiceInformer(t *testing.T, svcs ...*api_v1.Service) *namespacedInformer {
+	t.Helper()
+	svcStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	for _, svc := range svcs {
+		if err := svcStore.Add(svc); err != nil {
+			t.Fatalf("error adding service: %v", err)
+		}
+	}
+	return &namespacedInformer{
+		svcLister:           svcStore,
+		endpointSliceLister: storeToEndpointSliceLister{Store: cache.NewStore(cache.MetaNamespaceKeyFunc)},
+		podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
+	}
+}
+
+func TestCreateVirtualServerExExternalNameForNGINX(t *testing.T) {
+	t.Parallel()
+
+	teaSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "tea-svc", Namespace: "default"},
+		Spec:       api_v1.ServiceSpec{Type: api_v1.ServiceTypeExternalName, ExternalName: "tea.example.com"},
+	}
+	coffeeSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-svc", Namespace: "other"},
+		Spec:       api_v1.ServiceSpec{Type: api_v1.ServiceTypeExternalName, ExternalName: "coffee.example.com"},
+	}
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+		Spec: conf_v1.VirtualServerSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+		},
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "coffee", Namespace: "other"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "coffee", Service: "coffee-svc", Port: 8080}},
+		},
+	}
+
+	lbc := &LoadBalancerController{
+		isNginxPlus:      false,
+		Logger:           nl.LoggerFromContext(context.Background()),
+		metricsCollector: collectors.NewControllerFakeCollector(),
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
+			"default": newExternalNameServiceInformer(t, teaSvc),
+			"other":   newExternalNameServiceInformer(t, coffeeSvc),
+		}),
+		configuration: &Configuration{hosts: map[string]Resource{}},
+	}
+
+	vsEx := lbc.createVirtualServerEx(vs, []*conf_v1.VirtualServerRoute{vsr}, nil)
+
+	wantExternalNameSvcs := map[string]bool{"default/tea-svc": true, "other/coffee-svc": true}
+	if diff := cmp.Diff(wantExternalNameSvcs, vsEx.ExternalNameSvcs); diff != "" {
+		t.Errorf("ExternalNameSvcs mismatch (-want +got):\n%s", diff)
+	}
+	wantEndpoints := map[string][]string{
+		"default/tea-svc:80":    {"tea.example.com:80"},
+		"other/coffee-svc:8080": {"coffee.example.com:8080"},
+	}
+	if diff := cmp.Diff(wantEndpoints, vsEx.Endpoints); diff != "" {
+		t.Errorf("Endpoints mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCreateTransportServerExExternalNameForNGINX(t *testing.T) {
+	t.Parallel()
+
+	dbSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "db-svc", Namespace: "default"},
+		Spec:       api_v1.ServiceSpec{Type: api_v1.ServiceTypeExternalName, ExternalName: "db.example.com"},
+	}
+	ts := &conf_v1.TransportServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "db", Namespace: "default"},
+		Spec: conf_v1.TransportServerSpec{
+			Upstreams: []conf_v1.TransportServerUpstream{{Name: "db", Service: "db-svc", Port: 5432}},
+		},
+	}
+
+	lbc := &LoadBalancerController{
+		isNginxPlus:         false,
+		Logger:              nl.LoggerFromContext(context.Background()),
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": newExternalNameServiceInformer(t, dbSvc)}),
+		configuration:       &Configuration{},
+	}
+
+	tsEx := lbc.createTransportServerEx(ts, 5432, "", "")
+
+	if diff := cmp.Diff(map[string]bool{"default/db-svc": true}, tsEx.ExternalNameSvcs); diff != "" {
+		t.Errorf("ExternalNameSvcs mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(map[string][]string{"default/db-svc:5432": {"db.example.com:5432"}}, tsEx.Endpoints); diff != "" {
+		t.Errorf("Endpoints mismatch (-want +got):\n%s", diff)
 	}
 }

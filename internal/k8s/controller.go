@@ -3635,7 +3635,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			nl.Warnf(l, "Error getting service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
 		} else {
 			podEndps, external, err = lbc.getEndpointsForIngressBackend(ing.Spec.DefaultBackend, svc)
-			if err == nil && external && lbc.isNginxPlus {
+			if err == nil && external {
 				ingEx.ExternalNameSvcs[svc.Name] = true
 			}
 		}
@@ -3707,7 +3707,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				nl.Debugf(l, "Error getting service %v: %v", &path.Backend.Service.Name, err)
 			} else {
 				podEndps, external, err = lbc.getEndpointsForIngressBackend(&path.Backend, svc)
-				if err == nil && external && lbc.isNginxPlus {
+				if err == nil && external {
 					ingEx.ExternalNameSvcs[svc.Name] = true
 				}
 			}
@@ -3892,7 +3892,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 				var external bool
 				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
-				if err == nil && external && lbc.isNginxPlus {
+				if err == nil && external {
 					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 				}
 			}
@@ -4133,7 +4133,7 @@ func (lbc *LoadBalancerController) resolveVSRUpstreamEndpoints(
 				var external bool
 				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
-				if err == nil && external && lbc.isNginxPlus {
+				if err == nil && external {
 					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 				}
 			}
@@ -4842,15 +4842,25 @@ func compareContainerPortAndServicePort(containerPort api_v1.ContainerPort, svcP
 	return false
 }
 
-func (lbc *LoadBalancerController) getExternalEndpointsForIngressBackend(backend *networking.IngressBackend, svc *api_v1.Service) []podEndpoint {
-	address := fmt.Sprintf("%s:%d", svc.Spec.ExternalName, backend.Service.Port.Number)
+// getExternalEndpointsForIngressBackend returns the endpoint of an Ingress backend that references a Service of type ExternalName.
+// A numeric backend port is used as is, because such Services usually declare no ports. A named backend port is looked up
+// in the ports of the Service, as the name cannot be part of the address.
+func (lbc *LoadBalancerController) getExternalEndpointsForIngressBackend(backend *networking.IngressBackend, svc *api_v1.Service) ([]podEndpoint, error) {
+	port := backend.Service.Port.Number
+	if backend.Service.Port.Name != "" {
+		svcPort := lbc.getServicePortForIngressPort(backend.Service.Port, svc)
+		if svcPort == nil {
+			return nil, fmt.Errorf("no port %q in service %s of type ExternalName", backend.Service.Port.Name, svc.Name)
+		}
+		port = svcPort.Port
+	}
 	endpoints := []podEndpoint{
 		{
-			Address: address,
+			Address: fmt.Sprintf("%s:%d", svc.Spec.ExternalName, port),
 			PodName: "",
 		},
 	}
-	return endpoints
+	return endpoints, nil
 }
 
 func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networking.IngressBackend, svc *api_v1.Service) (result []podEndpoint, isExternal bool, err error) {
@@ -4863,10 +4873,11 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networ
 	}
 	if err != nil {
 		if svc.Spec.Type == api_v1.ServiceTypeExternalName {
-			if !lbc.isNginxPlus {
-				return nil, false, fmt.Errorf("type ExternalName Services feature is only available in NGINX Plus")
+			result, err = lbc.getExternalEndpointsForIngressBackend(backend, svc)
+			if err != nil {
+				nl.Debugf(lbc.Logger, "Error getting endpoints for service %s of type ExternalName: %v", svc.Name, err)
+				return nil, false, err
 			}
-			result = lbc.getExternalEndpointsForIngressBackend(backend, svc)
 			return result, true, nil
 		}
 		nl.Debugf(lbc.Logger, "Error getting endpoints for service %s from the cache: %v", svc.Name, err)
