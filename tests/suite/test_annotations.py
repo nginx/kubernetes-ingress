@@ -432,9 +432,9 @@ class TestAnnotations:
                     "if ($http_x_forwarded_proto = 'https')",
                     'set $hsts_header_val "max-age=2592000; preload";',
                     " 100k;",
+                    "http2 on;",
                 ],
-                # the http2 ConfigMap key is set in the http context (checked below), not per server
-                ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;", "http2 on;"],
+                ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;", "http2 off;"],
             ),
         ],
     )
@@ -638,6 +638,8 @@ class TestMergeableFlows:
                     'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
                 ],
             ),
+            # nginx.org/http2 is server-level: the master's value wins, the minion's is ignored
+            (f"{TEST_DATA}/annotations/mergeable/master-http2.yaml", ["http2 on;"], ["http2 off;"]),
         ],
     )
     def test_minion_overrides_master(
@@ -667,26 +669,6 @@ class TestMergeableFlows:
             assert _ in result_conf
         for _ in unexpected_strings:
             assert _ not in result_conf
-
-    def test_master_http2_applies_to_minions(self, kube_apis, annotations_setup, ingress_controller_prerequisites):
-        """nginx.org/http2 is server-level: the master's value wins and a minion's value is ignored."""
-        initial_events = get_events(kube_apis.v1, annotations_setup.namespace)
-        initial_count = get_event_count(annotations_setup.ingress_event_text, initial_events)
-        print("Case 7a: master http2 annotation applies to minions")
-        replace_ingresses_from_yaml(
-            kube_apis.networking_v1, annotations_setup.namespace, f"{TEST_DATA}/annotations/mergeable/master-http2.yaml"
-        )
-        wait_before_test(1)
-        result_conf = get_ingress_nginx_template_conf(
-            kube_apis.v1,
-            annotations_setup.namespace,
-            annotations_setup.ingress_name,
-            annotations_setup.ingress_pod_name,
-            ingress_controller_prerequisites.namespace,
-        )
-        new_events = get_events(kube_apis.v1, annotations_setup.namespace)
-        assert_event_count_increased(annotations_setup.ingress_event_text, initial_count, new_events)
-        assert "http2 on;" in result_conf
 
 
 @pytest.mark.ingresses

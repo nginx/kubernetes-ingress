@@ -9,6 +9,7 @@ upstream ups {
 
 server {
     listen 80;listen [::]:80;
+    http2 off;
 
     server_tokens "on";
 
@@ -58,6 +59,7 @@ upstream ups {
 
 server {
     listen 80;listen [::]:80;
+    http2 off;
 
     server_tokens "on";
 

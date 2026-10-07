@@ -414,7 +414,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			IsDefaultServer:        isDefaultServer,
 			ServerTokens:           cfgParams.ServerTokens,
 			HTTP2:                  cfgParams.HTTP2,
-			HTTP2Directive:         generateHTTP2Directive(cfgParams.HTTP2, ncp.BaseCfgParams.HTTP2),
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
 			SSLRedirect:            cfgParams.SSLRedirect,
 			HTTPRedirectCode:       cfgParams.HTTPRedirectCode,

@@ -66,6 +66,7 @@ server {
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
     set $service "-";
+    http2 {{ if $s.HTTP2 }}on{{ else }}off{{ end }};
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}
@@ -75,11 +76,6 @@ server {
         {{- else }}
     {{ makeHTTPSListener $s }}
         {{- end }}
-    {{- end }}
-    {{- with $s.HTTP2Directive }}
-    http2 {{ . }};
-    {{- end }}
-    {{- with $ssl := $s.SSL }}
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;

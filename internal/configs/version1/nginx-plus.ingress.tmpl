@@ -102,6 +102,7 @@ server {
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
 	{{- end}}
+	http2 {{if $server.HTTP2}}on{{else}}off{{end}};
 
 	{{- if $server.SSL}}
 	{{- if $server.TLSPassthrough}}
@@ -114,11 +115,6 @@ server {
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
 	{{- end}}
-	{{- end}}
-	{{- with $server.HTTP2Directive}}
-	http2 {{.}};
-	{{- end}}
-	{{- if $server.SSL}}
 	{{- if $server.SSLRejectHandshake}}
 	ssl_reject_handshake on;
 	{{- else}}

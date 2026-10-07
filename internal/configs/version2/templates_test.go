@@ -511,24 +511,6 @@ func TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS(t *testing.T) {
 	}
 }
 
-// Custom virtualserver-template ConfigMaps copied from older releases use $ssl.HTTP2.
-func TestExecuteVirtualServerTemplate_CustomTemplateWithSSLHTTP2(t *testing.T) {
-	t.Parallel()
-	tmpl := `{{ $s := .Server }}{{ with $ssl := $s.SSL }}{{ if $ssl.HTTP2 }}http2 on;{{ end }}{{ end }}`
-	executor := newTmplExecutorNGINX(t)
-	if err := executor.UpdateVirtualServerTemplate(&tmpl); err != nil {
-		t.Fatal(err)
-	}
-	cfg := VirtualServerConfig{Server: Server{HTTP2: true, SSL: &SSL{HTTP2: true}}}
-	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != "http2 on;" {
-		t.Errorf("got %q, want %q", got, "http2 on;")
-	}
-}
-
 func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithHTTP2Off(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
@@ -1952,11 +1934,10 @@ func vsConfig() VirtualServerConfig {
 		},
 		HTTPSnippets: []string{"# HTTP snippet"},
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			ProxyProtocol:  true,
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
@@ -2317,11 +2298,10 @@ var (
 		},
 		HTTPSnippets: []string{"# HTTP snippet"},
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			ProxyProtocol:  true,
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
@@ -2679,11 +2659,10 @@ var (
 		},
 		HTTPSnippets: []string{"# HTTP snippet"},
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			ProxyProtocol:  true,
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
@@ -2934,11 +2913,10 @@ var (
 
 	virtualServerCfgWithHTTP2On = VirtualServerConfig{
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			ProxyProtocol:  true,
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName:    "example.com",
+			StatusZone:    "example.com",
+			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
@@ -2971,11 +2949,10 @@ var (
 
 	virtualServerCfgWithHTTP2OnNoTLS = VirtualServerConfig{
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			HTTP2:          true,
-			HTTP2Directive: "on",
-			Locations:      []Location{{Path: "/"}},
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HTTP2:      true,
+			Locations:  []Location{{Path: "/"}},
 		},
 	}
 
@@ -3642,10 +3619,9 @@ var (
 
 	virtualServerCfgWithCustomListener = VirtualServerConfig{
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HTTP2:      true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
@@ -3663,10 +3639,9 @@ var (
 
 	virtualServerCfgWithCustomListenerIP = VirtualServerConfig{
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HTTP2:      true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
@@ -3703,10 +3678,9 @@ var (
 
 	virtualServerCfgWithCustomListenerHTTPSOnly = VirtualServerConfig{
 		Server: Server{
-			ServerName:     "example.com",
-			StatusZone:     "example.com",
-			HTTP2:          true,
-			HTTP2Directive: "on",
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HTTP2:      true,
 			SSL: &SSL{
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",

@@ -444,9 +444,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs)
 	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, vsc.cfgParams.HTTP2)
-	if sslConfig != nil {
-		sslConfig.HTTP2 = http2 // for custom templates that still use $ssl.HTTP2
-	}
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
@@ -1252,7 +1249,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
 			HTTP2:                     http2,
-			HTTP2Directive:            generateHTTP2Directive(http2, vsc.cfgParams.HTTP2),
 			AddHeaderInherit:          vsEx.VirtualServer.Spec.AddHeaderInherit,
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
@@ -2040,18 +2036,6 @@ func generateBuffers(s *conf_v1.UpstreamBuffers, defaultS string) string {
 		return defaultS
 	}
 	return fmt.Sprintf("%v %v", s.Number, s.Size)
-}
-
-// generateHTTP2Directive returns the server-level http2 directive value, or "" when the server
-// inherits the http-level value set from the http2 ConfigMap key.
-func generateHTTP2Directive(http2, configMapHTTP2 bool) string {
-	if http2 == configMapHTTP2 {
-		return ""
-	}
-	if http2 {
-		return "on"
-	}
-	return "off"
 }
 
 func generateBool(s *bool, defaultS bool) bool {

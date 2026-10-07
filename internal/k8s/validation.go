@@ -44,7 +44,6 @@ const (
 	sslRedirectAnnotationDeprecated       = "ingress.kubernetes.io/ssl-redirect"
 	sslRedirectAnnotation                 = "nginx.org/ssl-redirect"
 	proxyBufferingAnnotation              = "nginx.org/proxy-buffering"
-	http2Annotation                       = configs.HTTP2Annotation
 	hstsAnnotation                        = "nginx.org/hsts"
 	hstsMaxAgeAnnotation                  = "nginx.org/hsts-max-age"
 	hstsIncludeSubdomainsAnnotation       = "nginx.org/hsts-include-subdomains"
@@ -231,7 +230,7 @@ var (
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
 		},
-		http2Annotation: {
+		configs.HTTP2Annotation: {
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
 		},

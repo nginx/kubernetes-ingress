@@ -131,9 +131,8 @@ def assert_ssl_keys(config, main_config):
     # based on f"{TEST_DATA}/virtual-server-configmap-keys/configmap-ssl-keys.yaml"
     assert "if ($schema = 'http') {" not in config
     assert "listen 443 ssl proxy_protocol;" in config
-    # the http2 ConfigMap key is set in the http context and inherited by the server
     assert "http2 on;" in main_config
-    assert "http2 on;" not in config
+    assert "http2 on;" in config
 
 
 def assert_defaults_of_ssl_keys(config, main_config):
