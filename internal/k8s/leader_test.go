@@ -3,6 +3,8 @@ package k8s
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,7 +17,9 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -551,4 +555,39 @@ var fastLeaderElectionTimings = leaderElectionTimings{
 	LeaseDuration: 400 * time.Millisecond,
 	RenewDeadline: 200 * time.Millisecond,
 	RetryPeriod:   100 * time.Millisecond,
+}
+
+func TestEnsureLeaseOwner_IsBoundedByTimeout(t *testing.T) {
+	t.Parallel()
+	// A real clientset against a server that never answers, as the fake
+	// clientset ignores context deadlines.
+	unblock := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-unblock:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(unblock)
+
+	owner := deploymentOwnerRef()
+	lbc := &LoadBalancerController{
+		client:                 kubernetes.NewForConfigOrDie(&rest.Config{Host: srv.URL}),
+		Logger:                 nl.LoggerFromContext(context.Background()),
+		leaderElectionLockName: testLeaseName,
+		leaseOwner:             &owner,
+		metadata:               controllerMetadata{namespace: testLeaseNamespace},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		lbc.ensureLeaseOwnerWithin(context.Background(), 100*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ensureLeaseOwner blocked on a stalled Lease request instead of timing out")
+	}
 }

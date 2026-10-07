@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// leaseOwnerLookupTimeout bounds the startup lookup of the Lease owner.
+// leaseOwnerLookupTimeout bounds the Lease owner lookup and update.
 const leaseOwnerLookupTimeout = 10 * time.Second
 
 // newLeaderElector creates a LeaderElector. If owner is set, a Lease it
@@ -96,11 +96,18 @@ func (lbc *LoadBalancerController) runLeaderElector(ctx context.Context) {
 	}
 }
 
-// ensureLeaseOwner adds the workload as the Lease owner. Errors are only logged.
+// ensureLeaseOwner adds the workload as the Lease owner. Errors are only
+// logged, and the call is bounded so it never holds up leader election.
 func (lbc *LoadBalancerController) ensureLeaseOwner(ctx context.Context) {
+	lbc.ensureLeaseOwnerWithin(ctx, leaseOwnerLookupTimeout)
+}
+
+func (lbc *LoadBalancerController) ensureLeaseOwnerWithin(ctx context.Context, timeout time.Duration) {
 	if lbc.leaseOwner == nil {
 		return
 	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	if err := ensureLeaseOwnerReference(ctx, lbc.client, lbc.metadata.namespace, lbc.leaderElectionLockName, *lbc.leaseOwner); err != nil {
 		nl.Warnf(lbc.Logger, "Could not set owner reference on leader election Lease %s/%s, it will not be garbage-collected: %v",
 			lbc.metadata.namespace, lbc.leaderElectionLockName, err)
