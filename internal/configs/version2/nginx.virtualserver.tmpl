@@ -212,6 +212,7 @@ server {
     {{- if $s.APIKeyEnabled}}
     location = /_validate_apikey_njs {
         internal;
+        client_max_body_size 0;
         js_content apikey_auth.validate;
     }
     {{- end }}
@@ -279,6 +280,7 @@ server {
 
     {{- range $l := $s.InternalRedirectLocations }}
     location {{ makeLocationPath $l.Path }} {
+        client_max_body_size 0;
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
