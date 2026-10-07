@@ -8332,6 +8332,7 @@ spec:
         args:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
+          - -batch-reload-window=2000
           - -enable-app-protect=false
           - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
