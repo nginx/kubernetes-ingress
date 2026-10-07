@@ -511,6 +511,27 @@ func TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS(t *testing.T) {
 	}
 }
 
+// http2 off; is only rendered when the http2 ConfigMap key turns HTTP/2 on in the http context.
+func TestExecuteVirtualServerTemplate_RendersHTTP2OffOverridingConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := virtualServerCfgWithHTTP2OnNoTLS
+	cfg.HTTP2 = true
+	cfg.Server.HTTP2 = false
+	for name, executor := range map[string]*TemplateExecutor{"OSS": newTmplExecutorNGINX(t), "Plus": newTmplExecutorNGINXPlus(t)} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(got, []byte("http2 off;")) {
+				t.Error("want `http2 off;` in generated template")
+			}
+			snaps.MatchSnapshot(t, string(got))
+		})
+	}
+}
+
 func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithHTTP2Off(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)

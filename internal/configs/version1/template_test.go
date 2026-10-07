@@ -4029,6 +4029,28 @@ func TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS(t *testing.T) {
 	}
 }
 
+// http2 off; is only rendered when the http2 ConfigMap key turns HTTP/2 on in the http context.
+func TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := ingressCfgHTTP2OnNoTLS
+	cfg.HTTP2 = true
+	cfg.Servers = []Server{cfg.Servers[0]}
+	cfg.Servers[0].HTTP2 = false
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), "http2 off;") {
+				t.Error("want `http2 off;` in generated template")
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS(t *testing.T) {
 	t.Parallel()
 	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {

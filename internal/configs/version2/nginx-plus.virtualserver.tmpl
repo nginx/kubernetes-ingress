@@ -232,7 +232,11 @@ server {
     {{- if $s.OIDCProviderName }}
     auth_oidc {{ $s.OIDCProviderName }};
     {{- end }}
-    http2 {{ if $s.HTTP2 }}on{{ else }}off{{ end }};
+    {{- if $s.HTTP2 }}
+    http2 on;
+    {{- else if $.HTTP2 }}
+    http2 off;
+    {{- end }}
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}

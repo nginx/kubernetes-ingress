@@ -1544,6 +1544,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngress(t *testing.T) {
 	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[0].GRPC = true
 	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
@@ -1578,6 +1579,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCOnlyIngress(t *testing.T) {
 	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc,tea-svc"
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].GRPCOnly = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[0].GRPC = true
@@ -1630,6 +1632,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsFalseForNonGRPCDefaultBackend(t *te
 	defaultBackendLocation.ProxyPass = "http://" + defaultBackendUpstream.Name
 	expected.Upstreams = []version1.Upstream{defaultBackendUpstream}
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].Locations = []version1.Location{defaultBackendLocation}
 	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
 
@@ -1680,6 +1683,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCDefaultBackend(t *testing.T)
 	defaultBackendLocation.GRPC = true
 	expected.Upstreams = []version1.Upstream{defaultBackendUpstream}
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].GRPCOnly = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations = []version1.Location{defaultBackendLocation}
@@ -1731,6 +1735,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngressWithGRPCDefaultBacke
 	defaultBackendLocation.GRPC = true
 	expected.Upstreams = []version1.Upstream{defaultBackendUpstream, expected.Upstreams[0], expected.Upstreams[1]}
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[1].GRPC = true
 	expected.Servers[0].Locations = append(expected.Servers[0].Locations, defaultBackendLocation)
@@ -2654,6 +2659,7 @@ func TestGenerateNginxCfgForMergeableIngressesSetsHasGRPCLocationsForMixedMinion
 
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[1].GRPC = true
 	expected.Servers[0].Locations[1].MinionIngress.Annotations["nginx.org/grpc-services"] = "tea-svc"
@@ -2690,6 +2696,7 @@ func TestGenerateNginxCfgForMergeableIngressesSetsGRPCOnlyForGRPCOnlyMinions(t *
 
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].GRPCOnly = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[0].GRPC = true
@@ -4643,6 +4650,9 @@ func TestGenerateNginxCfgHTTP2Annotation(t *testing.T) {
 			if got := result.Servers[0].HasGRPCLocations; got != tc.want {
 				t.Errorf("Server.HasGRPCLocations = %v, want %v", got, tc.want)
 			}
+			if result.HTTP2 != tc.configMap {
+				t.Errorf("HTTP2 = %v, want the ConfigMap value %v", result.HTTP2, tc.configMap)
+			}
 		})
 	}
 }
@@ -4663,6 +4673,9 @@ func TestGenerateNginxCfgForMergeableIngressesHTTP2Annotation(t *testing.T) {
 
 	if !result.Servers[0].HTTP2 {
 		t.Error("Server.HTTP2 = false, want true from master annotation")
+	}
+	if result.HTTP2 {
+		t.Error("HTTP2 = true, want the ConfigMap value false, not the master annotation")
 	}
 	if !result.Servers[0].HasGRPCLocations {
 		t.Error("Server.HasGRPCLocations = false, want true: minion gRPC should use the master's http2 value")

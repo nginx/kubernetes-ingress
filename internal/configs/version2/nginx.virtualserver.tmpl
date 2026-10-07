@@ -66,7 +66,11 @@ server {
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
     set $service "-";
-    http2 {{ if $s.HTTP2 }}on{{ else }}off{{ end }};
+    {{- if $s.HTTP2 }}
+    http2 on;
+    {{- else if $.HTTP2 }}
+    http2 off;
+    {{- end }}
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}

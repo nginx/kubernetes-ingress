@@ -3275,6 +3275,7 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 	}
 
 	expected := version2.VirtualServerConfig{
+		HTTP2: true,
 		Upstreams: []version2.Upstream{
 			{
 				UpstreamLabels: version2.UpstreamLabels{
@@ -3937,6 +3938,9 @@ func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
 
 			if result.Server.HTTP2 != tc.want {
 				t.Errorf("Server.HTTP2 = %v, want %v", result.Server.HTTP2, tc.want)
+			}
+			if result.HTTP2 != tc.configMap {
+				t.Errorf("HTTP2 = %v, want the ConfigMap value %v", result.HTTP2, tc.configMap)
 			}
 			grpcWarning := slices.Contains(vsc.warnings[vs], "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2")
 			if grpcWarning != !tc.want {

@@ -1494,7 +1494,6 @@ mgmt {
 
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
-    http2 off;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1519,7 +1518,6 @@ server {
 
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1544,7 +1542,6 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1569,7 +1566,6 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1619,7 +1615,6 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1644,7 +1639,6 @@ server {
 
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
-    http2 off;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1665,7 +1659,6 @@ server {
 
 server {
     listen 8083 default_server;listen [::]:8083 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1686,7 +1679,6 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1707,7 +1699,6 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1749,7 +1740,6 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
@@ -1775,7 +1765,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -1820,7 +1809,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -1884,7 +1872,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -1973,7 +1960,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2017,7 +2003,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2061,7 +2046,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2105,7 +2089,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2149,7 +2132,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2193,7 +2175,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2236,7 +2217,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2279,7 +2259,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -2350,7 +2329,6 @@ upstream test {
 
 
 server {
-    http2 off;
         allow 10.0.0.0/8;
         deny all;
 
@@ -2399,7 +2377,6 @@ upstream test {
 
 
 server {
-    http2 off;
         deny 10.0.0.0/8;
         allow all;
 
@@ -2448,7 +2425,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -2928,7 +2904,6 @@ upstream test {
 
 
 server {
-    http2 off;
     ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
@@ -2982,7 +2957,6 @@ upstream test-keepalive {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3054,7 +3028,6 @@ oidc_provider oidc_default_oidc_native_policy_default_cafe_ingress {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -3126,7 +3099,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3177,7 +3149,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
     return 500;
@@ -3225,7 +3196,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3441,7 +3411,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3489,7 +3458,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3538,7 +3506,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3587,7 +3554,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3636,7 +3602,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -3685,7 +3650,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -3762,7 +3726,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -3839,7 +3802,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -3916,7 +3878,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -3991,7 +3952,6 @@ limit_req_zone ${binary_remote_addr} zone=default/myingress:10m rate=200r/s;
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -4095,7 +4055,6 @@ limit_req_zone ${binary_remote_addr} zone=default/coffee-minion:20m rate=400r/s;
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -4203,7 +4162,6 @@ limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s syn
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -4251,7 +4209,6 @@ server {
 
 
 server {
-    http2 off;
     ssl_certificate ;
     ssl_certificate_key ;
     ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";
@@ -4298,7 +4255,6 @@ server {
 
 
 server {
-    http2 off;
     ssl_certificate ;
     ssl_certificate_key ;
 
@@ -4347,7 +4303,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -4440,7 +4395,6 @@ upstream test-upstream {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -4503,7 +4457,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4539,7 +4492,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4575,7 +4527,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4611,7 +4562,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4647,7 +4597,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4683,7 +4632,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4718,7 +4666,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4753,7 +4700,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -4818,7 +4764,6 @@ upstream test {
 
 
 server {
-    http2 off;
         allow 10.0.0.0/8;
         deny all;
 
@@ -4860,7 +4805,6 @@ upstream test {
 
 
 server {
-    http2 off;
         deny 10.0.0.0/8;
         allow all;
 
@@ -4903,7 +4847,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -5329,7 +5272,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -5379,7 +5321,6 @@ upstream test {
 
 
 server {
-    http2 off;
     ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;
     ssl_verify_client on;
     ssl_verify_depth 2;
@@ -5428,7 +5369,6 @@ upstream test-keepalive {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -5486,7 +5426,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -5530,7 +5469,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
     return 500;
@@ -5572,7 +5510,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -5763,7 +5700,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -5798,7 +5734,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -5839,7 +5774,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -5881,7 +5815,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -5924,7 +5857,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -5967,7 +5899,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -6010,7 +5941,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -6047,7 +5977,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -6109,7 +6038,6 @@ limit_req_zone ${binary_remote_addr} zone=default/myingress:10m rate=200r/s;
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -6181,7 +6109,6 @@ limit_req_zone ${binary_remote_addr} zone=default/coffee-minion:20m rate=400r/s;
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -6255,7 +6182,6 @@ server {
 
 
 server {
-    http2 off;
     ssl_certificate ;
     ssl_certificate_key ;
     ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";
@@ -6294,7 +6220,6 @@ server {
 
 
 server {
-    http2 off;
     ssl_certificate ;
     ssl_certificate_key ;
 
@@ -6337,7 +6262,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -6520,7 +6444,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -6557,7 +6480,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -6612,7 +6534,6 @@ map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -6669,7 +6590,6 @@ map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -6730,7 +6650,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -6825,7 +6744,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -6871,7 +6789,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -6926,7 +6843,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -6966,7 +6882,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -7016,7 +6931,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -7204,7 +7118,6 @@ upstream test {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_reject_handshake on;
 
@@ -7245,7 +7158,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -7300,7 +7212,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -7353,7 +7264,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -7409,7 +7319,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -7457,7 +7366,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -7503,7 +7411,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -7551,7 +7458,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -7593,7 +7499,6 @@ upstream ups {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
 
     server_tokens on;
 
@@ -7655,7 +7560,6 @@ upstream ups {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
 
     server_tokens "on";
 
@@ -7707,6 +7611,95 @@ server {
         grpc_set_header X-Forwarded-Port $server_port;
         grpc_set_header X-Forwarded-Proto $scheme;
         grpc_pass grpcs://ups;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap/OSS - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 80;listen [::]:80;
+    http2 off;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/tea" {
+        set $service "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap/Plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+    http2 off;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        status_zone "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
         
     }
     
@@ -7814,7 +7807,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -7855,7 +7847,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -7904,7 +7895,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -7952,7 +7942,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -8001,7 +7990,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -8042,7 +8030,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -8084,7 +8071,6 @@ upstream ups {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
 
     server_tokens on;
 
@@ -8134,7 +8120,6 @@ upstream ups {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
 
     server_tokens "on";
 
@@ -8192,7 +8177,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -8233,7 +8217,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -8284,7 +8267,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -8351,7 +8333,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -10910,7 +10891,6 @@ stream {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -10972,7 +10952,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -11039,7 +11018,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -11099,7 +11077,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -11159,7 +11136,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -11219,7 +11195,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -11290,7 +11265,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -11375,7 +11349,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -11460,7 +11433,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -11545,7 +11517,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -11630,7 +11601,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -11704,7 +11674,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -11775,7 +11744,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -11851,7 +11819,6 @@ server {
 
 
 server {
-    http2 off;
         allow 10.0.0.0/16;
         deny all;
 
@@ -11915,7 +11882,6 @@ server {
 
 
 server {
-    http2 off;
         deny 10.0.0.0/16;
         allow all;
 
@@ -11979,7 +11945,6 @@ server {
 
 
 server {
-    http2 off;
         allow 10.0.0.0/16;
         deny all;
 
@@ -12043,7 +12008,6 @@ server {
 
 
 server {
-    http2 off;
         deny 10.0.0.0/16;
         allow all;
 
@@ -12107,7 +12071,6 @@ server {
 
 
 server {
-    http2 off;
         allow 10.2.0.0/16;
         deny all;
         deny 10.0.0.0/16;
@@ -12175,7 +12138,6 @@ server {
 
 
 server {
-    http2 off;
         allow 10.0.0.0/16;
         deny all;
 
@@ -12235,7 +12197,6 @@ server {
 
 
 server {
-    http2 off;
         deny 10.0.0.0/16;
         allow all;
 
@@ -12295,7 +12256,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -12357,7 +12317,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -12424,7 +12383,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens off;
 
@@ -12489,7 +12447,6 @@ upstream test {
 
 
 server {
-    http2 off;
 
     server_tokens "off";
 
@@ -12571,7 +12528,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    http2 off;
     listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_reject_handshake on;
 
@@ -12644,7 +12600,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -12706,7 +12661,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -12778,7 +12732,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -12837,7 +12790,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -12906,7 +12858,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens ;
 
@@ -12965,7 +12916,6 @@ server {
 
 
 server {
-    http2 off;
 
     server_tokens "";
 
@@ -13045,7 +12995,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -13130,7 +13079,6 @@ upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
 
 server {
     listen 80;listen [::]:80;
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate /etc/nginx/secrets/default-cafe-secret;
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
@@ -13210,7 +13158,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13292,7 +13239,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13422,7 +13368,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13494,7 +13439,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13614,7 +13558,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13686,7 +13629,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13806,7 +13748,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -13885,7 +13826,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14010,7 +13950,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14146,7 +14085,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14273,7 +14211,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14366,7 +14303,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14445,7 +14381,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14575,7 +14510,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14696,7 +14630,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
@@ -14762,7 +14695,6 @@ upstream test {
 
 
 server {
-    http2 off;
     listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;

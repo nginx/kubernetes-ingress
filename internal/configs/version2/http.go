@@ -34,6 +34,9 @@ type VirtualServerConfig struct {
 	// templates can safely emit app_protect_enable off; in internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
+	// HTTP2 mirrors the http2 ConfigMap key, which is set in the http context. Servers with
+	// HTTP/2 off only render http2 off; when this is on.
+	HTTP2 bool
 }
 
 // AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive

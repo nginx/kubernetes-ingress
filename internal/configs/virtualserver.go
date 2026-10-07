@@ -1305,6 +1305,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
 		AppProtectLoadModule:    vsc.appProtectLoadModule,
+		HTTP2:                   vsc.cfgParams.HTTP2,
 	}
 
 	return vsCfg, vsc.warnings
