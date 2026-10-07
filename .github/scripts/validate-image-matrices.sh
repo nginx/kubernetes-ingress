@@ -76,7 +76,7 @@ validate_matrix_file() {
   while IFS= read -r os; do
     [ -z "$os" ] && continue
     if ! echo "$stages" | grep -qx "$os"; then
-      echo "❌ Error: build_os '\''$os'\'' in $file does not match any stage in build/Dockerfile"
+      echo "❌ Error: build_os '$os' in $file does not match any stage in build/Dockerfile"
       file_errors=$((file_errors + 1))
     fi
   done < <(jq -r '.include[].build_os' "$file" | sort -u)
