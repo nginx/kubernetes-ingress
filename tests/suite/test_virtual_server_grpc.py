@@ -194,6 +194,7 @@ class TestVirtualServerGrpc:
             assert "http2 off;" in set_http2(False)
             # a client offering h2 and http/1.1 over TLS must fall back to http/1.1
             ctx = ssl.create_default_context()
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
             ctx.set_alpn_protocols(["h2", "http/1.1"])
