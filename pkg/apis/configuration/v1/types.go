@@ -55,7 +55,8 @@ type VirtualServerSpec struct {
 	Gunzip bool `json:"gunzip"`
 	// +kubebuilder:validation:Optional
 	// Turns HTTP/2 on or off for this VirtualServer, overriding the http2 ConfigMap key.
-	// For unencrypted (h2c) traffic on the default listeners, HTTP/2 must also be enabled in the ConfigMap.
+	// Without TLS, HTTP/2 (h2c) on the default listeners (when listener is not set) also requires the http2 ConfigMap key.
+	// When off, HTTP/2 requests for this host get 421 Misdirected Request; HTTP/1.1 is unaffected.
 	HTTP2 *bool `json:"http2,omitempty"`
 	// A list of policies.
 	Policies []PolicyReference `json:"policies"`

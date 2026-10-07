@@ -28,7 +28,7 @@ The `.spec` object supports the following fields:
 | `gunzip` | `boolean` | Enables or disables decompression of gzipped responses for clients. Allowed values “on”/“off”, “true”/“false” or “yes”/“no”. If the gunzip value is not set, it defaults to off. |
 | `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. The host value needs to be unique among all Ingress and VirtualServer resources. |
 | `http-snippets` | `string` | Sets a custom snippet in the http context. |
-| `http2` | `boolean` | Turns HTTP/2 on or off for this VirtualServer, overriding the http2 ConfigMap key. For unencrypted (h2c) traffic on the default listeners, HTTP/2 must also be enabled in the ConfigMap. |
+| `http2` | `boolean` | Turns HTTP/2 on or off for this VirtualServer, overriding the http2 ConfigMap key. Without TLS, HTTP/2 (h2c) on the default listeners (when listener is not set) also requires the http2 ConfigMap key. When off, HTTP/2 requests for this host get 421 Misdirected Request; HTTP/1.1 is unaffected. |
 | `ingressClassName` | `string` | Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource. |
 | `listener` | `object` | Sets a custom HTTP and/or HTTPS listener. Valid fields are listener.http and listener.https. Each field must reference the name of a valid listener defined in a GlobalConfiguration resource |
 | `listener.http` | `string` | The name of an HTTP listener defined in a GlobalConfiguration resource. |

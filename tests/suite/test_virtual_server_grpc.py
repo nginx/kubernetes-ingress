@@ -1,3 +1,6 @@
+import socket
+import ssl
+
 import grpc
 import pytest
 from settings import DEPLOYMENTS, TEST_DATA
@@ -189,6 +192,15 @@ class TestVirtualServerGrpc:
         try:
             print("spec.http2: false overrides the http2 ConfigMap key")
             assert "http2 off;" in set_http2(False)
+            # a client offering h2 and http/1.1 over TLS must fall back to http/1.1
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            ctx.set_alpn_protocols(["h2", "http/1.1"])
+            endpoint = virtual_server_setup.public_endpoint
+            with socket.create_connection((endpoint.public_ip, endpoint.port_ssl), timeout=10) as sock:
+                with ctx.wrap_socket(sock, server_hostname=virtual_server_setup.vs_host) as tls:
+                    assert tls.selected_alpn_protocol() == "http/1.1"
 
             print("spec.http2: true without the http2 ConfigMap key")
             replace_configmap_from_yaml(
