@@ -77,6 +77,11 @@ jobs:
         with:
           actionlint_flags: -shellcheck ""
 
+      - name: Validate image matrices
+        run: |
+          .github/scripts/validate-image-matrices_test.sh
+          .github/scripts/validate-image-matrices.sh
+
   chart-lint:
     name: Chart Lint
     if: github.repository == 'nginx/kubernetes-ingress'

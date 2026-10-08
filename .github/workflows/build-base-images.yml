@@ -98,7 +98,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss
           flavor: |
-            suffix=-${{ matrix.image }},onlatest=false
+            suffix=-${{ matrix.build_os }},onlatest=false
           tags: |
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
@@ -107,15 +107,15 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
+          cache-from: type=gha,scope=${{ matrix.build_os }}
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.build_os) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
           pull: true
           push: true
           build-args: |
-            BUILD_OS=${{ matrix.image }}
+            BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
 
   build-plus:
@@ -187,7 +187,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/plus
           flavor: |
-            suffix=-${{ matrix.image }},onlatest=false
+            suffix=-${{ matrix.build_os }},onlatest=false
           tags: |
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
@@ -196,15 +196,15 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
+          cache-from: type=gha,scope=${{ matrix.build_os }}
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.build_os) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
           pull: true
           push: true
           build-args: |
-            BUILD_OS=${{ matrix.image }}
+            BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
@@ -286,7 +286,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/plus
           flavor: |
-            suffix=-${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }},onlatest=false
+            suffix=-${{ matrix.build_os }}-${{ steps.nap_modules.outputs.modules }},onlatest=false
           tags: |
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
@@ -295,15 +295,15 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }}
-          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
+          cache-from: type=gha,scope=${{ matrix.build_os }}-${{ steps.nap_modules.outputs.modules }}
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.build_os) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
           pull: true
           push: true
           build-args: |
-            BUILD_OS=${{ matrix.image }}
+            BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
             NAP_MODULES=${{ matrix.nap_modules }}
           secret-files: |

@@ -6,9 +6,16 @@ on:
       platforms:
         required: true
         type: string
+      build-os:
+        required: true
+        type: string
       image:
         required: true
         type: string
+      tag-suffix:
+        required: false
+        type: string
+        default: ""
       tag:
         required: false
         type: string
@@ -53,7 +60,7 @@ permissions:
 
 jobs:
   build:
-    name: "OSS ${{ inputs.image }} ${{inputs.platforms }}"
+    name: "OSS ${{ inputs.build-os }} ${{ inputs.platforms }}"
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read # for docker/build-push-action to read repo content
@@ -120,9 +127,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ inputs.image }}
           flavor: |
-            suffix=${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}
+            suffix=${{ inputs.tag-suffix }}
           tags: |
             type=raw,value=${{ inputs.tag }}
           labels: |
@@ -138,7 +145,7 @@ jobs:
       - name: Set base name variable
         id: base_name
         run: |
-          base_image="gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.image }}"
+          base_image="gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.build-os }}"
           echo "image=${base_image}" >> $GITHUB_OUTPUT
 
       - name: Check if images exist
@@ -167,7 +174,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.build-os) || '' }}
           target: common
           tags: ${{ steps.base_name.outputs.image }}
           platforms: ${{ inputs.platforms }}
@@ -175,7 +182,7 @@ jobs:
           push: true
           no-cache: true
           build-args: |
-            BUILD_OS=${{ inputs.image }}
+            BUILD_OS=${{ inputs.build-os }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
@@ -200,8 +207,8 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.image) || '' }}
-          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
+          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.build-os) || '' }}
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.build-os) || '' }}
           target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -213,14 +220,14 @@ jobs:
           sbom: ${{ inputs.authenticated }}
           provenance: false
           build-args: |
-            BUILD_OS=${{ inputs.image }}
+            BUILD_OS=${{ inputs.build-os }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results
         run: |
-          mkdir -p "${{ inputs.image }}-results/"
+          mkdir -p "${{ inputs.build-os }}-results/"
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
       - name: Run Docker Scout vulnerability scanner
@@ -230,7 +237,7 @@ jobs:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
           ignore-base: true
-          sarif-file: "${{ inputs.image }}-results/scout.sarif"
+          sarif-file: "${{ inputs.build-os }}-results/scout.sarif"
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true

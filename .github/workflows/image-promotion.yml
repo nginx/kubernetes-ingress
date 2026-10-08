@@ -319,7 +319,7 @@ jobs:
           preflight_version: 1.21.1 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   scan-docker-oss:
-    name: Scan ${{ matrix.image }}
+    name: Scan ${{ matrix.build_os }}
     runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
@@ -327,7 +327,7 @@ jobs:
       id-token: write
       security-events: write
     if: github.repository == 'nginx/kubernetes-ingress' && (
-      !cancelled() && !failure() && fromJSON(needs.checks.outputs.image_matrix_oss).image[0] != null
+      !cancelled() && !failure() && fromJSON(needs.checks.outputs.image_matrix_oss).include[0] != null
       )
     strategy:
       fail-fast: false
@@ -339,7 +339,7 @@ jobs:
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-results
+          directory=${{ matrix.build_os }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -349,9 +349,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}
+            suffix=${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -421,7 +421,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
   scan-docker-plus:
-    name: Scan ${{ matrix.image }}-${{ matrix.target }}
+    name: Scan ${{ matrix.build_os }}-${{ matrix.target }}
     runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
@@ -439,7 +439,7 @@ jobs:
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-${{ matrix.target }}-results
+          directory=${{ matrix.build_os }}-${{ matrix.target }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -449,9 +449,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -521,7 +521,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
   scan-docker-nap:
-    name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
+    name: Scan ${{ matrix.build_os }}-${{ matrix.target }}-${{ matrix.nap_modules }}
     runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
@@ -529,7 +529,7 @@ jobs:
       id-token: write
       security-events: write
     if: github.repository == 'nginx/kubernetes-ingress' && (
-      !cancelled() && !failure() && fromJSON(needs.checks.outputs.image_matrix_nap).image[0] != null
+      !cancelled() && !failure() && fromJSON(needs.checks.outputs.image_matrix_nap).include[0] != null
       )
     strategy:
       fail-fast: false
@@ -538,17 +538,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: NAP modules
-        id: nap_modules
-        run: |
-          [[ "${{ matrix.nap_modules }}" == "waf,dos" ]] && modules="waf-dos" || name="${{ matrix.nap_modules }}"
-          echo "name=${name}" >> $GITHUB_OUTPUT
-        if: ${{ matrix.nap_modules != '' }}
-
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-${{ matrix.target }}-${{ steps.nap_modules.outputs.name }}-results
+          directory=${{ matrix.build_os }}-${{ matrix.target }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -558,9 +551,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.image, 'v5') && '-v5' || '' }}/nginx-plus-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
