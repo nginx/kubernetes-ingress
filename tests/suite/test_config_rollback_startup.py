@@ -43,12 +43,18 @@ ingress_invalid_snippet_src = f"{TEST_DATA}/config-rollback/ingress/ingress-inva
 
 def restart_ic_pod(v1, ic_namespace) -> str:
     """Delete the IC pod and return the name of its replacement once it exists (it may not be Ready yet)."""
+    # Record every existing pod so a sibling replica is never mistaken for the replacement.
+    existing = {pod.metadata.name for pod in get_pod_list(v1, ic_namespace, IC_SELECTOR)}
     old_ic_pod_name = get_first_pod_name(v1, ic_namespace, IC_SELECTOR)
     v1.delete_namespaced_pod(old_ic_pod_name, ic_namespace)
     for _ in range(60):
-        pods = get_pod_list(v1, ic_namespace, IC_SELECTOR)
-        if pods and pods[0].metadata.name != old_ic_pod_name:
-            return pods[0].metadata.name
+        new_pods = [
+            pod.metadata.name
+            for pod in get_pod_list(v1, ic_namespace, IC_SELECTOR)
+            if pod.metadata.name not in existing
+        ]
+        if new_pods:
+            return new_pods[0]
         wait_before_test(1)
     pytest.fail(f"No replacement for IC pod {old_ic_pod_name} appeared")
 
