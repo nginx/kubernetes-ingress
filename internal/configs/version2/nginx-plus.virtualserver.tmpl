@@ -232,6 +232,11 @@ server {
     {{- if $s.OIDCProviderName }}
     auth_oidc {{ $s.OIDCProviderName }};
     {{- end }}
+    {{- if $s.HTTP2 }}
+    http2 on;
+    {{- else if $.HTTP2 }}
+    http2 off;
+    {{- end }}
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}
@@ -240,9 +245,6 @@ server {
     real_ip_header proxy_protocol;
         {{- else }}
     {{ makeHTTPSListener $s }}
-        {{- end }}
-        {{- if $ssl.HTTP2 }}
-    http2 on;
         {{- end }}
 
         {{- if $ssl.RejectHandshake }}
@@ -1090,8 +1092,7 @@ server {
     }
     {{- end}}
 
-    {{- with $ssl := $s.SSL }}
-        {{ if $ssl.HTTP2 }}
+    {{- if $s.HTTP2 }}
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -1147,7 +1148,5 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        {{ end }}
-    {{ end }}
+    {{- end }}
 }

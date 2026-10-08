@@ -96,11 +96,16 @@ oidc_provider {{ $p.Name }} {
 
 {{range $server := .Servers}}
 server {
-	{{- if not $server.GRPCOnly}}
+	{{- if or (not $server.GRPCOnly) (not $server.SSL)}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
+	{{- end}}
+	{{- if $server.HTTP2}}
+	http2 on;
+	{{- else if $.HTTP2}}
+	http2 off;
 	{{- end}}
 
 	{{- if $server.SSL}}
@@ -113,9 +118,6 @@ server {
 	listen {{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
-	{{- end}}
-	{{- if $server.HTTP2}}
-	http2 on;
 	{{- end}}
 	{{- if $server.SSLRejectHandshake}}
 	ssl_reject_handshake on;

@@ -396,10 +396,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -677,7 +677,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -733,9 +732,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -788,10 +784,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -1111,7 +1107,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -1167,9 +1162,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -1223,10 +1215,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -1529,7 +1521,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -1585,9 +1576,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -2375,8 +2363,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
-    
 }
 
 ---
@@ -2418,8 +2404,6 @@ server {
         
         set $default_connection_header close;
     }
-        
-    
 }
 
 ---
@@ -2497,17 +2481,15 @@ server {
         
         set $default_connection_header close;
     }
-        
-    
 }
 
 ---
 
-[TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2Off - 1]
+[TestExecuteVirtualServerTemplate_RendersHTTP2OffOverridingConfigMap/OSS - 1]
 
 server {
-    listen 80 proxy_protocol;
-    listen [::]:80 proxy_protocol;
+    listen 80;
+    listen [::]:80;
 
 
     server_name example.com;
@@ -2516,11 +2498,7 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
-    listen 443 ssl proxy_protocol;
-    listen [::]:443 ssl proxy_protocol;
-
-    ssl_certificate cafe-secret.pem;
-    ssl_certificate_key cafe-secret.pem;
+    http2 off;
 
     server_tokens "";
 
@@ -2533,17 +2511,47 @@ server {
         
         set $default_connection_header close;
     }
-        
-    
 }
 
 ---
 
-[TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On - 1]
+[TestExecuteVirtualServerTemplate_RendersHTTP2OffOverridingConfigMap/Plus - 1]
+
 
 server {
-    listen 80 proxy_protocol;
-    listen [::]:80 proxy_protocol;
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    http2 off;
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS/OSS - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
 
 
     server_name example.com;
@@ -2552,12 +2560,7 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
-    listen 443 ssl proxy_protocol;
-    listen [::]:443 ssl proxy_protocol;
-
     http2 on;
-    ssl_certificate cafe-secret.pem;
-    ssl_certificate_key cafe-secret.pem;
 
     server_tokens "";
 
@@ -2570,7 +2573,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -2626,9 +2628,217 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS/Plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    http2 on;
+
+    server_tokens "";
 
     
+
     
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2Off - 1]
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On - 1]
+
+server {
+    listen 80 proxy_protocol;
+    listen [::]:80 proxy_protocol;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    http2 on;
+    listen 443 ssl proxy_protocol;
+    listen [::]:443 ssl proxy_protocol;
+
+    ssl_certificate cafe-secret.pem;
+    ssl_certificate_key cafe-secret.pem;
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location @grpc_deadline_exceeded {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 4;
+        add_header grpc-message 'deadline exceeded';
+        return 204;
+    }
+
+    location @grpc_permission_denied {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 7;
+        add_header grpc-message 'permission denied';
+        return 204;
+    }
+
+    location @grpc_resource_exhausted {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 8;
+        add_header grpc-message 'resource exhausted';
+        return 204;
+    }
+
+    location @grpc_unimplemented {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 12;
+        add_header grpc-message unimplemented;
+        return 204;
+    }
+
+    location @grpc_internal {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 13;
+        add_header grpc-message 'internal error';
+        return 204;
+    }
+
+    location @grpc_unavailable {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 14;
+        add_header grpc-message unavailable;
+        return 204;
+    }
+
+    location @grpc_unauthenticated {
+        default_type application/grpc;
+        add_header content-type application/grpc;
+        add_header grpc-status 16;
+        add_header grpc-message unauthenticated;
+        return 204;
+    }
 }
 
 ---
@@ -2750,8 +2960,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
-    
 }
 
 ---
@@ -2795,8 +3003,6 @@ server {
         
         set $default_connection_header close;
     }
-        
-    
 }
 
 ---
@@ -2878,8 +3084,6 @@ server {
         
         set $default_connection_header close;
     }
-        
-    
 }
 
 ---
@@ -2916,8 +3120,6 @@ server {
         
         set $default_connection_header close;
     }
-        
-    
 }
 
 ---
@@ -2936,10 +3138,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -2955,7 +3157,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3011,9 +3212,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -3412,10 +3610,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 8443 ssl;
     listen [::]:8443 ssl;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -3431,7 +3629,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3487,9 +3684,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -3508,8 +3702,8 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
-    
     http2 on;
+    
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -3525,7 +3719,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3581,9 +3774,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -3602,8 +3792,8 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
-    
     http2 on;
+    
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -3619,7 +3809,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3675,9 +3864,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -3725,10 +3911,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 127.0.0.2:8443 ssl;
     listen [::]:8443 ssl;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -3744,7 +3930,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3800,9 +3985,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -3819,10 +4001,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 8443 ssl;
     listen [::2]:8443 ssl;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -3838,7 +4020,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3894,9 +4075,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -3913,10 +4091,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 8443 ssl;
     listen [::]:8443 ssl;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -3932,7 +4110,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -3988,9 +4165,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -4009,10 +4183,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 127.0.0.2:8443 ssl;
     listen [::2]:8443 ssl;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
@@ -4028,7 +4202,6 @@ server {
         
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -4084,9 +4257,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -5265,10 +5435,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -5529,7 +5699,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -5585,9 +5754,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -5637,10 +5803,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -5758,7 +5924,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -5814,9 +5979,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -5866,10 +6028,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -5994,7 +6156,6 @@ server {
         auth_request off;
         return 401;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6050,9 +6211,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -6105,10 +6263,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -6401,7 +6559,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6457,9 +6614,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -6512,10 +6666,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -6662,7 +6816,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6718,9 +6871,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -6773,10 +6923,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -6930,7 +7080,6 @@ server {
         auth_request off;
         return 401;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -6986,9 +7135,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -7059,10 +7205,10 @@ server {
     set $oidc_client "test-client";
     set $oidc_client_secret "test-secret";
     auth_oidc oidc_default_my_provider_default_cafe;
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -7209,7 +7355,6 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -7265,9 +7410,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -7320,10 +7462,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -7616,7 +7758,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -7672,9 +7813,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -7924,10 +8062,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -8220,7 +8358,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -8276,9 +8413,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        
-    
 }
 
 ---
@@ -8364,10 +8498,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -8628,7 +8762,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -8684,9 +8817,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
@@ -8857,10 +8987,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -9121,7 +9251,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -9177,9 +9306,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---

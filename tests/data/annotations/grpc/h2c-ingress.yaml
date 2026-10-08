@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grpc-h2c-ingress
+  annotations:
+    nginx.org/grpc-services: "grpc-svc"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+  - host: grpc-h2c.example.com
+    http:
+      paths:
+      - path: /helloworld.Greeter
+        pathType: Prefix
+        backend:
+          service:
+            name: grpc-svc
+            port:
+              number: 50051

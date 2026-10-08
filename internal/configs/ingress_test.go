@@ -1544,6 +1544,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngress(t *testing.T) {
 	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[0].GRPC = true
 	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
@@ -1578,6 +1579,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCOnlyIngress(t *testing.T) {
 	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc,tea-svc"
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].GRPCOnly = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[0].GRPC = true
@@ -1630,6 +1632,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsFalseForNonGRPCDefaultBackend(t *te
 	defaultBackendLocation.ProxyPass = "http://" + defaultBackendUpstream.Name
 	expected.Upstreams = []version1.Upstream{defaultBackendUpstream}
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].Locations = []version1.Location{defaultBackendLocation}
 	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
 
@@ -1680,6 +1683,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCDefaultBackend(t *testing.T)
 	defaultBackendLocation.GRPC = true
 	expected.Upstreams = []version1.Upstream{defaultBackendUpstream}
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].GRPCOnly = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations = []version1.Location{defaultBackendLocation}
@@ -1731,6 +1735,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngressWithGRPCDefaultBacke
 	defaultBackendLocation.GRPC = true
 	expected.Upstreams = []version1.Upstream{defaultBackendUpstream, expected.Upstreams[0], expected.Upstreams[1]}
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[1].GRPC = true
 	expected.Servers[0].Locations = append(expected.Servers[0].Locations, defaultBackendLocation)
@@ -2654,6 +2659,7 @@ func TestGenerateNginxCfgForMergeableIngressesSetsHasGRPCLocationsForMixedMinion
 
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[1].GRPC = true
 	expected.Servers[0].Locations[1].MinionIngress.Annotations["nginx.org/grpc-services"] = "tea-svc"
@@ -2690,6 +2696,7 @@ func TestGenerateNginxCfgForMergeableIngressesSetsGRPCOnlyForGRPCOnlyMinions(t *
 
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 	expected.Servers[0].HTTP2 = true
+	expected.HTTP2 = true
 	expected.Servers[0].GRPCOnly = true
 	expected.Servers[0].HasGRPCLocations = true
 	expected.Servers[0].Locations[0].GRPC = true
@@ -4596,6 +4603,82 @@ func TestGenerateNginxCfgForMergeableIngressesSSLCiphers(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgHTTP2Annotation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg        string
+		noTLS      bool
+		configMap  bool
+		annotation string
+		want       bool // Server.HTTP2, and whether the gRPC locations are kept
+	}{
+		{msg: "no annotation inherits ConfigMap off"},
+		{msg: "no annotation inherits ConfigMap on", configMap: true, want: true},
+		{msg: "annotation true overrides ConfigMap off", annotation: "true", want: true},
+		{msg: "annotation true matches ConfigMap on", configMap: true, annotation: "true", want: true},
+		{msg: "annotation false overrides ConfigMap on", configMap: true, annotation: "false"},
+		{msg: "invalid annotation is ignored", configMap: true, annotation: "maybe", want: true},
+		{msg: "no TLS inherits ConfigMap on", noTLS: true, configMap: true, want: true},
+		{msg: "no TLS, annotation false overrides ConfigMap on", noTLS: true, configMap: true, annotation: "false"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			configParams := NewDefaultConfigParams(context.Background(), false)
+			configParams.HTTP2 = tc.configMap
+			ingEx := createCafeIngressEx()
+			ingEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+			if tc.annotation != "" {
+				ingEx.Ingress.Annotations[HTTP2Annotation] = tc.annotation
+			}
+			if tc.noTLS {
+				ingEx.Ingress.Spec.TLS = nil
+			}
+
+			result, _ := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &ingEx,
+				BaseCfgParams: configParams,
+			})
+
+			if got := result.Servers[0].HTTP2; got != tc.want {
+				t.Errorf("Server.HTTP2 = %v, want %v", got, tc.want)
+			}
+			if got := result.Servers[0].HasGRPCLocations; got != tc.want {
+				t.Errorf("Server.HasGRPCLocations = %v, want %v", got, tc.want)
+			}
+			if result.HTTP2 != tc.configMap {
+				t.Errorf("HTTP2 = %v, want the ConfigMap value %v", result.HTTP2, tc.configMap)
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesHTTP2Annotation(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[HTTP2Annotation] = "true"
+	// the minion annotation is ignored; the minion's gRPC location follows the master
+	mergeableIngresses.Minions[0].Ingress.Annotations[HTTP2Annotation] = "false"
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+
+	result, _ := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if !result.Servers[0].HTTP2 {
+		t.Error("Server.HTTP2 = false, want true from master annotation")
+	}
+	if result.HTTP2 {
+		t.Error("HTTP2 = true, want the ConfigMap value false, not the master annotation")
+	}
+	if !result.Servers[0].HasGRPCLocations {
+		t.Error("Server.HasGRPCLocations = false, want true: minion gRPC should use the master's http2 value")
 	}
 }
 

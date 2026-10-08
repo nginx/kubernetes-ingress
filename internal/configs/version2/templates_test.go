@@ -491,6 +491,47 @@ func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithHTTP2On(t *testing.
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, executor := range map[string]*TemplateExecutor{"OSS": newTmplExecutorNGINX(t), "Plus": newTmplExecutorNGINXPlus(t)} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHTTP2OnNoTLS)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(got, []byte("http2 on;")) {
+				t.Error("want `http2 on;` in generated template")
+			}
+			if bytes.Contains(got, []byte("ssl")) {
+				t.Error("unwant `ssl` in generated template for a server without TLS")
+			}
+			snaps.MatchSnapshot(t, string(got))
+		})
+	}
+}
+
+// http2 off; is only rendered when the http2 ConfigMap key turns HTTP/2 on in the http context.
+func TestExecuteVirtualServerTemplate_RendersHTTP2OffOverridingConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := virtualServerCfgWithHTTP2OnNoTLS
+	cfg.HTTP2 = true
+	cfg.Server.HTTP2 = false
+	for name, executor := range map[string]*TemplateExecutor{"OSS": newTmplExecutorNGINX(t), "Plus": newTmplExecutorNGINXPlus(t)} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(got, []byte("http2 off;")) {
+				t.Error("want `http2 off;` in generated template")
+			}
+			snaps.MatchSnapshot(t, string(got))
+		})
+	}
+}
+
 func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithHTTP2Off(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
@@ -1944,8 +1985,8 @@ func vsConfig() VirtualServerConfig {
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -2308,8 +2349,8 @@ var (
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -2669,8 +2710,8 @@ var (
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -2923,8 +2964,8 @@ var (
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			HTTP2:         true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -2941,8 +2982,8 @@ var (
 			ServerName:    "example.com",
 			StatusZone:    "example.com",
 			ProxyProtocol: true,
+			HTTP2:         false,
 			SSL: &SSL{
-				HTTP2:          false,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -2951,6 +2992,15 @@ var (
 					Path: "/",
 				},
 			},
+		},
+	}
+
+	virtualServerCfgWithHTTP2OnNoTLS = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HTTP2:      true,
+			Locations:  []Location{{Path: "/"}},
 		},
 	}
 
@@ -3619,8 +3669,8 @@ var (
 		Server: Server{
 			ServerName: "example.com",
 			StatusZone: "example.com",
+			HTTP2:      true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -3639,8 +3689,8 @@ var (
 		Server: Server{
 			ServerName: "example.com",
 			StatusZone: "example.com",
+			HTTP2:      true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
@@ -3678,8 +3728,8 @@ var (
 		Server: Server{
 			ServerName: "example.com",
 			StatusZone: "example.com",
+			HTTP2:      true,
 			SSL: &SSL{
-				HTTP2:          true,
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},

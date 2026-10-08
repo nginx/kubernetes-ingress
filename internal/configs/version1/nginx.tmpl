@@ -82,6 +82,10 @@ http {
     keepalive_timeout {{.KeepaliveTimeout}};
     keepalive_requests {{.KeepaliveRequests}};
 
+    {{- if .HTTP2}}
+    http2 on;
+    {{- end}}
+
     #gzip  on;
 
     server_names_hash_max_size {{.ServerNamesHashMaxSize}};
