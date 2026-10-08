@@ -1,6 +1,3 @@
 {
-  "image": [],
-  "platforms": [],
-  "target": [],
-  "nap_modules": []
+  "include": []
 }

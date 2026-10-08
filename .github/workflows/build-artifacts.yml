@@ -206,7 +206,7 @@ jobs:
   build-docker:
     name: Build Docker OSS
     if: github.repository == 'nginx/kubernetes-ingress' && (
-      fromJSON(inputs.image-matrix-oss).image[0] != null
+      fromJSON(inputs.image-matrix-oss).include[0] != null
       )
     needs: [binaries]
     strategy:
@@ -215,7 +215,9 @@ jobs:
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
       authenticated: ${{ inputs.authenticated }}
@@ -243,7 +245,9 @@ jobs:
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       target: ${{ matrix.target }}
       pkg-src-plus: ${{ inputs.pkg-src-plus }}
       go-md5: ${{ inputs.go-md5 }}
@@ -264,7 +268,7 @@ jobs:
 
   build-docker-nap:
     name: Build Docker NAP
-    if: github.repository == 'nginx/kubernetes-ingress' && ( fromJSON(inputs.image-matrix-nap).image[0] != null )
+    if: github.repository == 'nginx/kubernetes-ingress' && ( fromJSON(inputs.image-matrix-nap).include[0] != null )
     needs: [binaries]
     strategy:
       fail-fast: false
@@ -272,7 +276,9 @@ jobs:
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
