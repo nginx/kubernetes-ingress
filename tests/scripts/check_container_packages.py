@@ -34,9 +34,9 @@ SYSTEMS = {
     },
 }
 
-# Packages promoted to each image's summary line. The first package name that exists
-# in a given image wins, so OSS images show `nginx` and Plus images show `nginx-plus`
-# under the same label.
+# Packages promoted to their own column in the report table. The first package name
+# that exists in a given image wins, so OSS images show `nginx` and Plus images show
+# `nginx-plus` in the same column.
 HIGHLIGHTS = (
     ("NGINX", ("nginx-plus", "nginx")),
     ("Agent", ("nginx-agent",)),
@@ -218,44 +218,58 @@ def group_checks(checks: list, registry: str = "") -> list:
     return list(groups.values())
 
 
+def versions(group: Group, package: dict) -> str:
+    """Installed version of one package, collapsed to a single value when every platform agrees."""
+    found = {}
+    for platform in group.platforms:
+        check = package["by_platform"].get(platform)
+        found[platform] = (check.installed or f"_{check.error}_") if check else EMPTY
+    if len(set(found.values())) == 1:
+        return found[group.platforms[0]]
+    return " / ".join(f"{v} ({p})" for p, v in found.items())
+
+
 def version_cell(group: Group, package_names) -> str:
-    """Render the summary-line version for the first of ``package_names`` present in the image."""
+    """Headline column: the version of the first of ``package_names`` present in the image."""
     for name in package_names:
         package = group.packages.get(name)
-        if not package:
-            continue
-        versions = {}
-        for platform in group.platforms:
-            check = package["by_platform"].get(platform)
-            versions[platform] = check.installed if check and check.installed else "?"
-        if not all(check.ok for check in package["by_platform"].values()):
-            return "&#10060;"
-        if len(set(versions.values())) == 1:
-            return versions[group.platforms[0]]
-        return " / ".join(f"{v} ({p})" for p, v in versions.items())
+        if package:
+            return versions(group, package) if all(c.ok for c in package["by_platform"].values()) else "&#10060;"
     return EMPTY
 
 
-def render_summary(group: Group) -> str:
-    """One line per image variant: status, image, arch, then the headline package versions.
+def packages_cell(group: Group, expand: bool) -> str:
+    """Every package in the image, collapsed behind its count unless something failed."""
+    if not expand:
+        return str(len(group.packages))
+    items = []
+    for name, package in group.packages.items():
+        item = f"{name} {versions(group, package)}"
+        if not all(c.ok for c in package["by_platform"].values()):
+            item += f" &#10060; want {package['expected']}"
+        items.append(item)
+    tag = "<details open>" if group.failures else "<details>"
+    return f"{tag}<summary>{len(items)}</summary>{'<br>'.join(items)}</details>"
 
-    Essentials come first because GitHub wraps long lines in a narrow column.
-    """
-    failures = len(group.failures)
-    parts = [
-        (f"&#10060; {failures}" if failures else "&#9989;")
-        + f" <code>{group.repo}</code>"
-        + (f" <code>{group.tag_suffix}</code>" if group.tag_suffix else ""),
-        ", ".join(group.platforms),
-    ]
-    for label, names in HIGHLIGHTS:
-        cell = version_cell(group, names)
-        if cell != EMPTY:
-            parts.append(f"{label} {cell}")
-    # Uncompressed size, in the same order as the platforms listed above.
-    sizes = {c.platform: c.image_size for c in group.checks}
-    parts.append(" / ".join(f"{s / 1e6:.0f}" if s else "?" for s in sizes.values()) + " MB")
-    return " &middot; ".join(parts)
+
+def render_table(groups: list, expand_passing: bool = True) -> list:
+    """One row per image variant; essentials on the left, the package list last."""
+    headers = ["", "Image", "Arch", *(label for label, _ in HIGHLIGHTS), "Size", "Packages"]
+    lines = ["| " + " | ".join(headers) + " |", "| :-: |" + " --- |" * (len(headers) - 1)]
+    for group in groups:
+        failures = len(group.failures)
+        # Uncompressed size, in the same order as the Arch column.
+        sizes = {c.platform: c.image_size for c in group.checks}
+        row = [
+            f"&#10060; {failures}" if failures else "&#9989;",
+            f"`{group.repo}`" + (f" `{group.tag_suffix}`" if group.tag_suffix else ""),
+            ", ".join(group.platforms),
+            *(version_cell(group, names) for _, names in HIGHLIGHTS),
+            " / ".join(f"{s / 1e6:.0f}" if s else "?" for s in sizes.values()) + " MB",
+            packages_cell(group, expand_passing or bool(failures)),
+        ]
+        lines.append("| " + " | ".join(row) + " |")
+    return lines + [""]
 
 
 def render_mismatches(groups: list) -> list:
@@ -283,33 +297,6 @@ def render_mismatches(groups: list) -> list:
     return lines
 
 
-def render_details(group: Group) -> list:
-    """A collapsed section holding the full package table for one image variant."""
-    lines = [
-        "<details open>" if group.failures else "<details>",
-        f"<summary>{render_summary(group)}</summary>",
-        "",
-        "| Package | Expected | " + " | ".join(group.platforms) + " |",
-        "| --- | --- |" + " --- |" * len(group.platforms),
-    ]
-    for name, package in group.packages.items():
-        cells = []
-        for platform in group.platforms:
-            check = package["by_platform"].get(platform)
-            if check is None:
-                cells.append(EMPTY)
-            elif check.ok:
-                cells.append(check.installed)
-            elif check.installed:
-                # The expected version is in its own column, so the value alone is enough.
-                cells.append(f"{check.installed} &#10060;")
-            else:
-                cells.append(f"_{check.error}_ &#10060;")
-        lines.append(f"| {name} | {package['expected']} | " + " | ".join(cells) + " |")
-    lines.extend(["", "</details>", ""])
-    return lines
-
-
 def render_report(checks: list, registry: str, tag: str, commit: str = "", run_url: str = "") -> str:
     groups = group_checks(checks, registry)
     failed = [g for g in groups if g.failures]
@@ -334,21 +321,16 @@ def render_report(checks: list, registry: str, tag: str, commit: str = "", run_u
     if failures:
         head += render_mismatches(failed)
 
-    report = "\n".join(head + [line for group in groups for line in render_details(group)]).rstrip() + "\n"
+    report = "\n".join(head + render_table(groups)).rstrip() + "\n"
     if len(report) <= MAX_COMMENT_CHARS:
         return report
 
-    # Too large for a single comment: keep one line per passing image and only expand what failed.
-    trimmed = head + [
-        (
-            "<sub>Package tables for passing images omitted to stay within the comment size limit; "
-            "see the CI run linked above for the full list.</sub>"
-        ),
-        "",
-    ]
-    trimmed += [f"- {render_summary(group)}" for group in groups if not group.failures] + [""]
-    trimmed += [line for group in failed for line in render_details(group)]
-    return "\n".join(trimmed).rstrip() + "\n"
+    # Too large for a single comment: only list the packages of images that failed.
+    notice = (
+        "<sub>Package lists for passing images omitted to stay within the comment size limit; "
+        "see the CI run linked above for the full list.</sub>"
+    )
+    return "\n".join(head + [notice, ""] + render_table(groups, expand_passing=False)).rstrip() + "\n"
 
 
 def main() -> int:
