@@ -1,20 +1,32 @@
 {
-  "image": [
-    "debian-plus",
-    "alpine-plus",
-    "alpine-plus-fips"
-  ],
-  "platforms": [
-    "linux/arm64, linux/amd64"
-  ],
-  "target": [
-    "goreleaser"
-  ],
   "include": [
     {
-      "image": "ubi-10-plus",
+      "build_os": "debian-plus",
+      "image": "nginx-ic/nginx-plus-ingress",
       "platforms": "linux/arm64, linux/amd64",
-      "target": "goreleaser"
+      "target": "goreleaser",
+      "tag_suffix": ""
+    },
+    {
+      "build_os": "alpine-plus",
+      "image": "nginx-ic/nginx-plus-ingress",
+      "platforms": "linux/arm64, linux/amd64",
+      "target": "goreleaser",
+      "tag_suffix": "-alpine"
+    },
+    {
+      "build_os": "alpine-plus-fips",
+      "image": "nginx-ic/nginx-plus-ingress",
+      "platforms": "linux/arm64, linux/amd64",
+      "target": "goreleaser",
+      "tag_suffix": "-alpine-fips"
+    },
+    {
+      "build_os": "ubi-10-plus",
+      "image": "nginx-ic/nginx-plus-ingress",
+      "platforms": "linux/arm64, linux/amd64",
+      "target": "goreleaser",
+      "tag_suffix": "-ubi"
     }
   ]
 }

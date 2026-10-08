@@ -63,7 +63,7 @@ jobs:
       - name: Set image variables
         id: image_details
         run: |
-          echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(inputs.nap-modules, 'dos') && '-dos' || '' }}${{ contains(inputs.nap-modules, 'waf') && '-nap' || '' }}${{ contains(inputs.image, 'v5') && '-v5' || '' }}/nginx${{ contains(inputs.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
+          echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(inputs.nap-modules, 'waf') && '-nap' || '' }}${{ contains(inputs.nap-modules, 'dos') && '-dos' || '' }}${{ contains(inputs.image, 'v5') && '-v5' || '' }}/nginx${{ contains(inputs.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
           echo "build_tag=${{ inputs.build-tag }}${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}${{ contains(inputs.image, 'agent') && '-agent' || ''}}" >> $GITHUB_OUTPUT
           echo "stable_tag=${{ inputs.stable-tag }}${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}${{ contains(inputs.image, 'agent') && '-agent' || ''}}" >> $GITHUB_OUTPUT
 

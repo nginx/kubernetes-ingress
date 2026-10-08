@@ -189,7 +189,7 @@
       ]
     },
     {
-      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
       "tag_suffix": "",
       "packages": [
         {
@@ -616,7 +616,7 @@
       ]
     },
     {
-      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
       "tag_suffix": "-ubi",
       "packages": [
         {
@@ -950,7 +950,7 @@
       ]
     },
     {
-      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
       "tag_suffix": "-agent",
       "packages": [
         {
@@ -1008,7 +1008,7 @@
       ]
     },
     {
-      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+      "image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
       "tag_suffix": "-ubi-agent",
       "packages": [
         {
