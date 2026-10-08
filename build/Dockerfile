@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.27
+# syntax=docker/dockerfile:1.28
 ARG BUILD_OS=debian
 
 # renovate: datasource=docker depName=nginx/nginx
