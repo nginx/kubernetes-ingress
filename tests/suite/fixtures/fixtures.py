@@ -630,7 +630,8 @@ def create_pebble(
     # Registered first, so it runs last: the manifest delete below still needs the file.
     request.addfinalizer(lambda: os.remove(tmp.name))
     create_generic_from_yaml(tmp.name, request)
-    wait_until_all_pods_are_ready(kube_apis.v1, "pebble", timeout=180)
+    for app in ("pebble", "pebble-challtestsrv"):
+        wait_until_all_pods_are_ready(kube_apis.v1, "pebble", f"app={app}", timeout=180)
 
     challtestsrv_ip = read_service(kube_apis.v1, "pebble-challtestsrv", "pebble").spec.cluster_ip
 
