@@ -1,5 +1,6 @@
 """Describe project shared pytest fixtures."""
 
+import os
 import subprocess
 import tempfile
 import time
