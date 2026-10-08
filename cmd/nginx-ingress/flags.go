@@ -241,6 +241,9 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	disableIPV6 = flag.Bool("disable-ipv6", false,
 		`Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack`)
 
+	clusterDomain = flag.String("cluster-domain", "cluster.local",
+		`The DNS domain of the cluster. Used to build the fully qualified domain names of headless services referenced by upstreams with use-cluster-ip`)
+
 	defaultHTTPListenerPort = flag.Int("default-http-listener-port", 80, "Sets a custom port for the HTTP NGINX `default_server`. [1024 - 65535]")
 
 	defaultHTTPSListenerPort = flag.Int("default-https-listener-port", 443, "Sets a custom port for the HTTPS `default_server`. [1024 - 65535]")
@@ -409,6 +412,10 @@ func mustValidateFlags(ctx context.Context) {
 
 	if err := validateAppProtectEnforcerAddress(*appProtectEnforcerAddress); err != nil {
 		nl.Fatalf(l, "Invalid value for app-protect-enforcer-address: %v", err)
+	}
+
+	if err := validateClusterDomain(*clusterDomain); err != nil {
+		nl.Fatalf(l, "Invalid value for cluster-domain: %v", err)
 	}
 
 	statusLockNameValidationError := validateResourceName(*leaderElectionLockName)
@@ -738,6 +745,14 @@ const (
 )
 
 var locationRegexp = regexp.MustCompile("^" + locationFmt + "$")
+
+// validateClusterDomain makes sure the cluster domain is a valid DNS subdomain
+func validateClusterDomain(domain string) error {
+	if errs := validation.IsDNS1123Subdomain(domain); len(errs) > 0 {
+		return fmt.Errorf("invalid cluster domain %q: %s", domain, strings.Join(errs, ", "))
+	}
+	return nil
+}
 
 func validateLocation(location string) error {
 	if location == "" || location == "/" {

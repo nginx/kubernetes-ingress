@@ -278,6 +278,80 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithResolvedUpstreamServersForNGINX(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	ingCfg := ingressCfg
+	ingCfg.Upstreams = []Upstream{
+		{
+			Name:             "test",
+			UpstreamZoneSize: "0",
+			UpstreamServers: []UpstreamServer{
+				{
+					Address:     "example.com:80",
+					MaxFails:    1,
+					FailTimeout: "10s",
+					Resolve:     true,
+				},
+			},
+		},
+		{
+			Name:             "test-no-zone",
+			UpstreamZoneSize: "0",
+			UpstreamServers: []UpstreamServer{
+				{
+					Address:     "127.0.0.1:8181",
+					MaxFails:    1,
+					FailTimeout: "10s",
+				},
+			},
+		},
+	}
+
+	err := tmpl.Execute(buf, ingCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	for _, want := range []string{
+		"zone test 256k;",
+		"server example.com:80 max_fails=1 fail_timeout=10s max_conns=0 resolve;",
+		"server 127.0.0.1:8181 max_fails=1 fail_timeout=10s max_conns=0;",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	if strings.Contains(got, "zone test-no-zone") {
+		t.Errorf("want no zone for upstream test-no-zone with zone size 0")
+	}
+	snaps.MatchSnapshot(t, got)
+}
+
+func TestExecuteMainTemplateWithoutResolverForNGINX(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	cfg := mainCfg
+	cfg.ResolverAddresses = nil
+	cfg.ResolverValid = ""
+	cfg.ResolverTimeout = ""
+
+	err := tmpl.Execute(buf, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "resolver") {
+		t.Errorf("want no resolver directives in generated config, got:\n%s", buf.String())
+	}
+}
+
 func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 	t.Parallel()
 

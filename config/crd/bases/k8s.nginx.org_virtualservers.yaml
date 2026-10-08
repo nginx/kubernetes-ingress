@@ -1376,8 +1376,10 @@ spec:
                         you need to include the namespace. For example, tea-namespace/tea.
                         If the service doesn’t exist, NGINX will assume the service
                         has zero endpoints and return a 502 response for requests
-                        for this upstream. For NGINX Plus only, services of type ExternalName
-                        are also supported in the same namespace.
+                        for this upstream. Services of type ExternalName are also
+                        supported, in the same or in a different namespace. They require
+                        a resolver configured in the ConfigMap and, with NGINX Open
+                        Source, NGINX 1.27.3 or later.
                       type: string
                     sessionCookie:
                       description: The SessionCookie field configures session persistence
@@ -1458,7 +1460,14 @@ spec:
                         NGINX behavior related to multiple upstream servers (like
                         lb-method and next-upstream) will have no effect, as NGINX
                         Ingress Controller will configure NGINX with only one upstream
-                        server that will match the service Cluster IP.
+                        server that will match the service Cluster IP. For a headless
+                        Service, which has no Cluster IP, NGINX Ingress Controller
+                        configures the fully qualified domain name of the Service
+                        with the resolve parameter instead, so that NGINX resolves
+                        the addresses of the pods at runtime and the fields like lb-method
+                        and next-upstream apply to the pods. This requires a resolver
+                        configured in the ConfigMap and a numeric or omitted targetPort
+                        in the Service port.
                       type: boolean
                   type: object
                 type: array

@@ -2969,6 +2969,89 @@ func TestGetServiceForIngressBackendNamespaceNotWatched(t *testing.T) {
 	}
 }
 
+func TestGetExternalEndpointsForIngressBackend(t *testing.T) {
+	t.Parallel()
+
+	svcWithoutPorts := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "external-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Type:         api_v1.ServiceTypeExternalName,
+			ExternalName: "my.service.example.com",
+		},
+	}
+	svcWithPorts := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "external-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Type:         api_v1.ServiceTypeExternalName,
+			ExternalName: "my.service.example.com",
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 8080},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		backendPort networking.ServiceBackendPort
+		svc         *api_v1.Service
+		want        []podEndpoint
+		wantErr     bool
+	}{
+		{
+			name:        "numeric port with a Service without ports",
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			svc:         svcWithoutPorts,
+			want:        []podEndpoint{{Address: "my.service.example.com:80"}},
+		},
+		{
+			name:        "numeric port with a Service with ports",
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			svc:         svcWithPorts,
+			want:        []podEndpoint{{Address: "my.service.example.com:80"}},
+		},
+		{
+			name:        "named port found in the Service",
+			backendPort: networking.ServiceBackendPort{Name: "http"},
+			svc:         svcWithPorts,
+			want:        []podEndpoint{{Address: "my.service.example.com:8080"}},
+		},
+		{
+			name:        "named port missing in the Service",
+			backendPort: networking.ServiceBackendPort{Name: "grpc"},
+			svc:         svcWithPorts,
+			wantErr:     true,
+		},
+		{
+			name:        "named port with a Service without ports",
+			backendPort: networking.ServiceBackendPort{Name: "http"},
+			svc:         svcWithoutPorts,
+			wantErr:     true,
+		},
+	}
+
+	lbc := &LoadBalancerController{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := &networking.IngressBackend{
+				Service: &networking.IngressServiceBackend{Name: test.svc.Name, Port: test.backendPort},
+			}
+			got, err := lbc.getExternalEndpointsForIngressBackend(backend, test.svc)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("getExternalEndpointsForIngressBackend() returned %v, want an error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("getExternalEndpointsForIngressBackend() returned an error: %v", err)
+			}
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("getExternalEndpointsForIngressBackend() returned %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestGetEndpointsForIngressBackendNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
@@ -7415,5 +7498,313 @@ func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
 	}
 	if lbc.virtualServerRequiresEndpointsUpdate(vsEx, "other", "cm-acme-http-solver-abcde") {
 		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
+	}
+}
+
+func TestGetEndpointsForIngressBackendExternalName(t *testing.T) {
+	t.Parallel()
+
+	svc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ext-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Type:         api_v1.ServiceTypeExternalName,
+			ExternalName: "ext.example.com",
+			Ports:        []api_v1.ServicePort{{Name: "http", Port: 8080}},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		backendPort networking.ServiceBackendPort
+		want        []podEndpoint
+		wantErr     bool
+	}{
+		{
+			name:        "numeric port",
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			want:        []podEndpoint{{Address: "ext.example.com:80"}},
+		},
+		{
+			name:        "named port",
+			backendPort: networking.ServiceBackendPort{Name: "http"},
+			want:        []podEndpoint{{Address: "ext.example.com:8080"}},
+		},
+		{
+			name:        "missing named port",
+			backendPort: networking.ServiceBackendPort{Name: "missing"},
+			wantErr:     true,
+		},
+	}
+
+	for _, isPlus := range []bool{false, true} {
+		for _, tc := range tests {
+			t.Run(fmt.Sprintf("nginxPlus=%v/%s", isPlus, tc.name), func(t *testing.T) {
+				t.Parallel()
+
+				// An ExternalName Service has no EndpointSlices, which is what routes it to the external branch.
+				nsi := &namespacedInformer{
+					endpointSliceLister: storeToEndpointSliceLister{Store: cache.NewStore(cache.MetaNamespaceKeyFunc)},
+				}
+				lbc := &LoadBalancerController{
+					isNginxPlus:         isPlus,
+					namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": nsi}),
+					Logger:              nl.LoggerFromContext(context.Background()),
+				}
+				backend := &networking.IngressBackend{
+					Service: &networking.IngressServiceBackend{Name: svc.Name, Port: tc.backendPort},
+				}
+
+				got, isExternal, err := lbc.getEndpointsForIngressBackend(backend, svc)
+				if tc.wantErr {
+					if err == nil {
+						t.Fatalf("getEndpointsForIngressBackend() returned nil error, want an error")
+					}
+					if isExternal {
+						t.Error("getEndpointsForIngressBackend() returned isExternal=true on error, want false")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("getEndpointsForIngressBackend() returned error: %v", err)
+				}
+				if !isExternal {
+					t.Error("getEndpointsForIngressBackend() returned isExternal=false, want true for an ExternalName Service")
+				}
+				if diff := cmp.Diff(tc.want, got); diff != "" {
+					t.Errorf("getEndpointsForIngressBackend() mismatch (-want +got):\n%s", diff)
+				}
+			})
+		}
+	}
+}
+
+func newExternalNameServiceInformer(t *testing.T, svcs ...*api_v1.Service) *namespacedInformer {
+	t.Helper()
+	svcStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	for _, svc := range svcs {
+		if err := svcStore.Add(svc); err != nil {
+			t.Fatalf("error adding service: %v", err)
+		}
+	}
+	return &namespacedInformer{
+		svcLister:           svcStore,
+		endpointSliceLister: storeToEndpointSliceLister{Store: cache.NewStore(cache.MetaNamespaceKeyFunc)},
+		podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
+	}
+}
+
+func TestCreateVirtualServerExExternalNameForNGINX(t *testing.T) {
+	t.Parallel()
+
+	teaSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "tea-svc", Namespace: "default"},
+		Spec:       api_v1.ServiceSpec{Type: api_v1.ServiceTypeExternalName, ExternalName: "tea.example.com"},
+	}
+	coffeeSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-svc", Namespace: "other"},
+		Spec:       api_v1.ServiceSpec{Type: api_v1.ServiceTypeExternalName, ExternalName: "coffee.example.com"},
+	}
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+		Spec: conf_v1.VirtualServerSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+		},
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "coffee", Namespace: "other"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "coffee", Service: "coffee-svc", Port: 8080}},
+		},
+	}
+
+	lbc := &LoadBalancerController{
+		isNginxPlus:      false,
+		Logger:           nl.LoggerFromContext(context.Background()),
+		metricsCollector: collectors.NewControllerFakeCollector(),
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
+			"default": newExternalNameServiceInformer(t, teaSvc),
+			"other":   newExternalNameServiceInformer(t, coffeeSvc),
+		}),
+		configuration: &Configuration{hosts: map[string]Resource{}},
+	}
+
+	vsEx := lbc.createVirtualServerEx(vs, []*conf_v1.VirtualServerRoute{vsr}, nil)
+
+	wantExternalNameSvcs := map[string]bool{"default/tea-svc": true, "other/coffee-svc": true}
+	if diff := cmp.Diff(wantExternalNameSvcs, vsEx.ExternalNameSvcs); diff != "" {
+		t.Errorf("ExternalNameSvcs mismatch (-want +got):\n%s", diff)
+	}
+	wantEndpoints := map[string][]string{
+		"default/tea-svc:80":    {"tea.example.com:80"},
+		"other/coffee-svc:8080": {"coffee.example.com:8080"},
+	}
+	if diff := cmp.Diff(wantEndpoints, vsEx.Endpoints); diff != "" {
+		t.Errorf("Endpoints mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCreateTransportServerExExternalNameForNGINX(t *testing.T) {
+	t.Parallel()
+
+	dbSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "db-svc", Namespace: "default"},
+		Spec:       api_v1.ServiceSpec{Type: api_v1.ServiceTypeExternalName, ExternalName: "db.example.com"},
+	}
+	ts := &conf_v1.TransportServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "db", Namespace: "default"},
+		Spec: conf_v1.TransportServerSpec{
+			Upstreams: []conf_v1.TransportServerUpstream{{Name: "db", Service: "db-svc", Port: 5432}},
+		},
+	}
+
+	lbc := &LoadBalancerController{
+		isNginxPlus:         false,
+		Logger:              nl.LoggerFromContext(context.Background()),
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": newExternalNameServiceInformer(t, dbSvc)}),
+		configuration:       &Configuration{},
+	}
+
+	tsEx := lbc.createTransportServerEx(ts, 5432, "", "")
+
+	if diff := cmp.Diff(map[string]bool{"default/db-svc": true}, tsEx.ExternalNameSvcs); diff != "" {
+		t.Errorf("ExternalNameSvcs mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(map[string][]string{"default/db-svc:5432": {"db.example.com:5432"}}, tsEx.Endpoints); diff != "" {
+		t.Errorf("Endpoints mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCreateVirtualServerExWithUseClusterIPForHeadlessServices(t *testing.T) {
+	t.Parallel()
+
+	newService := func(namespace, name, clusterIP string, targetPort intstr.IntOrString) *api_v1.Service {
+		return &api_v1.Service{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: namespace},
+			Spec: api_v1.ServiceSpec{
+				ClusterIP: clusterIP,
+				Ports:     []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: targetPort}},
+				Selector:  map[string]string{"app": name},
+			},
+		}
+	}
+	services := []*api_v1.Service{
+		newService("default", "tea-svc", "10.96.0.10", intstr.FromInt(8080)),
+		newService("default", "coffee-svc", api_v1.ClusterIPNone, intstr.FromInt(8080)),
+		newService("default", "juice-svc", api_v1.ClusterIPNone, intstr.FromString("http")),
+		newService("other", "soda-svc", api_v1.ClusterIPNone, intstr.IntOrString{}),
+	}
+
+	informers := map[string]*namespacedInformer{}
+	for _, ns := range []string{"default", "other"} {
+		svcStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+		for _, svc := range services {
+			if svc.Namespace == ns {
+				if err := svcStore.Add(svc); err != nil {
+					t.Fatalf("error adding service: %v", err)
+				}
+			}
+		}
+		informers[ns] = &namespacedInformer{
+			svcLister:           svcStore,
+			endpointSliceLister: storeToEndpointSliceLister{Store: cache.NewStore(cache.MetaNamespaceKeyFunc)},
+			podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
+		}
+	}
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+		Spec: conf_v1.VirtualServerSpec{
+			Host: "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{
+				{Name: "tea", Service: "tea-svc", Port: 80, UseClusterIP: true},
+				{Name: "coffee", Service: "coffee-svc", Port: 80, UseClusterIP: true},
+				{Name: "juice", Service: "juice-svc", Port: 80, UseClusterIP: true},
+			},
+		},
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "soda", Namespace: "default"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "soda", Service: "other/soda-svc", Port: 80, UseClusterIP: true}},
+		},
+	}
+
+	lbc := &LoadBalancerController{
+		client:              fake.NewClientset(),
+		Logger:              nl.LoggerFromContext(context.Background()),
+		metricsCollector:    collectors.NewControllerFakeCollector(),
+		namespacedInformers: registryFrom(informers),
+		clusterDomain:       "example.internal",
+		configuration: &Configuration{
+			hosts: map[string]Resource{
+				"cafe.example.com": &VirtualServerConfiguration{VirtualServer: vs},
+			},
+		},
+	}
+
+	vsEx := lbc.createVirtualServerEx(vs, []*conf_v1.VirtualServerRoute{vsr}, nil)
+
+	wantEndpoints := map[string][]string{
+		"default/tea-svc:80":    {"10.96.0.10:80"},
+		"default/coffee-svc:80": {"coffee-svc.default.svc.example.internal:8080"},
+		"default/juice-svc:80":  nil,
+		"other/soda-svc:80":     {"soda-svc.other.svc.example.internal:80"},
+	}
+	for key, want := range wantEndpoints {
+		if diff := cmp.Diff(want, vsEx.Endpoints[key]); diff != "" {
+			t.Errorf("Endpoints[%q] mismatch (-want +got):\n%s", key, diff)
+		}
+	}
+
+	wantHeadlessSvcs := map[string]bool{
+		"default/coffee-svc": true,
+		"other/soda-svc":     true,
+	}
+	if diff := cmp.Diff(wantHeadlessSvcs, vsEx.HeadlessSvcs); diff != "" {
+		t.Errorf("HeadlessSvcs mismatch (-want +got):\n%s", diff)
+	}
+	if len(vsEx.ExternalNameSvcs) != 0 {
+		t.Errorf("want no ExternalNameSvcs, got %v", vsEx.ExternalNameSvcs)
+	}
+}
+
+func TestGetHeadlessServiceEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		port       uint16
+		targetPort intstr.IntOrString
+		want       string
+		wantErr    bool
+	}{
+		{name: "numeric target port", port: 80, targetPort: intstr.FromInt(8080), want: "coffee-svc.cafe.svc.cluster.local:8080"},
+		{name: "no target port", port: 80, want: "coffee-svc.cafe.svc.cluster.local:80"},
+		{name: "named target port", port: 80, targetPort: intstr.FromString("http"), wantErr: true},
+		{name: "unknown port", port: 81, targetPort: intstr.FromInt(8080), wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			svc := &api_v1.Service{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-svc", Namespace: "cafe"},
+				Spec: api_v1.ServiceSpec{
+					ClusterIP: api_v1.ClusterIPNone,
+					Ports:     []api_v1.ServicePort{{Port: 80, TargetPort: test.targetPort}},
+				},
+			}
+			got, err := getHeadlessServiceEndpoint(svc, test.port, "cluster.local")
+			if (err != nil) != test.wantErr {
+				t.Fatalf("getHeadlessServiceEndpoint() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if got != test.want {
+				t.Errorf("getHeadlessServiceEndpoint() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
