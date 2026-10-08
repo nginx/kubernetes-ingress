@@ -1,0 +1,21 @@
+# Test-only ACME ClusterIssuer backed by the in-cluster Pebble server (see pebble.yaml).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: pebble
+spec:
+  acme:
+    # "pebble" resolves through the ExternalName Service in the cert-manager namespace,
+    # and matches a DNS SAN of Pebble's listener certificate.
+    # That ExternalName targets pebble.pebble.svc.cluster.local, so this assumes cluster domain cluster.local.
+    # Pebble's built-in listener cert expires 2027-10-03: update the Pebble image or cert if TLS starts failing.
+    server: https://pebble:14000/dir
+    # Pebble's public test CA, test/certs/pebble.minica.pem in Pebble v2.10.1.
+    # Its private key is public: trust it only in this ClusterIssuer.
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURQekNDQWllZ0F3SUJBZ0lJVTBYbTlVRmRReFV3RFFZSktvWklodmNOQVFFTEJRQXdJREVlTUJ3R0ExVUUKQXhNVmJXbHVhV05oSUhKdmIzUWdZMkVnTlRNME5XVTJNQ0FYRFRJMU1Ea3dNekl6TkRBd05Wb1lEekl4TWpVdwpPVEF6TWpNME1EQTFXakFnTVI0d0hBWURWUVFERXhWdGFXNXBZMkVnY205dmRDQmpZU0ExTXpRMVpUWXdnZ0VpCk1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQzVXZ1pOb1ZKYW5kajQza2tMeVU1MHZ6Q1oKYWxvenZkUm8zT0ZpS29EdG1xS1BOV1JOTzJoQzlBVU54VERKY281MVljNDJ1L1dWM2ZQYmJoU3puVGlPT1Z0bgpBam02aXE0STVuWllsdEdHWmV0R0RPUVdyNzh5MmdXWStTRzA3OE11T08yaHlESWlLdFZjM3hpWFlBKzhIbHV1CjlGOEticVNTMWg1NXl4WjliODdlS1IrQjB6dTJhaHpCQ0lIS21LV2djNk4xM2w3YUR4eFkzRDZ1cThndEpSVTAKdG91bXlMYmR6R2N1cFZ2amJqRFAxMW5sMDdSRVNEV0JMRzEvZzNrdEp2cUlhNEJXZ1UySE1oNHJORDZ5OE9EMwpIeTNIOE1ZNkNFbEwrTU9DYkZKaldxaHRPeGVGeVpaVjlxM2tZbms5Q0F1UUpLTUVHdU40R1U2dHpoVzFBZ01CCkFBR2plekI1TUE0R0ExVWREd0VCL3dRRUF3SUNoREFUQmdOVkhTVUVEREFLQmdnckJnRUZCUWNEQVRBU0JnTlYKSFJNQkFmOEVDREFHQVFIL0FnRUFNQjBHQTFVZERnUVdCQlN1OFJHcEVyZ1lVb1luUXV3Q3ErL2dnVGlFakRBZgpCZ05WSFNNRUdEQVdnQlN1OFJHcEVyZ1lVb1luUXV3Q3ErL2dnVGlFakRBTkJna3Foa2lHOXcwQkFRc0ZBQU9DCkFRRUFYRFZZb3YxK2Y2RUw3UzQxTGhZUWtFWC9HeU5OenNFdnF4RTlVMCszSXJpNUpma2NOT2lBOU85TDZaK1kKYnFjc1hWOTNzM3ZpNHI0V1NXdWMvL3dIeUpZclZlNSt0SzRubEZwYkpPdmZCVXRub0JEeUtOeFh6WkN4RkpWaApmOXVjOFVlalJmUU1GYkRiaFdZL3g4M3k5QkR1ZkpISHEzMk9qQ0lON2dwMlVSOHJuZll2bHo3Wmc0cWtKQnNuCkRHNGR3ZCtwUlRDRldKT1ZJRzBKb05oSzNabUU3b0oxTjRIMzhYa1ozMU5QY01rc0t4cHNMTElTOSttb3NadGcKNG9sTDd0TVBKa2x4NVphZU1GYUtSRHE0R2R4a2J3NCtPNHZSZ05tM1o4QVhXS2tuT2RmZ2RwcUxVUFBoUmNQNAp2MWxoeTcxRWhCdVhYd1JRSnJ5MGxUZEYrdz09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    privateKeySecretRef:
+      name: pebble-account-key
+    solvers:
+    - http01:
+        ingress:
+          ingressClassName: nginx

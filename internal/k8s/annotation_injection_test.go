@@ -137,6 +137,7 @@ var nginxOrgAnnotations = []annotationField{
 		with: map[string]string{"nginx.org/hsts": "true"},
 	},
 	{name: "nginx.org/http-redirect-code", benign: "301"},
+	{name: "nginx.org/http2", benign: "true"},
 	{name: "nginx.org/keepalive", benign: "16"},
 	{name: "nginx.org/lb-method", benign: "round_robin", extra: []string{
 		`hash $request_uri"; ip_hash; #`, "hash $request_uri; ip_hash;", "hash $request_uri consistent; ip_hash;",

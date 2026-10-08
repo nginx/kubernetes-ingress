@@ -233,7 +233,7 @@ jobs:
     name: Build Docker OSS
     needs: [binaries]
     concurrency:
-      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -241,7 +241,9 @@ jobs:
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
       authenticated: ${{ inputs.authenticated }}
@@ -265,7 +267,7 @@ jobs:
     name: Build Docker Plus
     needs: [binaries]
     concurrency:
-      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -273,7 +275,9 @@ jobs:
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
@@ -298,7 +302,7 @@ jobs:
     name: Build Docker NAP
     needs: [binaries]
     concurrency:
-      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -306,7 +310,9 @@ jobs:
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}

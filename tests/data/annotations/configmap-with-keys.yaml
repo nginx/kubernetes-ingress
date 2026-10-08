@@ -8,3 +8,4 @@ data:
   hsts: "True"
   hsts-behind-proxy: "True"
   upstream-zone-size: "100k"
+  http2: "true"

@@ -1,15 +1,22 @@
 {
-  "image": [
-    "debian",
-    "alpine"
-  ],
-  "platforms": [
-    "linux/arm64, linux/amd64"
-  ],
   "include": [
     {
-      "image": "ubi",
-      "platforms": "linux/arm64, linux/amd64"
+      "build_os": "debian",
+      "image": "nginx-ic/nginx-ingress",
+      "platforms": "linux/arm64, linux/amd64",
+      "tag_suffix": ""
+    },
+    {
+      "build_os": "alpine",
+      "image": "nginx-ic/nginx-ingress",
+      "platforms": "linux/arm64, linux/amd64",
+      "tag_suffix": "-alpine"
+    },
+    {
+      "build_os": "ubi",
+      "image": "nginx-ic/nginx-ingress",
+      "platforms": "linux/arm64, linux/amd64",
+      "tag_suffix": "-ubi"
     }
   ]
 }

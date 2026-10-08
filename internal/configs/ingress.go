@@ -818,6 +818,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		server.Locations = locations
+		server.ACMEChallengeActive = hasACMEChallengeLocation(locations)
 		server.HealthChecks = healthChecks
 		server.GRPCOnly = grpcOnly
 		server.HasGRPCLocations = hasGRPCLocations
@@ -858,6 +859,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
 		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
+		HTTP2:                   ncp.BaseCfgParams.HTTP2,
 	}, allWarnings
 }
 
@@ -1198,6 +1200,16 @@ func (ingEx *IngressEx) proxyHTTPVersionForBackend(configured string, backend *n
 	return resolveProxyHTTPVersion(configured, ingEx.ServiceAppProtocols[key])
 }
 
+// hasACMEChallengeLocation reports whether any of the locations serves an ACME HTTP-01 challenge.
+func hasACMEChallengeLocation(locs []version1.Location) bool {
+	for _, loc := range locs {
+		if loc.ACMEChallenge {
+			return true
+		}
+	}
+	return false
+}
+
 func createLocation(p locationParams) version1.Location {
 	cfg := p.cfg
 	loc := version1.Location{
@@ -1231,6 +1243,7 @@ func createLocation(p locationParams) version1.Location {
 		LocationSnippets:         cfg.LocationSnippets,
 		ServiceName:              p.serviceName,
 	}
+	loc.ACMEChallenge = IsACMEChallengeLocation(loc.Path, p.serviceName)
 
 	return loc
 }
@@ -1429,6 +1442,11 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
 	}
 
+	// http2 is server-level and minions share the master's server, so the minions' gRPC check
+	// must use the master's value (nginx.org/http2 is removed from minions).
+	minionBaseCfgParams := *ncp.BaseCfgParams
+	minionBaseCfgParams.HTTP2 = masterServer.HTTP2
+
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true
 	hasGRPCLocations := false
@@ -1466,7 +1484,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			dosResource:               dummyDosResource,
 			isMinion:                  isMinion,
 			isPlus:                    ncp.isPlus,
-			BaseCfgParams:             ncp.BaseCfgParams,
+			BaseCfgParams:             &minionBaseCfgParams,
 			isResolverConfigured:      ncp.isResolverConfigured,
 			isWildcardEnabled:         ncp.isWildcardEnabled,
 			ingressControllerReplicas: ncp.ingressControllerReplicas,
@@ -1572,6 +1590,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	masterServer.HealthChecks = healthChecks
 	masterServer.Locations = append(masterInternalLocations, locations...)
+	masterServer.ACMEChallengeActive = hasACMEChallengeLocation(masterServer.Locations)
 	masterServer.HasGRPCLocations = hasGRPCLocations
 	masterServer.GRPCOnly = hasGRPCLocations && grpcOnly
 
@@ -1600,6 +1619,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
 		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
+		HTTP2:                   ncp.BaseCfgParams.HTTP2,
 	}, warnings
 }
 

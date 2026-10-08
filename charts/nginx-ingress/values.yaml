@@ -1,3 +1,11 @@
+## Labels to apply to all chart-managed resources, including pod templates.
+## Does not apply to CRDs (Helm does not template crds/) or to pod selector labels.
+## A resource's own extraLabels field (e.g. controller.pod.extraLabels, controller.service.extraLabels)
+## takes precedence over commonLabels on key collision. Setting a chart-managed label
+## (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label)
+## via commonLabels or extraLabels fails the template render.
+commonLabels: {}
+
 controller:
   ## The name of the Ingress Controller daemonset, deployment, or statefulset.
   name: controller
@@ -603,6 +611,26 @@ controller:
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
 
+    ## Additional Services that expose the Ingress Controller pods independently from the primary Service.
+    ## This is useful when different listeners require separate LoadBalancer IPs, annotations, or source ranges.
+    ## Each name is used as the exact Service name and must be unique in the release namespace.
+    ## The controller can report status from only one Service; additional Services do not change controller.reportIngressStatus.externalService.
+    ## To use the example below, replace "{}" with the commented entries.
+    additionalServices: {}
+    #  nginx-ingress-redis:
+    #    type: LoadBalancer
+    #    annotations: {}
+    #    extraLabels: {}
+    #    loadBalancerIP: ""
+    #    loadBalancerClass: ""
+    #    externalTrafficPolicy: Local
+    #    loadBalancerSourceRanges: []
+    #    ports:
+    #    - name: redis
+    #      port: 6379
+    #      targetPort: 6379
+    #      protocol: TCP
+
     ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
     sessionAffinity:
       ## Enable session affinity. Valid values: None, ClientIP
@@ -704,6 +732,10 @@ controller:
 
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
+
+  ## Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream response latency histogram, e.g. "5,10,25,50,100,250,500,1000".
+  ## Requires controller.enableLatencyMetrics. When empty, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.
+  latencyMetricsBuckets: ""
 
   ## Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack.
   disableIPV6: false

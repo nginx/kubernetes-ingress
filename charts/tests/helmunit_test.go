@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
+	"sigs.k8s.io/yaml"
 )
 
 func TestMain(m *testing.M) {
@@ -25,9 +26,10 @@ func TestHelmNICTemplate(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		valuesFile  string
-		releaseName string
-		namespace   string
+		valuesFile    string
+		releaseName   string
+		namespace     string
+		templateFiles []string
 	}{
 		"default values file": {
 			valuesFile:  "",
@@ -224,6 +226,18 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "nodeport-zero",
 			namespace:   "default",
 		},
+		"additionalServices": {
+			valuesFile:    "testdata/additional-services.yaml",
+			releaseName:   "additional-services",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
+		"additionalServicesCommonLabels": {
+			valuesFile:    "testdata/additional-services-common-labels.yaml",
+			releaseName:   "additional-services-common-labels",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
@@ -234,9 +248,24 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "allow-empty-ingress-host",
 			namespace:   "default",
 		},
+		"latencyMetricsBuckets": {
+			valuesFile:  "testdata/latency-metrics-buckets.yaml",
+			releaseName: "latency-metrics-buckets",
+			namespace:   "default",
+		},
 		"allowEmptyIngressHostWithoutCRs": {
 			valuesFile:  "testdata/allow-empty-ingress-host-no-crs.yaml",
 			releaseName: "allow-empty-ingress-host-no-crs",
+			namespace:   "default",
+		},
+		"defaultListenerPortsWithoutCRs": {
+			valuesFile:  "testdata/default-listener-ports-no-crs.yaml",
+			releaseName: "default-listener-ports-no-crs",
+			namespace:   "default",
+		},
+		"commonLabels": {
+			valuesFile:  "testdata/common-labels.yaml",
+			releaseName: "common-labels",
 			namespace:   "default",
 		},
 	}
@@ -255,11 +284,37 @@ func TestHelmNICTemplate(t *testing.T) {
 				options.valuesFiles = []string{tc.valuesFile}
 			}
 
-			output := renderTemplate(t, helmChartPath, tc.releaseName, options)
+			var extraArgs []string
+			for _, f := range tc.templateFiles {
+				extraArgs = append(extraArgs, "--show-only", f)
+			}
+
+			output := renderTemplate(t, helmChartPath, tc.releaseName, options, extraArgs...)
+
+			assertNoDuplicateYAMLKeys(t, output)
 
 			snaps.MatchSnapshot(t, output)
 			t.Log(output)
 		})
+	}
+}
+
+// assertNoDuplicateYAMLKeys fails the test if any rendered manifest contains
+// a duplicate mapping key (e.g. a label set by both commonLabels and an
+// extraLabels field). Such manifests are invalid YAML: the duplicate is
+// silently dropped by last-wins parsing instead of being rejected, so a
+// plain string/snapshot comparison would not catch it.
+func assertNoDuplicateYAMLKeys(t *testing.T, output string) {
+	t.Helper()
+
+	for _, doc := range strings.Split(output, "\n---\n") {
+		if strings.TrimSpace(doc) == "" {
+			continue
+		}
+		var out map[string]interface{}
+		if err := yaml.UnmarshalStrict([]byte(doc), &out); err != nil {
+			t.Fatalf("rendered manifest contains invalid YAML (likely a duplicate key): %v\n%s", err, doc)
+		}
 	}
 }
 
@@ -297,11 +352,59 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
 		},
+		"additionalServiceWithoutPorts": {
+			valuesFile:        "testdata/additional-service-without-ports.yaml",
+			releaseName:       "additional-service-without-ports",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"missing property 'ports'"},
+		},
+		"additionalServiceExternalName": {
+			valuesFile:        "testdata/additional-service-external-name.yaml",
+			releaseName:       "additional-service-external-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"value must be one of 'ClusterIP', 'NodePort', 'LoadBalancer'"},
+		},
+		"additionalServiceEmptyPorts": {
+			valuesFile:        "testdata/additional-service-empty-ports.yaml",
+			releaseName:       "additional-service-empty-ports",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"minItems: got 0, want 1"},
+		},
+		"additionalServiceNameCollision": {
+			valuesFile:        "testdata/additional-service-name-collision.yaml",
+			releaseName:       "additional-service-name-collision",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"additional Service name \"duplicate-service\" must not match the primary controller Service name"},
+		},
+		"additionalServiceInvalidName": {
+			valuesFile:        "testdata/additional-service-invalid-name.yaml",
+			releaseName:       "additional-service-invalid-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'Invalid_Name' does not match pattern"},
+		},
+		"additionalServiceReservedLabel": {
+			valuesFile:        "testdata/additional-service-reserved-label.yaml",
+			releaseName:       "additional-service-reserved-label",
+			namespace:         "default",
+			expectedErrorMsgs: []string{`label "app.kubernetes.io/managed-by" is managed by the chart and cannot be overridden`},
+		},
+		"latencyMetricsBucketsInvalid": {
+			valuesFile:        "testdata/latency-metrics-buckets-invalid.yaml",
+			releaseName:       "latency-metrics-buckets-invalid",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"does not match pattern"},
+		},
 		"appProtectWAFPLMWithoutV5": {
 			valuesFile:        "testdata/app-protect-waf-plm-without-v5.yaml",
 			releaseName:       "appprotect-waf-plm-without-v5",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.v5=true"},
+		},
+		"commonLabelsReserved": {
+			valuesFile:        "testdata/common-labels-reserved.yaml",
+			releaseName:       "common-labels-reserved",
+			namespace:         "default",
+			expectedErrorMsgs: []string{`label "app.kubernetes.io/name" is managed by the chart and cannot be overridden`},
 		},
 		"appProtectWAFPLMWithoutPlus": {
 			valuesFile:        "testdata/app-protect-waf-plm-without-plus.yaml",

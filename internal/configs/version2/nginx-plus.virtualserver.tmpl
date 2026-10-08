@@ -232,6 +232,11 @@ server {
     {{- if $s.OIDCProviderName }}
     auth_oidc {{ $s.OIDCProviderName }};
     {{- end }}
+    {{- if $s.HTTP2 }}
+    http2 on;
+    {{- else if $.HTTP2 }}
+    http2 off;
+    {{- end }}
 
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}
@@ -240,9 +245,6 @@ server {
     real_ip_header proxy_protocol;
         {{- else }}
     {{ makeHTTPSListener $s }}
-        {{- end }}
-        {{- if $ssl.HTTP2 }}
-    http2 on;
         {{- end }}
 
         {{- if $ssl.RejectHandshake }}
@@ -263,9 +265,24 @@ server {
     {{- end }}
 
     {{- with $s.TLSRedirect }}
+    {{- if $s.ACMEChallengeActive }}
+    {{- /* ACME HTTP-01 challenges must be answered over plain HTTP. The exemption has to
+           live at server level: rewrite-module directives here run before location selection. */}}
+    set $vs_redirect_to_https 0;
+    if ({{ .BasedOn }} = 'http') {
+        set $vs_redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $vs_redirect_to_https 0;
+    }
+    if ($vs_redirect_to_https = 1) {
+        return {{ .Code }} https://$host$request_uri;
+    }
+    {{- else }}
     if ({{ .BasedOn }} = 'http') {
         return {{ .Code }} https://$host$request_uri;
     }
+    {{- end }}
     {{- end }}
 
     server_tokens "{{ $s.ServerTokens }}";
@@ -382,6 +399,7 @@ server {
     {{- range $index, $element := $s.JWTAuthList }}
     location = /_jwks_uri_server_{{ .Key }} {
         internal;
+        client_max_body_size 0;
         {{- if $.AppProtectLoadModule }}
         app_protect_enable off;
         {{- end }}
@@ -417,6 +435,7 @@ server {
     {{- if $s.APIKeyEnabled}}
     location = /_validate_apikey_njs {
             internal;
+            client_max_body_size 0;
             {{- if $.AppProtectLoadModule }}
             app_protect_enable off;
             {{- end }}
@@ -540,6 +559,7 @@ server {
 
     {{- range $l := $s.InternalRedirectLocations }}
     location {{ makeLocationPath $l.Path }} {
+        client_max_body_size 0;
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
@@ -659,7 +679,7 @@ server {
         {{ $snippet }}
         {{- end }}
 
-        {{- if $l.AuthRequestOff }}
+        {{- if or $l.AuthRequestOff $l.ACMEChallenge }}
         auth_request off;
         {{- else if $l.ExternalAuth }}
         auth_request {{ printf "%q" $l.ExternalAuth.URI.InternalPath }};
@@ -706,6 +726,9 @@ server {
             {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
         {{- end }}
 
+        {{- if $l.ACMEChallenge }}
+        auth_jwt off;
+        {{- else }}
         {{- with $l.JWTAuth }}
         {{- /* See the note on the server-level auth_jwt above: .Realm is
                pre-escaped and .Token must stay unquoted. */}}
@@ -716,10 +739,15 @@ server {
         auth_jwt_key_request /_jwks_uri_server_{{ .Key }};
         {{- end }}
         {{- end }}
+        {{- end }}
 
+        {{- if $l.ACMEChallenge }}
+        auth_basic off;
+        {{- else }}
         {{- with $l.BasicAuth }}
         auth_basic {{ printf "%q" .Realm }};
         auth_basic_user_file {{ .Secret }};
+        {{- end }}
         {{- end }}
 
         {{ $proxyOrGRPC := "proxy" }}{{ if $l.GRPCPass }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
@@ -740,6 +768,13 @@ server {
         {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_name {{ printf "%q" .SSLName }};
         {{- end }}
+        {{- if $l.ACMEChallenge }}
+        {{- /* ACME challenge locations replace every location-level auth directive with
+               "off": auth_jwt off above covers JWT and legacy OIDC, auth_request off covers
+               external auth and API key, and auth_oidc off covers native OIDC. Emitting them
+               next to the location's own directives would fail nginx -t as duplicates. */}}
+        auth_oidc off;
+        {{- else }}
         {{- if $l.OIDC }}
         auth_oidc off;
         auth_jwt "" token=$session_jwt;
@@ -766,6 +801,7 @@ server {
         set $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
         {{- end }}
 
+        {{- end }}
         {{- end }}
 
         {{- with $l.WAF }}
@@ -1056,8 +1092,7 @@ server {
     }
     {{- end}}
 
-    {{- with $ssl := $s.SSL }}
-        {{ if $ssl.HTTP2 }}
+    {{- if $s.HTTP2 }}
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -1113,7 +1148,5 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        {{ end }}
-    {{ end }}
+    {{- end }}
 }

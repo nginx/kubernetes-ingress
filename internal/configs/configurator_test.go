@@ -2006,6 +2006,25 @@ func TestUpstreamsForHost_VirtualServerRoutes(t *testing.T) {
 	}
 }
 
+func TestUpstreamsForVirtualServerIncludesChallengeRoutes(t *testing.T) {
+	t.Parallel()
+
+	tcnf := createTestConfigurator(t)
+	vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+
+	got := tcnf.upstreamsForVirtualServer(&vsEx)
+
+	var found bool
+	for _, name := range got {
+		if name == acmeTestChallengeUpstream {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("want %q in upstreamsForVirtualServer result, got %v", acmeTestChallengeUpstream, got)
+	}
+}
+
 func TestUpstreamsForHost_DoesNotReturnUpstreamsOnBogusHostname(t *testing.T) {
 	t.Parallel()
 
@@ -3163,9 +3182,11 @@ server {
         {{- else }}
     {{ makeHTTPSListener $s | printf }}
         {{- end }}
-        {{- if $ssl.HTTP2 }}
+    {{- end }}
+    {{- if $s.HTTP2 }}
     http2 on;
-        {{- end }}
+    {{- end }}
+    {{- with $ssl := $s.SSL }}
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
@@ -3691,7 +3712,7 @@ server {
     {{- end }}
 
     {{- with $ssl := $s.SSL }}
-        {{ if $ssl.HTTP2 }}
+        {{ if $s.HTTP2 }}
 	location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;

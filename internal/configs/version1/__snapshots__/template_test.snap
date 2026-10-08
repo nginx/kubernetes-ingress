@@ -932,6 +932,273 @@ mgmt {
 
 ---
 
+[TestExecuteMainTemplateWithHTTP2/OSS - 1]
+worker_processes  auto;
+worker_rlimit_nofile 65536;
+worker_cpu_affinity auto;
+worker_shutdown_timeout 1m;
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main escape=default 
+                     '$remote_addr'
+                     ' $remote_user'
+                     ;
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+    access_log /dev/stdout main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout 65s;
+    keepalive_requests 100;
+    http2 on;
+
+    #gzip  on;
+
+    server_names_hash_max_size 512;
+    
+
+    variables_hash_bucket_size 256;
+    variables_hash_max_size 1024;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-502-server.sock;
+        access_log off;
+
+        return 502;
+    }
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main escape=none 
+                            '$remote_addr'
+                            ' $remote_user'
+                            ;
+
+    access_log  /dev/stdout  stream-main;
+    # comment
+
+    map_hash_max_size ;
+    
+
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+---
+
+[TestExecuteMainTemplateWithHTTP2/Plus - 1]
+worker_processes  auto;
+worker_rlimit_nofile 65536;
+worker_cpu_affinity auto;
+worker_shutdown_timeout 1m;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_http_app_protect_module.so;
+load_module modules/ngx_http_app_protect_dos_module.so;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main escape=default 
+                     '$remote_addr'
+                     ' $remote_user'
+                     ;
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+    log_format  log_dos escape=json 
+                    '$remote_addr - $remote_user [$time_local]'
+                    ' "$request" $status $body_bytes_sent '
+                    ' "$http_referer" "$http_user_agent"'
+                    ;
+    app_protect_dos_arb_fqdn arb.test.server.com;
+
+    access_log /dev/stdout main;
+    app_protect_failure_mode_action pass;
+    app_protect_compressed_requests_action pass;
+    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
+    app_protect_cpu_thresholds high=low=100;
+    app_protect_physical_memory_util_thresholds high=low=100;
+    app_protect_reconnect_period_seconds 10;
+    include /etc/nginx/waf/nac-usersigs/index.conf;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout 65s;
+    keepalive_requests 100;
+    http2 on;
+
+    #gzip  on;
+
+    server_names_hash_max_size 512;
+    
+
+    variables_hash_bucket_size 256;
+    variables_hash_max_size 1024;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main escape=none 
+                            '$remote_addr'
+                            ' $remote_user'
+                            ;
+
+    access_log  /dev/stdout  stream-main;
+    # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
 [TestExecuteMainTemplate_WithUseForwardedHeaders/nginx - 1]
 worker_processes  auto;
 worker_rlimit_nofile 65536;
@@ -1323,8 +1590,8 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     http2 on;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
 
@@ -1452,8 +1719,8 @@ server {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     http2 on;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_certificate $secret_dir_path/default;
     ssl_certificate_key $secret_dir_path/default;
 
@@ -2250,8 +2517,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -2321,8 +2588,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -2409,8 +2676,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -2523,8 +2790,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -2670,6 +2937,76 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithMixedKeepaliveUpstreams - 1]
+# configuration for default/cafe-ingress
+upstream test-no-keepalive {
+    zone test-no-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+upstream test-keepalive {
+    zone test-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/no-keepalive" {
+        set $service "";
+        status_zone "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-no-keepalive;
+        
+    }
+    
+    location "/keepalive" {
+        set $service "";
+        status_zone "";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-keepalive;
         
     }
     
@@ -4560,8 +4897,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -4611,8 +4948,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -4680,8 +5017,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -4749,8 +5086,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -4842,8 +5179,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -5009,6 +5346,69 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithMixedKeepaliveUpstreams - 1]
+# configuration for default/cafe-ingress
+upstream test-no-keepalive {
+    zone test-no-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+upstream test-keepalive {
+    zone test-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/no-keepalive" {
+        set $service "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-no-keepalive;
+        
+    }
+    
+    location "/keepalive" {
+        set $service "";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-keepalive;
         
     }
     
@@ -5901,6 +6301,144 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS/OSS - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 8080 proxy_protocol;listen [::]:8080 proxy_protocol;
+    http2 on;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/helloworld.Greeter" {
+        set $service "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS/Plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    listen 8080 proxy_protocol;listen [::]:8080 proxy_protocol;
+    http2 on;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/helloworld.Greeter" {
+        set $service "";
+        status_zone "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
 [TestExecuteTemplate_ForIngressWithAddHeaderInherit/nginx - 1]
 # configuration for default/test-ingress
 
@@ -6440,8 +6978,8 @@ upstream test {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     http2 on;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_reject_handshake on;
 
     server_tokens off;
@@ -6501,8 +7039,8 @@ upstream test {
 
 server {
     listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     http2 on;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
     ssl_reject_handshake on;
 
     server_tokens "off";
@@ -7073,6 +7611,184 @@ server {
         grpc_set_header X-Forwarded-Port $server_port;
         grpc_set_header X-Forwarded-Proto $scheme;
         grpc_pass grpcs://ups;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap/OSS - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 80;listen [::]:80;
+    http2 off;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/tea" {
+        set $service "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap/Plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+    http2 off;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        status_zone "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS/OSS - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 80;listen [::]:80;
+    http2 on;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/tea" {
+        set $service "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS/Plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+    http2 on;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        status_zone "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
         
     }
     
@@ -7695,8 +8411,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -7794,8 +8510,8 @@ upstream test {
 
 
 server {
-    listen 443 ssl;listen [::]:443 ssl;
     http2 on;
+    listen 443 ssl;listen [::]:443 ssl;
     ssl_certificate secret.pem;
     ssl_certificate_key secret.pem;
 
@@ -12431,19 +13147,101 @@ server {
 
 ---
 
-[TestExecuteTemplate_ForIngressForNGINXPlusWithMixedKeepaliveUpstreams - 1]
+[TestExecuteTemplatesForACMEChallengeMergeable/nginx - 1]
 # configuration for default/cafe-ingress
-upstream test-no-keepalive {
-    zone test-no-keepalive 256k;
+upstream test {
+    zone test 256k;
     server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
 }
-upstream test-keepalive {
-    zone test-keepalive 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    auth_basic "master realm";
+    auth_basic_user_file /etc/nginx/secrets/master-htpasswd;
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        # location for minion default/cm-acme-http-solver-abcde
+        set $resource_name "cm-acme-http-solver-abcde";
+        set $resource_namespace "default";
+        auth_request off;
+        auth_basic off;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_set_header Connection "";
+        auth_basic "tea realm";
+        auth_basic_user_file /etc/nginx/secrets/tea-htpasswd;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeMergeable/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
 }
 
 
 server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
 
     server_tokens "off";
 
@@ -12454,18 +13252,71 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
 
     
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    auth_basic "master realm";
+    auth_basic_user_file /etc/nginx/secrets/master-htpasswd;
 
     
-    location "/no-keepalive" {
-        set $service "";
-        status_zone "";
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        # location for minion default/cm-acme-http-solver-abcde
+        set $resource_name "cm-acme-http-solver-abcde";
+        set $resource_namespace "default";
+        auth_request off;
+        auth_oidc off;
+        auth_jwt off;
+        auth_basic off;
 
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
-        client_max_body_size 2m;
+        client_max_body_size 1m;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -12473,14 +13324,19 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://test-no-keepalive;
+        proxy_pass http://test;
         
     }
     
-    location "/keepalive" {
-        set $service "";
-        status_zone "";
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
         proxy_set_header Connection "";
+        auth_basic "tea realm";
+        auth_basic_user_file /etc/nginx/secrets/tea-htpasswd;
 
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -12493,7 +13349,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://test-keepalive;
+        proxy_pass http://test;
         
     }
     
@@ -12501,15 +13357,10 @@ server {
 
 ---
 
-[TestExecuteTemplate_ForIngressForNGINXWithMixedKeepaliveUpstreams - 1]
+[TestExecuteTemplatesForACMEChallengeRedirectToHTTPS/nginx - 1]
 # configuration for default/cafe-ingress
-upstream test-no-keepalive {
-    zone test-no-keepalive 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
-}
-
-upstream test-keepalive {
-    zone test-keepalive 256k;
+upstream test {
+    zone test 256k;
     server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
     keepalive 16;
 }
@@ -12517,6 +13368,9 @@ upstream test-keepalive {
 
 
 server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
 
     server_tokens off;
 
@@ -12525,8 +13379,38 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location "/no-keepalive" {
-        set $service "";
+    set $redirect_to_https 0;
+    if ($http_x_forwarded_proto = 'http') {
+        set $redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect_to_https 0;
+    }
+    if ($redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_basic off;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -12536,14 +13420,186 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_buffering off;
-        proxy_pass http://test-no-keepalive;
+        proxy_pass http://test;
         
     }
     
-    location "/keepalive" {
-        set $service "";
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeRedirectToHTTPS/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect_to_https 0;
+    if ($http_x_forwarded_proto = 'http') {
+        set $redirect_to_https 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect_to_https 0;
+    }
+    if ($redirect_to_https = 1) {
+        return 301 https://$host$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        auth_jwt off;
+        auth_basic off;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeSSLRedirect/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_basic off;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -12556,7 +13612,1182 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://test-keepalive;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeSSLRedirect/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        auth_jwt off;
+        auth_basic off;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeSSLRedirectWithHealthStatus/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($request_uri = "/nginx-health") {
+        set $redirect 0;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    location = "/nginx-health" {
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_basic off;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeSSLRedirectWithHealthStatus/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($request_uri = "/nginx-health") {
+        set $redirect 0;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        auth_jwt off;
+        auth_basic off;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location = "/nginx-health" {
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeWithBasicAuth/nginx-plus/grpc - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    auth_basic "server realm";
+    auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
+    auth_request "/_external_auth/server";
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+        auth_jwt off;
+        auth_basic off;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeWithBasicAuth/nginx-plus/http - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    auth_basic "server realm";
+    auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
+    auth_request "/_external_auth/server";
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        auth_jwt off;
+        auth_basic off;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeWithBasicAuth/nginx/grpc - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    auth_basic "server realm";
+    auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
+    auth_request "/_external_auth/server";
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+        auth_basic off;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeWithBasicAuth/nginx/http - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    auth_basic "server realm";
+    auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
+    auth_request "/_external_auth/server";
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_basic off;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeWithJWT/grpc - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    auth_oidc oidc_default_provider;
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+        auth_jwt off;
+        auth_basic off;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForACMEChallengeWithJWT/http - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    auth_oidc oidc_default_provider;
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($uri ~ "^/\.well-known/acme-challenge/") {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_oidc off;
+        auth_jwt off;
+        auth_basic off;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForIngressRedirectNoChallengeUnchanged/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+    if ($http_x_forwarded_proto = 'http') {
+        return 301 https://$host$request_uri;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplatesForIngressRedirectNoChallengeUnchanged/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    app_protect_enable on;
+    app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
+    app_protect_security_log_enable on;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf syslog:server=127.0.0.1:514;
+    app_protect_security_log /etc/nginx/waf/nac-logconfs/test_logconf2;
+    
+    app_protect_dos_enable on;
+    app_protect_dos_policy_file /test/policy.json;
+    app_protect_dos_security_log_enable on;
+    app_protect_dos_security_log /test/logConf.json;
+    set $loggable '0';
+    # app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+    access_log /var/log/dos log_dos if=$loggable;
+    app_protect_dos_monitor uri=/path/to/monitor protocol=http1 timeout=30;
+    app_protect_dos_name "testdos";
+    app_protect_dos_access_file "/etc/nginx/dos/allowlist/default_test.example.com";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+    if ($http_x_forwarded_proto = 'http') {
+        return 301 https://$host$request_uri;
+    }
+
+    
+    auth_jwt_key_file /etc/nginx/secrets/key.jwk;
+    auth_jwt "closed site" token=$cookie_auth_token;
+    error_page 401 @login_url-default-cafe-ingress;
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check "uri=" interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_buffering off;
+        proxy_pass http://test;
         
     }
     

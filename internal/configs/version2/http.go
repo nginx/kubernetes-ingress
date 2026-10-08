@@ -34,6 +34,9 @@ type VirtualServerConfig struct {
 	// templates can safely emit app_protect_enable off; in internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
+	// HTTP2 mirrors the http2 ConfigMap key, which is set in the http context. Servers with
+	// HTTP/2 off only render http2 off; when this is on.
+	HTTP2 bool
 }
 
 // AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
@@ -116,13 +119,15 @@ type Server struct {
 	VSName                    string
 	DisableIPV6               bool
 	Gunzip                    bool
+	HTTP2                     bool
 	NGINXDebugLevel           string
 	AddHeaderInherit          string
+	// ACMEChallengeActive is true when the server has at least one ACME HTTP-01 challenge location.
+	ACMEChallengeActive bool
 }
 
 // SSL defines SSL configuration for a server.
 type SSL struct {
-	HTTP2           bool
 	Certificate     string
 	CertificateKey  string
 	RejectHandshake bool
@@ -270,6 +275,8 @@ type Location struct {
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
 	ProxyHTTPVersion           string
+	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
+	ACMEChallenge bool
 }
 
 // ReturnLocation defines a location for returning a fixed response.

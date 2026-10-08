@@ -230,6 +230,10 @@ var (
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
 		},
+		configs.HTTP2Annotation: {
+			validateRequiredAnnotation,
+			validateBoolAnnotation,
+		},
 		hstsAnnotation: {
 			validateRequiredAnnotation,
 			validateBoolAnnotation,

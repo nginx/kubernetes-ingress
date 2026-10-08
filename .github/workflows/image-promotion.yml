@@ -323,7 +323,7 @@ jobs:
           preflight_version: 1.21.1 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   scan-docker-oss:
-    name: Scan ${{ matrix.image }}
+    name: Scan ${{ matrix.build_os }}
     runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
@@ -341,7 +341,7 @@ jobs:
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-results
+          directory=${{ matrix.build_os }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -351,9 +351,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}
+            suffix=${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -398,7 +398,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864 # v1.26.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -423,7 +423,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
   scan-docker-plus:
-    name: Scan ${{ matrix.image }}-${{ matrix.target }}
+    name: Scan ${{ matrix.build_os }}-${{ matrix.target }}
     runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
@@ -441,7 +441,7 @@ jobs:
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-${{ matrix.target }}-results
+          directory=${{ matrix.build_os }}-${{ matrix.target }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -451,9 +451,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -498,7 +498,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864 # v1.26.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -523,7 +523,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
   scan-docker-nap:
-    name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
+    name: Scan ${{ matrix.build_os }}-${{ matrix.target }}-${{ matrix.nap_modules }}
     runs-on: ubuntu-24.04
     needs: [checks, tag-candidate]
     permissions:
@@ -538,17 +538,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: NAP modules
-        id: nap_modules
-        run: |
-          [[ "${{ matrix.nap_modules }}" == "waf,dos" ]] && modules="waf-dos" || name="${{ matrix.nap_modules }}"
-          echo "name=${name}" >> $GITHUB_OUTPUT
-        if: ${{ matrix.nap_modules != '' }}
-
       - name: Make directory for security scan results
         id: directory
         run: |
-          directory=${{ matrix.image }}-${{ matrix.target }}-${{ steps.nap_modules.outputs.name }}-results
+          directory=${{ matrix.build_os }}-${{ matrix.target }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}-results
           echo "directory=${directory}" >> $GITHUB_OUTPUT
           mkdir -p "${directory}"
 
@@ -558,9 +551,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.image, 'v5') && '-v5' || '' }}/nginx-plus-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -605,7 +598,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        uses: docker/scout-action@221e7f4860634eeb1579e3bd7ca232e577bd1864 # v1.26.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}

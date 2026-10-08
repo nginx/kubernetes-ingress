@@ -1,0 +1,6 @@
+controller:
+  service:
+    additionalServices:
+      invalid-empty-ports:
+        type: LoadBalancer
+        ports: []

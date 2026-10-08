@@ -119,6 +119,9 @@ type VirtualServerEx struct {
 	DosProtectedRefs            map[string]*unstructured.Unstructured
 	DosProtectedEx              map[string]*DosEx
 	ZoneSync                    bool
+	// ChallengeRoutes holds synthetic VirtualServerRoutes for cert-manager ACME HTTP-01 challenges.
+	// They are rendered without policies and are not part of VirtualServerRoutes.
+	ChallengeRoutes []*conf_v1.VirtualServerRoute
 }
 
 func (vsx *VirtualServerEx) String() string {
@@ -439,7 +442,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		useCustomListeners = true
 	}
 
-	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs, vsc.cfgParams)
+	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs)
+	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, vsc.cfgParams.HTTP2)
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
@@ -522,7 +526,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			sslConfig,
+			http2,
 			vsc,
 			u,
 			vsEx.VirtualServer,
@@ -540,11 +544,30 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
 			upstreams, healthChecks, statusMatches = generateUpstreams(
-				sslConfig,
+				http2,
 				vsc,
 				u,
 				vsr,
 				vsr.Namespace,
+				upstreamNamer,
+				vsEx,
+				upstreams,
+				crUpstreams,
+				healthChecks,
+				statusMatches,
+			)
+		}
+	}
+	// generate upstreams for each ACME challenge route
+	for _, cr := range vsEx.ChallengeRoutes {
+		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, cr)
+		for _, u := range cr.Spec.Upstreams {
+			upstreams, healthChecks, statusMatches = generateUpstreams(
+				http2,
+				vsc,
+				u,
+				cr,
+				cr.Namespace,
 				upstreamNamer,
 				vsEx,
 				upstreams,
@@ -595,7 +618,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyPassUpstream))
 
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			sslConfig,
+			http2,
 			vsc,
 			proxyURLUpstream,
 			vsEx.VirtualServer,
@@ -776,7 +799,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 				upstreams, healthChecks, statusMatches = generateUpstreams(
-					sslConfig,
+					http2,
 					vsc,
 					proxyURLUpstream,
 					vsEx.VirtualServer,
@@ -1011,7 +1034,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 					upstreams, healthChecks, statusMatches = generateUpstreams(
-						sslConfig,
+						http2,
 						vsc,
 						proxyURLUpstream,
 						vsr,
@@ -1127,6 +1150,55 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 	}
 
+	// generate config for ACME challenge routes. No policies, error pages or snippets are applied,
+	// so the ACME server can always reach the solver.
+	// Challenge locations are exact-match (=) so that NGINX selects them before any regex route
+	// location, which would otherwise capture the token request. They are generated after all VS
+	// routes and VSR subroutes, so the paths collected here cover every route location: VS routes,
+	// VSR subroutes and split/match internal-redirect locations. Fixed locations added outside the
+	// route loops (for example OIDC) are out of scope.
+	acmeChallengeActive := false
+	renderedPaths := make(map[string]bool, len(locations)+len(internalRedirectLocations))
+	for _, l := range locations {
+		renderedPaths[l.Path] = true
+	}
+	for _, l := range internalRedirectLocations {
+		renderedPaths[l.Path] = true
+	}
+	for _, cr := range vsEx.ChallengeRoutes {
+		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, cr)
+		for _, r := range cr.Spec.Subroutes {
+			plainPath := strings.TrimLeftFunc(strings.TrimPrefix(r.Path, "="), unicode.IsSpace)
+			exactPath := "=" + plainPath
+			// NGINX rejects two exact-match locations with the same URI, which would fail the
+			// config test for every resource. Leave the user's location in place instead.
+			if renderedPath := generatePath(exactPath); renderedPaths[renderedPath] {
+				vsc.addWarningf(vsEx.VirtualServer, "ACME challenge path %s for %s/%s is already defined by a route; challenge location not generated",
+					renderedPath, cr.Namespace, cr.Name)
+				continue
+			}
+
+			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
+			upstream := crUpstreams[upstreamName]
+			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, cr.Namespace)
+			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
+
+			loc, returnLoc := generateLocation(exactPath, upstreamName, upstream, r.Action, vsc.cfgParams, errorPageDetails{owner: cr}, false,
+				proxySSLName, plainPath, "", false, len(returnLocations), true, cr.Name, cr.Namespace, vsc.warnings)
+			renderedPaths[loc.Path] = true
+			// Drop global ConfigMap location-snippets too: they could duplicate the auth-off directives
+			// rendered for challenge locations and fail the NGINX config test.
+			loc.Snippets = nil
+			loc.ACMEChallenge = true
+			acmeChallengeActive = true
+
+			locations = append(locations, loc)
+			if returnLoc != nil {
+				returnLocations = append(returnLocations, *returnLoc)
+			}
+		}
+	}
+
 	for mapName, apiKeyClients := range policiesCfg.APIKey.ClientMap {
 		maps = append(maps, *generateAPIKeyClientMap(mapName, apiKeyClients))
 	}
@@ -1176,6 +1248,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
+			HTTP2:                     http2,
 			AddHeaderInherit:          vsEx.VirtualServer.Spec.AddHeaderInherit,
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
@@ -1223,6 +1296,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			VSName:                    vsEx.VirtualServer.Name,
 			DisableIPV6:               vsc.isIPV6Disabled,
 			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
+			ACMEChallengeActive:       acmeChallengeActive,
 		},
 		DynamicSSLReloadEnabled: vsc.DynamicSSLReloadEnabled,
 		StaticSSLPath:           vsc.StaticSSLPath,
@@ -1231,6 +1305,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
 		AppProtectLoadModule:    vsc.appProtectLoadModule,
+		HTTP2:                   vsc.cfgParams.HTTP2,
 	}
 
 	return vsCfg, vsc.warnings
@@ -1332,7 +1407,7 @@ func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
 }
 
 func generateUpstreams(
-	sslConfig *version2.SSL,
+	http2 bool,
 	vsc *virtualServerConfigurator,
 	u conf_v1.Upstream,
 	owner runtime.Object,
@@ -1344,8 +1419,8 @@ func generateUpstreams(
 	healthChecks []version2.HealthCheck,
 	statusMatches []version2.StatusMatch,
 ) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
-	if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
-		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
+	if !http2 && isGRPC(u.Type) {
+		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2", u.Name)
 	}
 
 	upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
@@ -2700,7 +2775,7 @@ func getNameForSourceForMatchesRouteMapFromCondition(condition conf_v1.Condition
 }
 
 func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tls *conf_v1.TLS, namespace string,
-	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *version2.SSL {
 	if tls == nil {
 		return nil
@@ -2709,7 +2784,6 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	if tls.Secret == "" {
 		if vsc.isWildcardEnabled {
 			ssl := version2.SSL{
-				HTTP2:           cfgParams.HTTP2,
 				Certificate:     pemFileNameForWildcardTLSSecret,
 				CertificateKey:  pemFileNameForWildcardTLSSecret,
 				RejectHandshake: false,
@@ -2733,7 +2807,6 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	}
 
 	ssl := version2.SSL{
-		HTTP2:           cfgParams.HTTP2,
 		Certificate:     name,
 		CertificateKey:  name,
 		RejectHandshake: rejectHandshake,
@@ -2828,6 +2901,24 @@ func createUpstreamsForPlus(
 				backupEndpoints = virtualServerEx.Endpoints[backupEndpointsKey]
 			}
 			ups := vsc.generateUpstream(vsr, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)
+			upstreams = append(upstreams, ups)
+		}
+	}
+
+	for _, cr := range virtualServerEx.ChallengeRoutes {
+		upstreamNamer = NewUpstreamNamerForVirtualServerRoute(virtualServerEx.VirtualServer, cr)
+		for _, u := range cr.Spec.Upstreams {
+			isExternalNameSvc := virtualServerEx.ExternalNameSvcs[GenerateExternalNameSvcKey(cr.Namespace, u.Service)]
+			if isExternalNameSvc {
+				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", u.Service)
+				continue
+			}
+
+			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
+			serviceNamespace, serviceName := ParseServiceReference(u.Service, cr.Namespace)
+			endpoints := virtualServerEx.Endpoints[GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)]
+
+			ups := vsc.generateUpstream(cr, upstreamName, u, isExternalNameSvc, endpoints, []string{})
 			upstreams = append(upstreams, ups)
 		}
 	}

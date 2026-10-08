@@ -96,11 +96,16 @@ oidc_provider {{ $p.Name }} {
 
 {{range $server := .Servers}}
 server {
-	{{- if not $server.GRPCOnly}}
+	{{- if or (not $server.GRPCOnly) (not $server.SSL)}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
+	{{- end}}
+	{{- if $server.HTTP2}}
+	http2 on;
+	{{- else if $.HTTP2}}
+	http2 off;
 	{{- end}}
 
 	{{- if $server.SSL}}
@@ -113,9 +118,6 @@ server {
 	listen {{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
-	{{- end}}
-	{{- if $server.HTTP2}}
-	http2 on;
 	{{- end}}
 	{{- if $server.SSLRejectHandshake}}
 	ssl_reject_handshake on;
@@ -275,14 +277,21 @@ server {
 	{{- if $server.SSL}}
 	{{- if not $server.GRPCOnly}}
 	{{- if $server.SSLRedirect}}
-	{{- if $server.HealthStatus}}
+	{{- if or $server.HealthStatus $server.ACMEChallengeActive}}
 	set $redirect 0;
 	if ($scheme = http) {
 		set $redirect 1;
 	}
+	{{- if $server.HealthStatus}}
 	if ($request_uri = {{ printf "%q" $server.HealthStatusURI }}) {
 		set $redirect 0;
 	}
+	{{- end}}
+	{{- if $server.ACMEChallengeActive}}
+	if ($uri ~ "^/\.well-known/acme-challenge/") {
+		set $redirect 0;
+	}
+	{{- end}}
 	if ($redirect = 1) {
 		return {{$server.HTTPRedirectCode}} https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
@@ -296,9 +305,22 @@ server {
 	{{- end}}
 
 	{{- if $server.RedirectToHTTPS}}
+	{{- if $server.ACMEChallengeActive}}
+	set $redirect_to_https 0;
+	if ($http_x_forwarded_proto = 'http') {
+		set $redirect_to_https 1;
+	}
+	if ($uri ~ "^/\.well-known/acme-challenge/") {
+		set $redirect_to_https 0;
+	}
+	if ($redirect_to_https = 1) {
+		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
+	}
+	{{- else}}
 	if ($http_x_forwarded_proto = 'http') {
 		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
 	}
+	{{- end}}
 	{{- end}}
 
 	{{- with $server.BasicAuth }}
@@ -443,7 +465,7 @@ server {
 		return {{ .Code }};
 		{{- end }}
 
-		{{- if $location.AuthRequestOff}}
+		{{- if or $location.AuthRequestOff $location.ACMEChallenge}}
 		auth_request off;
 		{{- else if $location.ExternalAuth }}
 		auth_request {{ printf "%q" $location.ExternalAuth.URI.InternalPath }};
@@ -472,7 +494,9 @@ server {
 		{{- if $location.AddHeaderInherit}}
 		add_header_inherit {{$location.AddHeaderInherit}};
 		{{- end }}
-		{{- if $location.OIDCProviderName}}
+		{{- if $location.ACMEChallenge}}
+		auth_oidc off;
+		{{- else if $location.OIDCProviderName}}
 		auth_oidc {{ $location.OIDCProviderName }};
 		{{- end}}
 		{{- with $location.WAF }}
@@ -527,21 +551,29 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if not $location.AuthRequestOff}}
+		{{- if not (or $location.AuthRequestOff $location.ACMEChallenge)}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
 		{{- end}}
 
+		{{- if $location.ACMEChallenge}}
+		auth_jwt off;
+		{{- else}}
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
 		{{- /* See the note on the server-level auth_jwt above: .Realm is
 		       pre-escaped and $jwt.Token must stay unquoted. */}}
 		auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
 		{{- end}}
+		{{- end}}
 
+		{{- if $location.ACMEChallenge }}
+		auth_basic off;
+		{{- else }}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
+		{{- end }}
 		{{- end }}
 
 		grpc_connect_timeout {{$location.ProxyConnectTimeout}};
@@ -583,11 +615,14 @@ server {
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
 		{{- end}}
-		{{- if not $location.AuthRequestOff}}
+		{{- if not (or $location.AuthRequestOff $location.ACMEChallenge)}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
 		{{- end}}
 
+		{{- if $location.ACMEChallenge}}
+		auth_jwt off;
+		{{- else}}
 		{{- with $jwt := $location.JWTAuth }}
 		auth_jwt_key_file {{$jwt.Key}};
 		{{- /* See the note on the server-level auth_jwt above: .Realm is
@@ -597,10 +632,15 @@ server {
 		error_page 401 {{$jwt.RedirectLocationName}};
 		{{- end}}
 		{{- end}}
+		{{- end}}
 
+		{{- if $location.ACMEChallenge }}
+		auth_basic off;
+		{{- else }}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
+		{{- end }}
 		{{- end }}
 
 		proxy_connect_timeout {{$location.ProxyConnectTimeout}};

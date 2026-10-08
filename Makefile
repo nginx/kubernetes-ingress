@@ -61,7 +61,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.14.0 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.50.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.51.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.12.0 ## The version of gofumpt to use
 
@@ -331,7 +331,7 @@ debian-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Control
 .PHONY: debian-image-dos-plus
 debian-image-dos-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect DoS)
 	$(DOCKER_CMD) $(PLUS_ARGS) \
-		--build-arg BUILD_OS=debian-plus-nap-agent \
+		--build-arg BUILD_OS=debian-plus-nap \
 		--build-arg NAP_MODULES=dos \
 		--build-arg DOS_PACKAGE_REPO=$(DOS_REPO) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
@@ -406,7 +406,7 @@ ubi-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-10-plus-nap-agent \
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-10-plus-nap \
 		--build-arg NAP_MODULES=dos \
 		--build-arg DOS_PACKAGE_REPO=$(DOS_REPO) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
