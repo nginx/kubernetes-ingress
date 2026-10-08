@@ -13,6 +13,8 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_ingress_controller,
     delete_namespace,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_test_file_name,
     wait_until_all_pods_are_ready,
     write_to_json,
@@ -46,11 +48,12 @@ def ingress_ns_setup(
 
     manifest = f"{TEST_DATA}/smoke/standard/smoke-ingress.yaml"
     ns_count = int(request.config.getoption("--ns-count"))
+    e2e_run_id = generate_e2e_run_id()
     multi_ns = ""
     for i in range(1, ns_count + 1):
         watched_namespace = create_namespace_with_name_from_yaml(kube_apis.v1, f"ns-{i}", f"{TEST_DATA}/common/ns.yaml")
         multi_ns = multi_ns + f"{watched_namespace},"
-        create_example_app(kube_apis, "simple", watched_namespace)
+        create_example_app(kube_apis, "simple", watched_namespace, e2e_run_id=e2e_run_id)
         create_secret_from_yaml(kube_apis.v1, watched_namespace, f"{TEST_DATA}/smoke/smoke-secret.yaml")
         with open(manifest) as f:
             doc = yaml.safe_load(f)
@@ -60,7 +63,7 @@ def ingress_ns_setup(
     global watched_namespaces
     watched_namespaces = multi_ns[:-1]
     for i in range(1, ns_count + 1):
-        wait_until_all_pods_are_ready(kube_apis.v1, f"ns-{i}")
+        wait_until_all_pods_are_ready(kube_apis.v1, f"ns-{i}", get_e2e_run_selector(e2e_run_id))
 
     def fin():
         for i in range(1, ns_count + 1):
@@ -110,11 +113,12 @@ def vs_ns_setup(
 
     manifest = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
     ns_count = int(request.config.getoption("--ns-count"))
+    e2e_run_id = generate_e2e_run_id()
     multi_ns = ""
     for i in range(1, ns_count + 1):
         watched_namespace = create_namespace_with_name_from_yaml(kube_apis.v1, f"ns-{i}", f"{TEST_DATA}/common/ns.yaml")
         multi_ns = multi_ns + f"{watched_namespace},"
-        create_example_app(kube_apis, "simple", watched_namespace)
+        create_example_app(kube_apis, "simple", watched_namespace, e2e_run_id=e2e_run_id)
         with open(manifest) as f:
             doc = yaml.safe_load(f)
             doc["metadata"]["name"] = f"virtual-server-{i}"
@@ -123,7 +127,7 @@ def vs_ns_setup(
     global watched_namespaces
     watched_namespaces = multi_ns[:-1]
     for i in range(1, ns_count + 1):
-        wait_until_all_pods_are_ready(kube_apis.v1, f"ns-{i}")
+        wait_until_all_pods_are_ready(kube_apis.v1, f"ns-{i}", get_e2e_run_selector(e2e_run_id))
 
     def fin():
         for i in range(1, ns_count + 1):

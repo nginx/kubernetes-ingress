@@ -5,12 +5,15 @@ from settings import DEPLOYMENTS, TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_assertions import assert_event_count_increased, assert_h2c_grpc_hello
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
     generate_ingresses_with_annotation,
+    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -114,6 +117,7 @@ def annotations_setup(
     test_namespace,
 ) -> AnnotationsSetup:
     print("------------------------- Deploy Annotations-Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     if request.param == "grpc":
         create_items_from_yaml(kube_apis, f"{TEST_DATA}/annotations/{request.param}/grpc-secret.yaml", test_namespace)
     create_items_from_yaml(
@@ -126,12 +130,12 @@ def annotations_setup(
     else:
         minions_info = None
 
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     upstream_names = []
     if request.param == "mergeable":
         event_text = f"Configuration for {test_namespace}/{ingress_name} was added or updated"
@@ -196,7 +200,7 @@ def annotations_grpc_setup(
         ingress_controller_prerequisites.namespace,
         f"{TEST_DATA}/common/configmap-with-grpc.yaml",
     )
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     event_text = f"Configuration for {test_namespace}/{ingress_name} was added or updated"
     error_text = f"{event_text} ; but was not applied: Error reloading NGINX"
 
@@ -250,16 +254,17 @@ def grpc_h2c_setup(
         ingress_controller_prerequisites.namespace,
         f"{TEST_DATA}/common/configmap-with-grpc.yaml",
     )
-    create_example_app(kube_apis, "grpc", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "grpc", test_namespace, e2e_run_id=e2e_run_id)
     create_items_from_yaml(kube_apis, src, test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ingress_name = get_name_from_yaml(src)
     return AnnotationsSetup(
         ingress_controller_endpoint,
         src,
         ingress_name,
         get_first_ingress_host_from_yaml(src),
-        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR),
         test_namespace,
         f"Configuration for {test_namespace}/{ingress_name} was added or updated",
         f"{test_namespace}/{ingress_name} was rejected: with error",

@@ -12,6 +12,7 @@ from suite.utils.custom_assertions import (
 )
 from suite.utils.custom_resources_utils import generate_item_with_upstream_options
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -41,7 +42,7 @@ class TestVSRouteUpstreamOptions:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, v_s_route_app_setup
     ):
         print("Case 1: no ConfigMap keys, no options in VS")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -196,7 +197,7 @@ class TestVSRouteUpstreamOptions:
             kube_apis.custom_objects, v_s_route_setup.route_s.name, v_s_route_setup.route_s.namespace, new_body_s
         )
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -291,7 +292,7 @@ class TestVSRouteUpstreamOptions:
             kube_apis.v1, config_map_name, ingress_controller_prerequisites.namespace, config_map_file
         )
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -406,7 +407,7 @@ class TestVSRouteUpstreamOptions:
             f"{TEST_DATA}/virtual-server-route-upstream-options/configmap-with-keys.yaml",
         )
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -522,7 +523,7 @@ class TestVSRouteUpstreamOptionsValidation:
             v_s_route_setup.route_m.namespace,
         )
         wait_before_test(2)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -540,7 +541,7 @@ class TestVSRouteUpstreamOptionsValidation:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         invalid_fields = [
             "lb-method",
             "fail-timeout",
@@ -700,7 +701,7 @@ class TestOptionsSpecificForPlus:
             kube_apis.custom_objects, v_s_route_setup.route_s.name, v_s_route_setup.route_s.namespace, new_body_s
         )
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -729,7 +730,7 @@ class TestOptionsSpecificForPlus:
         v_s_route_app_setup,
         options,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         text_s = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
         text_m = f"{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}"
         vsr_s_event_text = (
@@ -833,7 +834,7 @@ class TestOptionsSpecificForPlus:
             v_s_route_setup.route_m.namespace,
         )
         wait_before_test(2)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -851,7 +852,7 @@ class TestOptionsSpecificForPlus:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         invalid_fields = [
             "healthCheck.enable",
             "healthCheck.path",
