@@ -28,7 +28,7 @@ ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8f115
 FROM golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS golang-builder
 FROM ghcr.io/nginx/alpine-fips:0.6.0-alpine3.24@sha256:2122f993efed0ba145bfc118699f042a7c7dce82274d01e7f72ed3884cdfed4b AS alpine-fips-3.24
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
-FROM redhat/ubi10-minimal:10.2-1790753097@sha256:204e1531cee54562b107fb31e0b327062fc3d5d67af7cc0d2e66b2c572b9044f AS ubi-minimal
+FROM redhat/ubi10-minimal:10.2-1791321979@sha256:295f32b566834844b98ca6b51152b0a8a43d9d1d85d9bfd1cc6ce97748ef55d8 AS ubi-minimal
 
 
 ############################################# NGINX repo keys, .repo files, and helper scripts #############################################
@@ -562,12 +562,14 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& nap-waf.sh
 
 
-############################################# NGINX Plus + App Protect WAF/DoS v4 + Agent v2 on Debian 13 #############################################
+############################################# NGINX Plus + App Protect WAF/DoS v4 on Debian 13 #############################################
 # Base:     debian-plus-nap-base (NGINX Plus + NAP WAF/DoS v4)
-# Adds:     nginx-agent v2
+# Adds:     nginx-agent v2 (for WAF) or nginx-agent v3 (for DoS)
 # Used as:  BUILD_OS=debian-plus-nap
 FROM debian-plus-nap-base AS debian-plus-nap
 ARG AGENT_V2_VERSION
+ARG AGENT_V3_VERSION
+ARG NAP_MODULES
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
@@ -576,7 +578,11 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${AGENT_V2_VERSION}.* \
+	&& if [ "${NAP_MODULES}" = "dos" ]; then \
+	apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${AGENT_V3_VERSION}*; \
+	else \
+	apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${AGENT_V2_VERSION}.*; \
+	fi \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources \
 	&& agent.sh
 
@@ -779,47 +785,24 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& agent.sh
 
 
-############################################# NGINX Plus + Agent v3 on Red Hat UBI 10 #############################################
-# Base:     ubi-minimal (Red Hat UBI 10 minimal)
-# Adds:     nginx-plus, nginx-plus-module-njs/otel/fips-check, nginx-agent v3
-# Used as:  BUILD_OS=ubi-10-plus-agent
-FROM ubi-minimal AS ubi-10-plus-agent
-ARG NGINX_PLUS_VERSION
-ARG AGENT_V3_VERSION
-
-ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
-	--mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/etc/yum.repos.d/nginx-plus.repo \
-	--mount=type=bind,from=ubi10-packages,src=/,target=/ubi-bin/ \
-	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
-	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
-	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
-	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& ubi-setup.sh \
-	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
-	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-${AGENT_V3_VERSION}.* \
-	&& agent.sh	\
-	&& ubi-clean.sh
-
-
-############################################# NGINX Plus + App Protect WAF/DoS v4 + Agent v2 on Red Hat UBI 10 #############################################
+############################################# NGINX Plus + App Protect WAF/DoS v4 on Red Hat UBI 10 #############################################
 # Base:     ubi-10-plus-nap-base (NGINX Plus + NAP WAF/DoS v4)
-# Adds:     nginx-agent v2
+# Adds:     nginx-agent v2 (for WAF) or nginx-agent v3 (for DoS)
 # Used as:  BUILD_OS=ubi-10-plus-nap
 FROM ubi-10-plus-nap-base AS ubi-10-plus-nap
 ARG AGENT_V2_VERSION
+ARG AGENT_V3_VERSION
+ARG NAP_MODULES
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	microdnf --nodocs install -y nginx-agent-${AGENT_V2_VERSION}.* \
+	if [ "${NAP_MODULES}" = "dos" ]; then \
+		microdnf --nodocs install -y nginx-agent-${AGENT_V3_VERSION}.*; \
+	else \
+		microdnf --nodocs install -y nginx-agent-${AGENT_V2_VERSION}.*; \
+	fi \
 	&& microdnf clean all \
 	&& agent.sh
 
