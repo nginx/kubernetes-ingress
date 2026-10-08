@@ -11,6 +11,7 @@ from settings import TEST_DATA
 from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress_from_yaml,
     create_secret_from_yaml,
@@ -180,7 +181,7 @@ def print_acme_debug_info(kube_apis, ingress_controller_prerequisites, setup: AC
         res = subprocess.run(cmd, capture_output=True, text=True)
         print(f"$ {' '.join(cmd)}\n{res.stdout or res.stderr}")
     ic_namespace = ingress_controller_prerequisites.namespace
-    pod_name = get_first_pod_name(kube_apis.v1, ic_namespace)
+    pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
     try:
         if kind == "vs":
             conf = get_vs_nginx_template_conf(kube_apis.v1, setup.namespace, setup.name, pod_name, ic_namespace)

@@ -174,7 +174,7 @@ class TestVirtualServerGrpc:
     def test_http2_field_overrides_configmap(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ) -> None:
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         def set_http2(value) -> str:
             # a merge patch: None removes the field
@@ -230,7 +230,7 @@ class TestVirtualServerGrpc:
                 kube_apis.custom_objects, name, namespace, {"metadata": {"name": name}, "spec": {"tls": None}}
             )
             wait_before_test()
-            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
             config = get_vs_nginx_template_conf(
                 kube_apis.v1, namespace, name, ic_pod_name, ingress_controller_prerequisites.namespace
             )

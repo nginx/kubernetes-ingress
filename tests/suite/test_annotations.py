@@ -264,7 +264,7 @@ def grpc_h2c_setup(
         src,
         ingress_name,
         get_first_ingress_host_from_yaml(src),
-        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR),
         test_namespace,
         f"Configuration for {test_namespace}/{ingress_name} was added or updated",
         f"{test_namespace}/{ingress_name} was rejected: with error",
