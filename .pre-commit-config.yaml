@@ -63,6 +63,24 @@ repos:
         pass_filenames: false
         require_serial: true
 
+      - id: validate-image-matrices
+        name: validate image matrices
+        description: Ensures image matrix definitions follow schema and invariant rules.
+        entry: .github/scripts/validate-image-matrices.sh
+        language: script
+        files: ^(\.github/data/matrix-images-.*\.json|build/Dockerfile)$
+        pass_filenames: false
+        require_serial: true
+
+      - id: test-image-matrices
+        name: test image matrices validator script
+        description: Runs unit tests for the image matrix validator.
+        entry: .github/scripts/validate-image-matrices_test.sh
+        language: script
+        files: ^\.github/scripts/validate-image-matrices(_test)?\.sh$
+        pass_filenames: false
+        require_serial: true
+
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.2
     hooks:
@@ -120,5 +138,5 @@ repos:
         args: ["-shellcheck", ""]
 
 ci:
-  skip: [golangci-lint, check-jsonschema, markdownlint-cli2]
+  skip: [golangci-lint, check-jsonschema, markdownlint-cli2, validate-image-matrices, test-image-matrices]
   autoupdate_schedule: quarterly # We use renovate for more frequent updates and there's no way to disable autoupdate

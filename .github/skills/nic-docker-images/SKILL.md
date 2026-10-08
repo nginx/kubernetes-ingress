@@ -50,6 +50,7 @@ Supporting images built outside this Dockerfile:
 - `.github/data/matrix-images-nap.json` builds both halves of each pair against all three `nap_modules` values, so CI covers DoS-only on agent v2 and v3.
 - The **local Makefile targets do not mirror the matrix exactly.** The DoS-only targets `debian-image-dos-plus` and `ubi-image-dos-plus` build the `-agent` (v3) stages and have no agent-v2 twin. Read the target body before assuming a naming pattern.
 - Python e2e tests distinguish the two agents with the `agentv2` / `agentv3` pytest markers.
+- Matrix row schema and the checklist for adding an image: [docs/developer/image-matrices.md](../../../docs/developer/image-matrices.md).
 
 ---
 
