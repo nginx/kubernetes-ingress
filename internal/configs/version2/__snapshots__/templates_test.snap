@@ -396,10 +396,10 @@ server {
     set $resource_name "";
     set $resource_namespace "";
     set $service "-";
+    http2 on;
     listen 443 ssl proxy_protocol;
     listen [::]:443 ssl proxy_protocol;
 
-    http2 on;
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
     ssl_client_certificate ingress-mtls-secret;
@@ -677,7 +677,6 @@ server {
         proxy_pass http://unix:/var/lib/nginx/nginx-418-server.sock;
         set $default_connection_header close;
     }
-        
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -733,9 +732,6 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-    
-    
 }
 
 ---
