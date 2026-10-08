@@ -424,7 +424,9 @@ def crd_ingress_controller_with_dos(
         create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
 
         before = time.time()
-        wait_until_all_pods_are_ready(kube_apis.v1, namespace, "app in (syslog,accesslog)")
+        # Wait per app: a combined selector passes as soon as either pod exists and is Ready.
+        for app in ("syslog", "accesslog"):
+            wait_until_all_pods_are_ready(kube_apis.v1, namespace, f"app={app}")
         after = time.time()
         print(f"All pods came up in {int(after-before)} seconds")
         print(f"syslog and accesslog svc was created")
