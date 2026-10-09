@@ -28,7 +28,7 @@ ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:ee694
 FROM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS golang-builder
 FROM ghcr.io/nginx/alpine-fips:0.6.0-alpine3.24@sha256:2122f993efed0ba145bfc118699f042a7c7dce82274d01e7f72ed3884cdfed4b AS alpine-fips-3.24
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
-FROM redhat/ubi10-minimal:10.2-1791346265@sha256:91eaa992c90c4271691b047c12fec69cdabe7977305e168c4060f094ff2a73e0 AS ubi-minimal
+FROM redhat/ubi10-minimal:10.2-1791444377@sha256:bcecd3e74c9d03eb1a596c6c8f366775a289d422ac5925ec1539924d762ebf23 AS ubi-minimal
 
 
 ############################################# NGINX repo keys, .repo files, and helper scripts #############################################
