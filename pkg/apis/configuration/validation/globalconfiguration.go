@@ -20,9 +20,10 @@ const (
 )
 
 var allowedProtocols = map[string]bool{
-	"TCP":  true,
-	"UDP":  true,
-	"HTTP": true,
+	"TCP":   true,
+	"UDP":   true,
+	"HTTP":  true,
+	"PROXY": true,
 }
 
 // GlobalConfigurationValidator validates a GlobalConfiguration resource.
@@ -104,8 +105,8 @@ func (gcv *GlobalConfigurationValidator) checkIPPortProtocolConflicts(combinatio
 	}
 	for _, existingProtocol := range existingProtocols {
 		switch listener.Protocol {
-		case "HTTP", "TCP":
-			if existingProtocol == "HTTP" || existingProtocol == "TCP" {
+		case "HTTP", "TCP", "PROXY":
+			if existingProtocol == "HTTP" || existingProtocol == "TCP" || existingProtocol == "PROXY" {
 				return field.Invalid(fieldPath.Child("protocol"), listener.Protocol, fmt.Sprintf("Listener %s: Duplicated ip:port protocol combination %s:%d %s", listener.Name, ip, listener.Port, listener.Protocol))
 			}
 		case "UDP":

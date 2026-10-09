@@ -53,6 +53,8 @@ type StreamServer struct {
 	ProxyNextUpstream        bool
 	ProxyNextUpstreamTimeout string
 	ProxyNextUpstreamTries   int
+	ProxyProtocolUpstream    bool
+	ProxyProtocolListener    bool
 	HealthCheck              *StreamHealthCheck
 	ServerSnippets           []string
 	DisableIPV6              bool
