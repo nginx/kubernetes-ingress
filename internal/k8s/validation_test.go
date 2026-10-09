@@ -2269,6 +2269,35 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/http2": "false",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			directiveAutoAdjust: false,
+			expectedErrors:      nil,
+			msg:                 "valid nginx.org/http2 annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http2": "on",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			directiveAutoAdjust: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/http2: Invalid value: "on": must be a boolean`,
+			},
+			msg: "invalid nginx.org/http2 annotation",
+		},
+
+		{
+			annotations: map[string]string{
 				"nginx.org/hsts": "true",
 			},
 			specServices:         map[string]bool{},

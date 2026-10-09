@@ -175,10 +175,12 @@ Because the stages are decoupled and live in separate repos, a transient failure
 
 Image variants and test configurations are defined in JSON under `.github/data/`:
 
+The `matrix-images-*.json` rows use `build_os` / `image` / `tag_suffix` and are checked by `.github/scripts/validate-image-matrices.sh`. See [docs/developer/image-matrices.md](../../../docs/developer/image-matrices.md) for the schema and the checklist for adding an image.
+
 - `matrix-images-oss.json`: debian, alpine, ubi (amd64 + arm64)
 - `matrix-images-plus.json`: debian-plus, alpine-plus, alpine-plus-fips, ubi-10-plus
 - `matrix-images-plus-lts.json`: LTS Plus image definitions
-- `matrix-images-nap.json`: WAF v4/v5, DoS, UBI 10 (amd64 only). Every NAP image appears **twice** -- the unsuffixed entry pins nginx-agent v2 and the `-agent` suffixed entry pins v3
+- `matrix-images-nap.json`: WAF v4/v5, DoS, UBI 10 (amd64 only). WAF images appear **twice** -- the unsuffixed entry pins nginx-agent v2 and the `-agent` suffixed entry pins v3. DoS images package Agent v3 by default under standard tags (unsuffixed and `-ubi`) and do not have `-agent` variants.
 - `matrix-smoke-oss.json`, `matrix-smoke-plus.json`, `matrix-smoke-nap.json`: Smoke test matrices
 - `matrix-regression.json`: Regression test matrix (K8s version combinations)
 - `patch-images.json`, `patch-images-lts.json`: Patch image definitions for `patch-image.yml`

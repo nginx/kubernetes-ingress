@@ -137,6 +137,23 @@ func TestExecuteMainTemplateForNGINX(t *testing.T) {
 	t.Log(buf.String())
 }
 
+// The http2 ConfigMap key sets http2 in the http context; servers only override it.
+func TestExecuteMainTemplateWithHTTP2(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXMainTmpl, "Plus": newNGINXPlusMainTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg := mainCfg
+			cfg.HTTP2 = true
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlus(t *testing.T) {
 	t.Parallel()
 
@@ -3992,6 +4009,67 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, ingressCfgHTTP2OnNoTLS); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), "http2 on;") {
+				t.Error("want `http2 on;` in generated template")
+			}
+			if strings.Contains(buf.String(), "ssl") {
+				t.Error("unwant `ssl` in generated template for a server without TLS")
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+// http2 off; is only rendered when the http2 ConfigMap key turns HTTP/2 on in the http context.
+func TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := ingressCfgHTTP2OnNoTLS
+	cfg.HTTP2 = true
+	cfg.Servers = []Server{cfg.Servers[0]}
+	cfg.Servers[0].HTTP2 = false
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), "http2 off;") {
+				t.Error("want `http2 off;` in generated template")
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, ingressCfgGRPCOnlyNoTLS); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"listen 8080 proxy_protocol;", "listen [::]:8080 proxy_protocol;", "http2 on;", "grpc_pass"} {
+				if !strings.Contains(buf.String(), want) {
+					t.Errorf("want %q in generated template", want)
+				}
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithHTTP2On(t *testing.T) {
 	t.Parallel()
 
@@ -6658,7 +6736,46 @@ var (
 		},
 	}
 
-	// Ingress Config example without added annotations
+	// gRPC-only server without TLS: plaintext listeners must still be rendered
+	ingressCfgGRPCOnlyNoTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:             "test.example.com",
+				ServerTokens:     "off",
+				StatusZone:       "test.example.com",
+				Ports:            []int{8080},
+				ProxyProtocol:    true,
+				HTTP2:            true,
+				GRPCOnly:         true,
+				HasGRPCLocations: true,
+				Locations: []Location{{
+					Path: "/helloworld.Greeter", Upstream: testUpstream, ProxyPass: "grpc://test", GRPC: true,
+					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
+				}},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+	}
+
+	ingressCfgHTTP2OnNoTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Ports:        []int{80},
+				HTTP2:        true,
+				Locations: []Location{{
+					Path: "/tea", Upstream: testUpstream, ProxyPass: "http://test",
+					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
+				}},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+	}
+
 	ingressCfgHTTP2On = IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -7923,7 +8040,6 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
 					{
 						Name:             "cafe.example.com",
 						ServerTokens:     "off",
-						HTTP2:            true,
 						HasGRPCLocations: true,
 						Locations: []Location{
 							{
@@ -8003,7 +8119,6 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
 					{
 						Name:             "cafe.example.com",
 						ServerTokens:     "off",
-						HTTP2:            true,
 						HasGRPCLocations: true,
 						Locations: []Location{
 							{

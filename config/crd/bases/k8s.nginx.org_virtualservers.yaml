@@ -134,6 +134,12 @@ spec:
               http-snippets:
                 description: Sets a custom snippet in the http context.
                 type: string
+              http2:
+                description: |-
+                  Turns HTTP/2 on or off for this VirtualServer, overriding the http2 ConfigMap key.
+                  Without TLS, HTTP/2 (h2c) on the default listeners (when listener is not set) also requires the http2 ConfigMap key.
+                  When off, HTTP/2 requests for this host get 421 Misdirected Request; HTTP/1.1 is unaffected.
+                type: boolean
               ingressClassName:
                 description: Specifies which Ingress Controller must handle the VirtualServerRoute
                   resource. Must be the same as the ingressClassName of the VirtualServer
@@ -1448,8 +1454,8 @@ spec:
                     type:
                       description: The type of the upstream. Supported values are
                         http and grpc. The default is http. For gRPC, it is necessary
-                        to enable HTTP/2 in the ConfigMap and configure TLS termination
-                        in the VirtualServer.
+                        to enable HTTP/2, using the VirtualServer http2 field or the
+                        http2 ConfigMap key.
                       type: string
                     use-cluster-ip:
                       description: Enables using the Cluster IP and port of the service
