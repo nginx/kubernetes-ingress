@@ -41,12 +41,12 @@ UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d6
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 2026.2.1
 
-# renovate: datasource=github-releases depName=golang/vuln
-GOVULNCHECK_VERSION ?= v1.1.4
+# renovate: datasource=github-tags depName=golang/vuln
+GOVULNCHECK_VERSION ?= v1.8.0
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.27.1-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.27.2-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.

@@ -227,7 +227,7 @@ jobs:
           cd ../../.. && mv github.com/nginx/kubernetes-ingress kubernetes-ingress/kubernetes-ingress
 
       - name: Install gofumpt
-        run: go install mvdan.cc/gofumpt@v0.8.0
+        run: go install mvdan.cc/gofumpt@v0.12.0
 
       - name: Check if telemetry schema changed
         run: |
