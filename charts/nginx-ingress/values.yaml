@@ -737,6 +737,12 @@ controller:
   ## Requires controller.enableLatencyMetrics. When empty, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.
   latencyMetricsBuckets: ""
 
+  ## Honor EndpointSlice topology hints (set by Service spec.trafficDistribution or the service.kubernetes.io/topology-mode annotation),
+  ## preferring upstream endpoints on the same node or in the same zone as the Ingress Controller pod.
+  ## Each replica only routes to its own node or zone, so spread replicas across zones in proportion to client traffic.
+  ## The zone is read from the node's topology.kubernetes.io/zone label at startup; restart the Ingress Controller if it changes.
+  enableTopologyAwareRouting: false
+
   ## Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack.
   disableIPV6: false
 
