@@ -7254,3 +7254,68 @@ func assertUpstreamKeepalive(t *testing.T, label, got, want string) {
 		t.Errorf("%s Keepalive = %q, want %q", label, got, want)
 	}
 }
+
+func TestCreateUpstreamForExternalNameServiceForNGINX(t *testing.T) {
+	t.Parallel()
+	backend := &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "external-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	ingEx := &IngressEx{
+		Ingress: &networking.Ingress{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe-ingress",
+				Namespace: "default",
+			},
+		},
+		Endpoints: map[string][]string{
+			"external-svc80": {"example.com:80"},
+		},
+		ExternalNameSvcs: map[string]bool{"external-svc": true},
+	}
+
+	tests := []struct {
+		msg                  string
+		isResolverConfigured bool
+		expectedServers      []version1.UpstreamServer
+	}{
+		{
+			msg:                  "resolver configured",
+			isResolverConfigured: true,
+			expectedServers: []version1.UpstreamServer{
+				{
+					Address:     "example.com:80",
+					MaxFails:    1,
+					FailTimeout: "10s",
+					Resolve:     true,
+				},
+			},
+		},
+		{
+			msg:                  "resolver not configured falls back to the default server",
+			isResolverConfigured: false,
+			expectedServers:      version1.NewUpstreamWithDefaultServer("test").UpstreamServers,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			cfg := &ConfigParams{
+				Context:          context.Background(),
+				MaxFails:         1,
+				FailTimeout:      "10s",
+				UpstreamZoneSize: "0",
+			}
+			ups, _ := createUpstream(ingEx, "test", backend, "", cfg, false, test.isResolverConfigured, false)
+			if !cmp.Equal(test.expectedServers, ups.UpstreamServers) {
+				t.Error(cmp.Diff(test.expectedServers, ups.UpstreamServers))
+			}
+			if ups.HasResolvedServers() != test.isResolverConfigured {
+				t.Errorf("HasResolvedServers() = %v, want %v", ups.HasResolvedServers(), test.isResolverConfigured)
+			}
+		})
+	}
+}

@@ -54,6 +54,17 @@ type Upstream struct {
 	Keepalive        string
 }
 
+// HasResolvedServers returns true if any server of the upstream uses the resolve parameter,
+// which requires the upstream to reside in a shared memory zone.
+func (u Upstream) HasResolvedServers() bool {
+	for _, s := range u.UpstreamServers {
+		if s.Resolve {
+			return true
+		}
+	}
+	return false
+}
+
 // UpstreamServer describes a server in an NGINX upstream.
 type UpstreamServer struct {
 	Address     string

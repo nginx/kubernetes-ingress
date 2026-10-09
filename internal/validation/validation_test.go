@@ -359,3 +359,84 @@ func TestValidateTLSProtocols(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateResolverAddress(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{
+		"kube-dns.kube-system.svc.cluster.local",
+		"kube-dns.kube-system.svc.cluster.local:53",
+		"10.0.0.10",
+		"10.0.0.10:53",
+		"8.8.8.8:053",
+		"localhost",
+		"[2001:db8::53]",
+		"[2001:db8::53]:53",
+		"a",
+		"a:53",
+		"DNS",
+		"CoreDNS",
+		"kube-dns.kube-system.svc.cluster.local.",
+		"kube-dns.kube-system.svc.cluster.local.:53",
+		"ONE.ONE.ONE.ONE",
+		"a.example.com",
+		"x1.k8s",
+		"1dns.example.com",
+		"dns.123",
+		"ns.corp.123",
+	}
+	for _, addr := range valid {
+		if err := ValidateResolverAddress(addr); err != nil {
+			t.Errorf("ValidateResolverAddress(%q) returned an error for a valid address: %v", addr, err)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"10.0.0.10;",
+		"10.0.0.10 valid=1s",
+		"10.0.0.10;\nresolver evil",
+		"not a host",
+		"-cluster.local",
+		"333.333.333.333",
+		"10.0.0.10:99999",
+		"[2001:db8::53]:0",
+		"8.8.8.8:+53",
+		"8.8.8.8: 53",
+		"[2001:db8::53]:+53",
+		"a:+53",
+		"[2001:db8::53]:99999",
+		"[2001:db8::53",
+		"fe80::1%eth0",
+		"[fe80::1%eth0]:53",
+		"2001:db8::53;",
+		"2001:db8::53",
+		"::1",
+		"fe80::1:53",
+		"1.2.3.4.5",
+		"a..b",
+		".example.com",
+		"example.com..",
+		"-dns.example.com",
+		"dns-.example.com",
+		strings.Repeat("a", 64) + ".example.com",
+		strings.Repeat("a.", 127) + "com",
+		"a:0",
+		"a:",
+		"a:b",
+		"a:b:c",
+		"[example.com]:53",
+		"[10.0.0.10]",
+		"[2001:db8::53]53",
+		"[2001:db8::53]:",
+		"10.0.0",
+		"dns_server",
+		"dns$server",
+		"dns{a}",
+	}
+	for _, addr := range invalid {
+		if err := ValidateResolverAddress(addr); err == nil {
+			t.Errorf("ValidateResolverAddress(%q) returned no error for an invalid address", addr)
+		}
+	}
+}

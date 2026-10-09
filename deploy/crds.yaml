@@ -2964,8 +2964,10 @@ spec:
                         you need to include the namespace. For example, tea-namespace/tea.
                         If the service doesn’t exist, NGINX will assume the service
                         has zero endpoints and return a 502 response for requests
-                        for this upstream. For NGINX Plus only, services of type ExternalName
-                        are also supported in the same namespace.
+                        for this upstream. Services of type ExternalName are also
+                        supported, in the same or in a different namespace. They require
+                        a resolver configured in the ConfigMap and, with NGINX Open
+                        Source, NGINX 1.27.3 or later.
                       type: string
                     sessionCookie:
                       description: The SessionCookie field configures session persistence
@@ -4476,8 +4478,10 @@ spec:
                         you need to include the namespace. For example, tea-namespace/tea.
                         If the service doesn’t exist, NGINX will assume the service
                         has zero endpoints and return a 502 response for requests
-                        for this upstream. For NGINX Plus only, services of type ExternalName
-                        are also supported in the same namespace.
+                        for this upstream. Services of type ExternalName are also
+                        supported, in the same or in a different namespace. They require
+                        a resolver configured in the ConfigMap and, with NGINX Open
+                        Source, NGINX 1.27.3 or later.
                       type: string
                     sessionCookie:
                       description: The SessionCookie field configures session persistence
