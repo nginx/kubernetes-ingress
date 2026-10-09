@@ -70,7 +70,7 @@ func createTestConfiguratorWithManager(t *testing.T, manager nginx.Manager) *Con
 		IsLatencyMetricsEnabled: false,
 		NginxVersion:            nginx.NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)"),
 	})
-	cnf.isReloadsEnabled = true
+	cnf.EnableReloads()
 	return cnf
 }
 
@@ -110,7 +110,7 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 		IsPrometheusEnabled:     false,
 		IsLatencyMetricsEnabled: false,
 	})
-	cnf.isReloadsEnabled = true
+	cnf.EnableReloads()
 	return cnf
 }
 
@@ -579,7 +579,7 @@ func TestUpdatePlusExternalAuthEndpoints(t *testing.T) {
 				updatedUpstreams: make(map[string][]string),
 			}
 			cnf := createTestConfiguratorWithManager(t, mgr)
-			cnf.isReloadsEnabled = true
+			cnf.EnableReloads()
 
 			err := cnf.updatePlusExternalAuthEndpoints(
 				tt.policies, tt.endpoints, tt.parentIngress, nginx.ServerConfig{},

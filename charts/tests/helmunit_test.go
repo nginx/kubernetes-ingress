@@ -268,6 +268,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "common-labels",
 			namespace:   "default",
 		},
+		"batchReloadWindow": {
+			valuesFile:  "testdata/batch-reload-window.yaml",
+			releaseName: "batch-reload-window",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test

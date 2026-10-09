@@ -254,6 +254,8 @@ type LoadBalancerController struct {
 	batchSyncEnabled              bool
 	updateAllConfigsOnBatch       bool
 	enableBatchReload             bool
+	batchStart                    time.Time
+	batchReloadWindow             time.Duration
 	isIPV6Disabled                bool
 	namespaceWatcherController    cache.Controller
 	telemetryCollector            *telemetry.Collector
@@ -349,6 +351,11 @@ type NewLoadBalancerControllerInput struct {
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
 	ShuttingDown                 bool
+	// BatchReloadWindow bounds how long batch mode can defer a pending reload
+	// under sustained EndpointSlice churn (see the batch-end block in sync()).
+	// Zero disables the bound entirely, restoring the unbounded drain-to-zero
+	// behavior (see https://github.com/nginx/kubernetes-ingress/issues/10397).
+	BatchReloadWindow time.Duration
 }
 
 // NewLoadBalancerController creates a controller
@@ -399,6 +406,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		wafBundlePath:                input.WAFBundlePath,
 		plmEnabled:                   input.PLMStorageSpec.Endpoint != "",
 		plmStorageSecrets:            plmStorageSecretKeys(input.PLMStorageSpec),
+		batchReloadWindow:            input.BatchReloadWindow,
 	}
 
 	if input.AppProtectEnabled && input.WAFBundlePath != "" {
@@ -959,10 +967,15 @@ func (lbc *LoadBalancerController) getNamespacedInformer(ns string) *namespacedI
 }
 
 // finds the number of currently active endpoints for the service pointing at the ingresscontroller and updates all configs that depend on that number
-func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(controllerEndpointSlice discovery_v1.EndpointSlice) bool {
+//
+// This is reached from an endpointslice task via syncEndpointSlices's early-return branch
+// for the controller's own Service — i.e. it can run inside an endpointslice-only batch,
+// where sync() no longer forces a batch-end reload (see Configurator.deferReload's
+// invariant doc). The AddOrUpdate* calls below must keep marking the batch dirty on
+// their own error paths for that reason.
+func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(controllerEndpointSlice discovery_v1.EndpointSlice) {
 	previous := lbc.configurator.GetIngressControllerReplicas()
 	current := countReadyEndpoints(controllerEndpointSlice)
-	found := false
 
 	if current != previous {
 		// number of active endpoints changed. Update configuration of all ingresses that depend on it
@@ -972,14 +985,12 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 		resources := lbc.configuration.FindIngressesWithRatelimitScaling(controllerEndpointSlice.Namespace)
 		resourceExes := lbc.createExtendedResources(resources)
 		for _, ingress := range resourceExes.IngressExes {
-			found = true
 			_, err := lbc.configurator.AddOrUpdateIngress(ingress)
 			if err != nil {
 				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingress.Ingress.Name), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
 			}
 		}
 		for _, ingress := range resourceExes.MergeableIngresses {
-			found = true
 			_, err := lbc.configurator.AddOrUpdateMergeableIngress(ingress)
 			if err != nil {
 				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Master.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingress.Master.Ingress.Name), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
@@ -991,7 +1002,6 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			resources = lbc.findVirtualServersUsingRatelimitScaling()
 			resourceExes = lbc.createExtendedResources(resources)
 			for _, vserver := range resourceExes.VirtualServerExes {
-				found = true
 				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
 				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
 				if err != nil {
@@ -1001,7 +1011,6 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 		}
 
 	}
-	return found
 }
 
 func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []Resource {
@@ -1287,6 +1296,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 	if lbc.isNginxReady && lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
 		lbc.configurator.DisableReloads()
 		lbc.batchSyncEnabled = true
+		lbc.batchStart = time.Now()
 
 		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
 	}
@@ -1306,11 +1316,21 @@ func (lbc *LoadBalancerController) sync(task task) {
 		}
 		lbc.syncConfigMap(task)
 	case endpointslice:
-		resourcesFound := lbc.syncEndpointSlices(task)
-		if lbc.batchSyncEnabled && resourcesFound {
-			nl.Debugf(lbc.Logger, "Endpointslice %v is referenced - enabling batch reload", task.Key)
-			lbc.enableBatchReload = true
-		}
+		// Batch-end reload is no longer forced here for endpointslice tasks.
+		// On NGINX Plus, UpdateEndpoints*/updatePlusEndpoints* apply the
+		// change via the Plus API during the batch (see
+		// Configurator.isPlusAPIEnabled) and only fall back to Reload() on
+		// API failure. On OSS, those same functions always call Reload().
+		// Either way, Configurator marks the batch dirty itself whenever that
+		// matters: Reload() sets reloadDeferred when it no-ops, and the
+		// UpdateEndpoints* functions also call it directly if they abort
+		// after an earlier resource in the same call already wrote its
+		// config (see Configurator.deferReload). ReloadForBatchUpdates
+		// honors reloadDeferred at batch end — so this path no longer needs
+		// to infer "was a reload needed" from the task Kind or from
+		// syncEndpointSlices's return value. See
+		// https://github.com/nginx/kubernetes-ingress/issues/7778.
+		lbc.syncEndpointSlices(task)
 	case secret:
 		lbc.syncSecret(task)
 	case service:
@@ -1438,8 +1458,28 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.refreshStaleVSRReferences()
 	}
 
-	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
-		lbc.batchSyncEnabled = false
+	// The batch also flushes once batchReloadWindow has elapsed since it
+	// started, even if the queue hasn't drained. Without this, sustained
+	// EndpointSlice churn (e.g. a rolling deployment) can keep
+	// syncQueue.Len() > 0 indefinitely, deferring a real config change's
+	// reload for as long as the churn lasts
+	// (https://github.com/nginx/kubernetes-ingress/issues/10397).
+	// A zero batchReloadWindow (-batch-reload-window=0) disables the bound
+	// entirely, restoring the unbounded drain-to-zero behavior and
+	// reintroducing the #10397 staleness risk under sustained churn.
+	//
+	// A window-triggered flush (queueDrained is false) deliberately does not
+	// leave batch mode: it re-enables reloads just long enough to run the
+	// pending reload, then immediately re-disables them and resets
+	// batchStart, so the batch keeps coalescing further churn instead of
+	// ending. Ending the batch here instead would mean the next sync has to
+	// clear the batch-entry threshold (syncQueue.Len() > 1) from scratch —
+	// which a sustained low-backlog churn pattern (e.g. steady single-digit
+	// EndpointSlice events) may never do, collapsing back into a reload per
+	// event. Only a genuine drain (queueDrained true) exits batch mode.
+	queueDrained := lbc.syncQueue.Len() == 0
+	batchWindowElapsed := lbc.batchReloadWindow > 0 && time.Since(lbc.batchStart) >= lbc.batchReloadWindow
+	if lbc.batchSyncEnabled && (queueDrained || batchWindowElapsed) {
 		lbc.configurator.EnableReloads()
 		if lbc.updateAllConfigsOnBatch {
 			lbc.updateAllConfigs()
@@ -1451,16 +1491,32 @@ func (lbc *LoadBalancerController) sync(task task) {
 
 		lbc.enableBatchReload = false
 		lbc.updateAllConfigsOnBatch = false
-		nl.Debug(lbc.Logger, "Batch sync completed - disabling batch reload")
+
+		if queueDrained {
+			lbc.batchSyncEnabled = false
+			nl.Debug(lbc.Logger, "Batch sync completed - disabling batch reload")
+		} else {
+			lbc.configurator.DisableReloads()
+			lbc.batchStart = time.Now()
+			nl.Debug(lbc.Logger, "Batch reload window elapsed - flushed pending reload, continuing batch")
+		}
 	}
 }
 
 // removeNamespacedInformer unregisters key, then stops the group Remove
 // returned. Remove waits for in-flight readers, so nothing is still reading it.
+//
+// Also purges key's Policy snapshots from Configuration.policies via
+// DeletePoliciesForNamespace — the one point both namespace-teardown paths
+// (unwatchNamespace's cleanup-then-remove, and syncNamespace's
+// deleted-namespace branch, which calls this directly with no other cleanup)
+// funnel through. See DeletePoliciesForNamespace for why iterating the
+// Policy lister instead misses Policies whose delete task is still queued.
 func (lbc *LoadBalancerController) removeNamespacedInformer(key string) {
 	if nsi := lbc.namespacedInformers.Remove(key); nsi != nil {
 		nsi.stop()
 	}
+	lbc.configuration.DeletePoliciesForNamespace(key)
 }
 
 // unwatchNamespace tears down a namespace that lost its watched label: cleanup
@@ -1535,6 +1591,13 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 			key := getResourceKey(&vsr.ObjectMeta)
 			lbc.configuration.DeleteVirtualServerRoute(key)
 		}
+
+		// Policy snapshots are purged separately by removeNamespacedInformer
+		// (via DeletePoliciesForNamespace), not here: iterating nsi.policyLister
+		// misses a Policy whose delete task is still queued when the namespace
+		// is unwatched, since the lister has already evicted it but
+		// Configuration.policies has not yet been told. See
+		// DeletePoliciesForNamespace for the full reasoning.
 	}
 	if nsi.appProtectEnabled {
 		lbc.cleanupUnwatchedAppWafResources(nsi)
@@ -4264,6 +4327,15 @@ func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyVal
 	return cfg
 }
 
+// getAllPolicies reads nsi.policyLister directly (the informer cache), not the
+// task-ordered Configuration.policies store that getPolicies below uses. That's
+// deliberate: this feeds discovery only — "which resources might need
+// re-rendering" (findVirtualServersUsingRatelimitScaling, the WAF/AppProtect
+// cross-references in appprotect_waf.go) — never a config input. Over-inclusion
+// here just triggers an idempotent re-render; under-inclusion would miss a
+// needed update. getPolicies, which supplies the actual policy data a
+// VirtualServer/Ingress config is generated from, must stay task-ordered — see
+// the Configuration.policies field doc.
 func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	var policies []*conf_v1.Policy
 
@@ -4286,6 +4358,14 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	return policies
 }
 
+// getPolicies resolves Policy references into Policy objects for config
+// generation (VirtualServer/VirtualServerRoute/Ingress policy attachment).
+// It reads Configuration.policies — a task-ordered snapshot written by
+// syncPolicy — rather than the policy informer cache directly, so that a
+// resource resync triggered by an unrelated task (e.g. an EndpointSlice
+// event) can never observe a Policy change before its own syncPolicy task
+// has processed it. See the Configuration.policies field doc for why that
+// matters on NGINX Plus.
 func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReference, ownerNamespace string) ([]*conf_v1.Policy, []error) {
 	var result []*conf_v1.Policy
 	var errors []error
@@ -4298,35 +4378,17 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 
 		policyKey := fmt.Sprintf("%s/%s", polNamespace, p.Name)
 
-		var policyObj interface{}
-		var exists bool
-		var err error
-
+		// getNamespacedInformer still gates on the namespace being watched —
+		// a distinct error from the policy simply not existing yet.
 		nsi := lbc.getNamespacedInformer(polNamespace)
 		if nsi == nil {
 			errors = append(errors, fmt.Errorf("failed to get namespace %s", polNamespace))
 			continue
 		}
 
-		policyObj, exists, err = nsi.policyLister.GetByKey(policyKey)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to get policy %s: %w", policyKey, err))
-			continue
-		}
-
-		if !exists {
-			errors = append(errors, fmt.Errorf("policy %s doesn't exist", policyKey))
-			continue
-		}
-
-		policy, ok := policyObj.(*conf_v1.Policy)
-		if !ok {
-			errors = append(errors, fmt.Errorf("policy %s has unexpected type %T", policyKey, policyObj))
-			continue
-		}
-
+		policy := lbc.configuration.GetPolicy(policyKey)
 		if policy == nil {
-			errors = append(errors, fmt.Errorf("policy %s is nil", policyKey))
+			errors = append(errors, fmt.Errorf("policy %s doesn't exist", policyKey))
 			continue
 		}
 
@@ -4335,8 +4397,7 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 			continue
 		}
 
-		err = validation.ValidatePolicy(policy, lbc.policyValidationConfig())
-		if err != nil {
+		if err := validation.ValidatePolicy(policy, lbc.policyValidationConfig()); err != nil {
 			errors = append(errors, fmt.Errorf("policy %s is invalid: %w", policyKey, err))
 			continue
 		}
