@@ -274,6 +274,7 @@
       "matchDatasources": [
         "docker",
         "github-releases",
+        "github-tags",
         "go",
         "golang-version"
       ],
