@@ -793,6 +793,7 @@ jobs:
       authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       k8s-version: ${{ matrix.k8s }}
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
+      durations: "0"
 
   smoke-tests-plus:
     if: >-
@@ -826,6 +827,7 @@ jobs:
       authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       k8s-version: ${{ matrix.k8s }}
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
+      durations: "0"
 
   smoke-tests-nap:
     if: >-
@@ -859,6 +861,7 @@ jobs:
       authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       k8s-version: ${{ matrix.k8s }}
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
+      durations: "0"
 
   tag-stable:
     name: Tag tested image as stable
