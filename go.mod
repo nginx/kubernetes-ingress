@@ -1,6 +1,6 @@
 module github.com/nginx/kubernetes-ingress
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/cert-manager/cert-manager v1.21.2
