@@ -16,6 +16,9 @@ var (
 	validDNSRegex      = regexp.MustCompile(`^(?:[A-Za-z0-9][A-Za-z0-9-]{1,62}\.)([A-Za-z0-9-]{1,63}\.)*[A-Za-z]{2,63}(?::\d{1,5})?$`)
 	validIPRegex       = regexp.MustCompile(`^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])(?::\d{1,5})?$`)
 	validHostnameRegex = regexp.MustCompile(`^[a-z][A-Za-z0-9-]{1,62}(?::\d{1,5})?$`)
+
+	validDNSLabelRegex     = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
+	validNumericLabelRegex = regexp.MustCompile(`^[0-9]+$`)
 )
 
 // ValidatePort ensure port matches rfc6335 https://www.rfc-editor.org/rfc/rfc6335.html
@@ -55,6 +58,120 @@ func ValidateHost(host string) error {
 		return nil
 	}
 	return fmt.Errorf("error parsing host: %s not a valid host", host)
+}
+
+// ValidateResolverAddress ensures the address of a DNS resolver is a valid domain name, IPv4 address
+// or IPv6 address with an optional :port appended, as accepted by the NGINX resolver directive.
+// Domain names may be single-label, mixed-case or absolute (with a trailing dot). IPv6 addresses
+// must be enclosed in brackets, for example [2001:db8::53] or [2001:db8::53]:53.
+func ValidateResolverAddress(address string) error {
+	host, port, err := splitResolverAddress(address)
+	if err != nil {
+		return fmt.Errorf("error parsing resolver address %q: %w", address, err)
+	}
+
+	if port != "" {
+		// NGINX parses the port with ngx_atoi, which accepts digits only, so signs and spaces are rejected
+		if strings.Trim(port, "0123456789") != "" {
+			return fmt.Errorf("error parsing resolver address %q: invalid port %q", address, port)
+		}
+		numericPort, err := strconv.Atoi(port)
+		if err != nil {
+			return fmt.Errorf("error parsing resolver address %q: invalid port %q", address, port)
+		}
+		if err := ValidatePort(numericPort); err != nil {
+			return fmt.Errorf("error parsing resolver address %q: %w", address, err)
+		}
+	}
+
+	if err := validateResolverHost(host); err != nil {
+		return fmt.Errorf("error parsing resolver address %q: %w", address, err)
+	}
+	return nil
+}
+
+// splitResolverAddress splits a resolver address into the host and the optional port.
+// A bracketed host must be an IPv6 address. IPv6 addresses must always be bracketed,
+// with or without a port, as NGINX does not parse bare IPv6 addresses.
+func splitResolverAddress(address string) (host string, port string, err error) {
+	if strings.HasPrefix(address, "[") {
+		end := strings.Index(address, "]")
+		if end < 0 {
+			return "", "", errors.New("missing closing bracket")
+		}
+		host = address[1:end]
+		rest := address[end+1:]
+		if rest != "" {
+			if !strings.HasPrefix(rest, ":") {
+				return "", "", errors.New("unexpected characters after closing bracket")
+			}
+			port = rest[1:]
+			if port == "" {
+				return "", "", errors.New("empty port")
+			}
+		}
+		addr, err := netip.ParseAddr(host)
+		if err != nil || !addr.Is6() {
+			return "", "", errors.New("brackets must enclose an IPv6 address")
+		}
+		return host, port, nil
+	}
+
+	switch strings.Count(address, ":") {
+	case 0:
+		return address, "", nil
+	case 1:
+		host, port, _ = strings.Cut(address, ":")
+		if port == "" {
+			return "", "", errors.New("empty port")
+		}
+		return host, port, nil
+	default:
+		// NGINX parses a token as IPv6 only when it starts with "[", so a bare IPv6 address
+		// is read as a host with an invalid port.
+		return "", "", errors.New("IPv6 addresses must be enclosed in brackets, for example [2001:db8::53]")
+	}
+}
+
+// validateResolverHost ensures the host is an IP address without a zone identifier or a domain name.
+func validateResolverHost(host string) error {
+	if host == "" {
+		return errors.New("empty host")
+	}
+
+	if addr, err := netip.ParseAddr(host); err == nil {
+		if addr.Zone() != "" {
+			return errors.New("IPv6 zone identifiers are not supported")
+		}
+		return nil
+	}
+	if strings.Contains(host, ":") {
+		return errors.New("not a valid IPv6 address")
+	}
+
+	name := strings.TrimSuffix(host, ".")
+	if name == "" || len(name) > 253 {
+		return errors.New("not a valid domain name")
+	}
+	labels := strings.Split(name, ".")
+	for _, label := range labels {
+		if !validDNSLabelRegex.MatchString(label) {
+			return fmt.Errorf("not a valid domain name: invalid label %q", label)
+		}
+	}
+	// A name made only of numeric labels can only be a malformed IPv4 address, which failed to parse above.
+	// Names with a numeric last label, such as dns.123, are valid domain names that NGINX resolves as hostnames.
+	allNumeric := true
+	for _, label := range labels {
+		if !validNumericLabelRegex.MatchString(label) {
+			allNumeric = false
+			break
+		}
+	}
+	if allNumeric {
+		return errors.New("not a valid IPv4 address")
+	}
+	return nil
 }
 
 // URIValidationOption defines a functional option pattern for configuring the

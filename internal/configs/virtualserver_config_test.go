@@ -2,6 +2,7 @@ package configs
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"slices"
 	"sort"
@@ -3605,6 +3606,105 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceService(t *testing.T) {
 
 	if !cmp.Equal(expected, result) {
 		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+func TestGenerateVirtualServerConfigWithExternalNameServicesForNGINX(t *testing.T) {
+	t.Parallel()
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea",
+						Service: "tea-svc",
+						Port:    80,
+					},
+					{
+						Name:    "coffee",
+						Service: "coffee/coffee-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Action: &conf_v1.Action{
+							Pass: "tea",
+						},
+					},
+					{
+						Path: "/coffee",
+						Action: &conf_v1.Action{
+							Pass: "coffee",
+						},
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80":   {"tea.example.com:80"},
+			"coffee/coffee-svc:80": {"coffee.example.com:80"},
+		},
+		ExternalNameSvcs: map[string]bool{
+			"default/tea-svc":   true,
+			"coffee/coffee-svc": true,
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{},
+	}
+
+	tests := []struct {
+		isResolverConfigured bool
+		expectedServers      map[string]string
+		expectedResolve      bool
+		expectedWarnings     int
+	}{
+		{
+			isResolverConfigured: true,
+			expectedServers: map[string]string{
+				"vs_default_cafe_tea":    "tea.example.com:80",
+				"vs_default_cafe_coffee": "coffee.example.com:80",
+			},
+			expectedResolve:  true,
+			expectedWarnings: 0,
+		},
+		{
+			isResolverConfigured: false,
+			expectedServers: map[string]string{
+				"vs_default_cafe_tea":    nginx502Server,
+				"vs_default_cafe_coffee": nginx502Server,
+			},
+			expectedResolve:  false,
+			expectedWarnings: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("isResolverConfigured=%v", test.isResolverConfigured), func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&baseCfgParams, false, test.isResolverConfigured, &StaticConfigParams{}, false, nil)
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings[virtualServerEx.VirtualServer]) != test.expectedWarnings {
+				t.Errorf("GenerateVirtualServerConfig returned warnings %v, expected %d", warnings, test.expectedWarnings)
+			}
+			if len(result.Upstreams) != len(test.expectedServers) {
+				t.Fatalf("GenerateVirtualServerConfig returned %d upstreams, expected %d", len(result.Upstreams), len(test.expectedServers))
+			}
+			for _, ups := range result.Upstreams {
+				want := []version2.UpstreamServer{{Address: test.expectedServers[ups.Name]}}
+				if !cmp.Equal(want, ups.Servers) {
+					t.Errorf("upstream %s: %s", ups.Name, cmp.Diff(want, ups.Servers))
+				}
+				if ups.Resolve != test.expectedResolve {
+					t.Errorf("upstream %s: Resolve = %v, expected %v", ups.Name, ups.Resolve, test.expectedResolve)
+				}
+			}
+		})
 	}
 }
 

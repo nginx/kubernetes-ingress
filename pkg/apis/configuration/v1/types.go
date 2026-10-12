@@ -125,7 +125,7 @@ type PolicyReference struct {
 type Upstream struct {
 	// The name of the upstream. Must be a valid DNS label as defined in RFC 1035. For example, hello and upstream-123 are valid. The name must be unique among all upstreams of the resource.
 	Name string `json:"name"`
-	// The name of a service. If the Service belongs to a different namespace than the VirtualServer or VirtualServerRoute, you need to include the namespace. For example, tea-namespace/tea. If the service doesn’t exist, NGINX will assume the service has zero endpoints and return a 502 response for requests for this upstream. For NGINX Plus only, services of type ExternalName are also supported in the same namespace.
+	// The name of a service. If the Service belongs to a different namespace than the VirtualServer or VirtualServerRoute, you need to include the namespace. For example, tea-namespace/tea. If the service doesn’t exist, NGINX will assume the service has zero endpoints and return a 502 response for requests for this upstream. Services of type ExternalName are also supported, in the same or in a different namespace. They require a resolver configured in the ConfigMap and, with NGINX Open Source, NGINX 1.27.3 or later.
 	Service string `json:"service"`
 	// Selects the pods within the service using label keys and values. By default, all pods of the service are selected. Note: the specified labels are expected to be present in the pods when they are created. If the pod labels are updated, NGINX Ingress Controller will not see that change until the number of the pods is changed.
 	Subselector map[string]string `json:"subselector"`

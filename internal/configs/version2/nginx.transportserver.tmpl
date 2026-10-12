@@ -7,7 +7,7 @@ upstream {{ $u.Name }} {
     {{- end }}
 
     {{- range $s := $u.Servers }}
-    server {{ $s.Address }} max_fails={{ $s.MaxFails }} fail_timeout={{ $s.FailTimeout }} max_conns={{ $s.MaxConnections }};
+    server {{ $s.Address }} max_fails={{ $s.MaxFails }} fail_timeout={{ $s.FailTimeout }} max_conns={{ $s.MaxConnections }}{{ if $u.Resolve }} resolve{{ end }};
     {{- end }}
 }
 {{- end }}

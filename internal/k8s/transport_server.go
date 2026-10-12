@@ -229,7 +229,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 
 	for _, u := range transportServer.Spec.Upstreams {
 		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec
-		if err == nil && external && lbc.isNginxPlus {
+		if err == nil && external {
 			externalNameSvcs[configs.GenerateExternalNameSvcKey(transportServer.Namespace, u.Service)] = true
 		}
 		if err != nil {

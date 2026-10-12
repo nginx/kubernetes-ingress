@@ -6,11 +6,12 @@ The Ingress Controller supports routing requests to services of the type
 An ExternalName service is defined by an external DNS name that is resolved into the IP addresses, typically external to
 the cluster. This enables to use the Ingress Controller to route requests to the destinations outside of the cluster.
 
-**Note:** This feature is only available in NGINX Plus.
+**Note:** With NGINX Open Source, this feature requires NGINX 1.27.3 or later, which is included in the NGINX Ingress
+Controller images.
 
 ## Prerequisites
 
-To use ExternalName services, first you need to configure one or more resolvers using the ConfigMap. NGINX Plus will use
+To use ExternalName services, first you need to configure one or more resolvers using the ConfigMap. NGINX will use
 those resolvers to resolve DNS names of the services.
 
 For example, the following ConfigMap configures one resolver:
@@ -66,5 +67,5 @@ spec:
 
 ```
 
-As a result, NGINX Plus will route requests for “example.com” to the IP addresses behind the DNS name
+As a result, NGINX will route requests for “example.com” to the IP addresses behind the DNS name
 my.service.example.com.
