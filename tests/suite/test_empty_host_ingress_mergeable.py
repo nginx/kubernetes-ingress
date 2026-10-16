@@ -2,11 +2,13 @@ import pytest
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress_from_yaml,
     delete_common_app,
     delete_ingress,
     get_default_server_conf,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     wait_before_test,
@@ -33,11 +35,12 @@ class TestEmptyHostIngressMergeable:
         ingress_controller_endpoint,
         ingress_controller_prerequisites,
         test_namespace,
+        e2e_run_id,
     ):
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         host = "anything.example.com"
 

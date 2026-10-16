@@ -11,6 +11,8 @@ from suite.utils.resources_utils import (
     create_namespace_with_name_from_yaml,
     delete_common_app,
     delete_namespace,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import (
@@ -42,8 +44,9 @@ class TestVirtualServerRouteHostless:
 
     @pytest.fixture(scope="class")
     def simple_app_setup(self, request, kube_apis, foreign_namespace_setup):
-        create_example_app(kube_apis, "simple", foreign_namespace_setup.namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, foreign_namespace_setup.namespace)
+        e2e_run_id = generate_e2e_run_id()
+        create_example_app(kube_apis, "simple", foreign_namespace_setup.namespace, e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, foreign_namespace_setup.namespace, get_e2e_run_selector(e2e_run_id))
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":

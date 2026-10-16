@@ -12,6 +12,7 @@ from suite.utils.custom_assertions import (
 )
 from suite.utils.custom_resources_utils import generate_item_with_upstream_options
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -41,7 +42,7 @@ class TestVirtualServerUpstreamOptions:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
         print("Case 1: no ConfigMap key, no options in VS")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -219,7 +220,7 @@ class TestVirtualServerUpstreamOptions:
             kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace, new_body
         )
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -299,7 +300,7 @@ class TestVirtualServerUpstreamOptions:
             kube_apis.v1, config_map_name, ingress_controller_prerequisites.namespace, config_map_file
         )
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -400,7 +401,7 @@ class TestVirtualServerUpstreamOptions:
             f"{TEST_DATA}/virtual-server-upstream-options/configmap-with-keys.yaml",
         )
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -483,7 +484,7 @@ class TestVirtualServerUpstreamOptionValidation:
             kube_apis.custom_objects, virtual_server_setup.vs_name, vs_file, virtual_server_setup.namespace
         )
         wait_before_test(2)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
@@ -498,7 +499,7 @@ class TestVirtualServerUpstreamOptionValidation:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         invalid_fields = [
             "lb-method",
             "fail-timeout",
@@ -653,7 +654,7 @@ class TestOptionsSpecificForPlus:
             kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace, new_body
         )
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -674,7 +675,7 @@ class TestOptionsSpecificForPlus:
     def test_slow_start_warning(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup, options
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
         vs_event_text = f"Configuration for {text} was added or updated ; with warning(s): Slow start will be disabled"
         print(f"Case 0: verify a warning")
@@ -744,7 +745,7 @@ class TestOptionsSpecificForPlus:
             kube_apis.custom_objects, virtual_server_setup.vs_name, vs_file, virtual_server_setup.namespace
         )
         wait_before_test(2)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
@@ -759,7 +760,7 @@ class TestOptionsSpecificForPlus:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         invalid_fields = [
             "healthCheck.enable",
             "healthCheck.path",

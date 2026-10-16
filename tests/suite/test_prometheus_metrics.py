@@ -19,6 +19,8 @@ from suite.utils.resources_utils import (
     ensure_connection,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -56,11 +58,12 @@ def prometheus_secret_setup(request, kube_apis, test_namespace):
 @pytest.fixture(scope="class")
 def ingress_setup(request, kube_apis, ingress_controller_endpoint, test_namespace) -> IngressSetup:
     print("------------------------- Deploy Ingress Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, f"{TEST_DATA}/smoke/smoke-secret.yaml")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/smoke/standard/smoke-ingress.yaml", test_namespace)
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/smoke/standard/smoke-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,

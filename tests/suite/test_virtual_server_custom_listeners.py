@@ -6,6 +6,7 @@ from requests.exceptions import ConnectionError
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import create_gc_from_yaml, delete_gc, patch_gc_from_yaml
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_secret_from_yaml,
     delete_secret,
     get_events_for_object,
@@ -225,7 +226,7 @@ class TestVirtualServerCustomListeners:
         wait_before_test()
 
         print("\nStep 3: Test generated VS configs")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -426,7 +427,7 @@ class TestVirtualServerCustomListeners:
         wait_before_test()
 
         print("\nStep 4: Test generated VS configs")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,

@@ -10,6 +10,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     is_secret_present,
     replace_secret,
     wait_before_test,
@@ -53,12 +55,13 @@ def jwt_secrets_setup(
     with open(f"{TEST_DATA}/jwt-secrets/tokens/jwt-secrets-token.jwt") as token_file:
         token = token_file.read().replace("\n", "")
     print("------------------------- Deploy JWT Secrets Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/jwt-secrets/{request.param}/jwt-secrets-ingress.yaml", test_namespace
     )
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/jwt-secrets/{request.param}/jwt-secrets-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )

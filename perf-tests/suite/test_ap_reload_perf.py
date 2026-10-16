@@ -16,6 +16,7 @@ from suite.utils.ap_resources_utils import (
     delete_ap_policy,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress,
     create_ingress_with_ap_annotations,
@@ -24,6 +25,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_resource_metrics,
     replace_ingress_with_ap_annotations,
     wait_before_test,
@@ -62,7 +65,7 @@ def enable_prometheus_port(
     body = kube_apis.apps_v1_api.read_namespaced_deployment("nginx-ingress", namespace)
     body.spec.template.spec.containers[0].ports.append(port)
     kube_apis.apps_v1_api.patch_namespaced_deployment("nginx-ingress", namespace, body)
-    wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, namespace, IC_SELECTOR)
 
 
 @pytest.fixture(scope="class")
@@ -80,9 +83,10 @@ def appprotect_setup(
     """
 
     print("------------------------- Deploy simple backend application -------------------------")
-    create_example_app(kube_apis, "simple", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
     req_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,
