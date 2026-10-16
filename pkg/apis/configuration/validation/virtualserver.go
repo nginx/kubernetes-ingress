@@ -1315,6 +1315,17 @@ var actionProxyHeaderVariables = map[string]bool{
 
 var actionProxyHeaderSpecialVariables = []string{"arg_", "http_", "cookie_", "jwt_claim_", "jwt_header_"}
 
+// ValidateProxySetHeaderValue validates a header value for proxy_set_header, allowing safe NGINX variables.
+func ValidateProxySetHeaderValue(value string, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if strings.ContainsAny(value, "\n\r") {
+		allErrs = append(allErrs, field.Invalid(fieldPath, value, "value must not contain newline or carriage-return characters"))
+	}
+	allErrs = append(allErrs, validateEscapedStringWithVariables(value, fieldPath,
+		actionProxyHeaderSpecialVariables, actionProxyHeaderVariables, isPlus)...)
+	return allErrs
+}
+
 func (vsv *VirtualServerValidator) validateActionProxyHeader(h v1.Header, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -1326,8 +1337,7 @@ func (vsv *VirtualServerValidator) validateActionProxyHeader(h v1.Header, fieldP
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), h.Name, msg))
 	}
 
-	allErrs = append(allErrs, validateEscapedStringWithVariables(h.Value, fieldPath.Child("value"),
-		actionProxyHeaderSpecialVariables, actionProxyHeaderVariables, vsv.isPlus)...)
+	allErrs = append(allErrs, ValidateProxySetHeaderValue(h.Value, fieldPath.Child("value"), vsv.isPlus)...)
 
 	return allErrs
 }

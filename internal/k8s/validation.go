@@ -743,8 +743,12 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 
 		if len(parts) == 2 {
 			value := strings.TrimSpace(parts[1])
-			for _, msg := range version1.ValidateAddHeaderValue(value) {
-				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, msg))
+			for _, err := range common_validation.ValidateProxySetHeaderValue(value, context.fieldPath, context.isPlus) {
+				if err.Type == field.ErrorTypeForbidden {
+					allErrs = append(allErrs, field.Forbidden(context.fieldPath, fmt.Sprintf("%q: %s", entry, err.Detail)))
+				} else {
+					allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Detail))
+				}
 			}
 		}
 	}
