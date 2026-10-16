@@ -288,10 +288,12 @@ The counter owner decides which requests share a count:
 - A ConnectionLimit Policy that fails validation is marked `Invalid`. Blocks
   that reference an invalid or missing Policy return 500, as for every other
   Policy type.
-- `dryRun`, `rejectCode`, and `logLevel` apply to a whole block in NGINX, so
-  ConnectionLimit Policies that share a block share these options. The first
-  reference decides. NIC adds a warning to the referencing resource for each
-  later Policy whose options differ.
+- `dryRun`, `rejectCode`, and `logLevel`, the block options, set
+  `limit_conn_dry_run`, `limit_conn_status`, and `limit_conn_log_level`, which
+  NGINX applies to a whole block. ConnectionLimit Policies that share a block
+  therefore share these options. The first reference decides, and NIC adds a
+  warning to the referencing resource for each later Policy whose block options
+  differ.
 - When `scale` reduces the limit below one connection, NIC uses one and adds a
   warning to the referencing resource.
 
@@ -357,7 +359,7 @@ pol_cl_<policy-namespace>_<policy-name>_<parent-type>_<parent-namespace>_<parent
   type of the referencing object, not by comparing names, because a
   VirtualServerRoute can have the same namespace and name as its
   VirtualServer.
-- `key-hash` is the 32-bit FNV-1a hash of the rendered key, written as eight
+- `key-hash` is the SHA-256 digest of the rendered key, written as 64
   lowercase hexadecimal characters. The rest of the name is already unique;
   the hash makes a key change produce a new zone. NGINX reuses a zone whose
   name and size are unchanged and fails the reload if its key differs, so
@@ -477,9 +479,9 @@ spec:
 Rendered configuration, abridged:
 
 ```nginx
-limit_conn_zone ${binary_remote_addr} zone=pol_cl_default_per-client_vs_default_cafe_4460bcb9:10m;
-limit_conn_zone total zone=pol_cl_default_downloads-total_vs_default_cafe_04d092fd:10m;
-limit_conn_zone ${binary_remote_addr} zone=pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_4460bcb9:10m;
+limit_conn_zone ${binary_remote_addr} zone=pol_cl_default_per-client_vs_default_cafe_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a:10m;
+limit_conn_zone total zone=pol_cl_default_downloads-total_vs_default_cafe_11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7:10m;
+limit_conn_zone ${binary_remote_addr} zone=pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a:10m;
 
 server {
     server_name cafe.example.com;
@@ -487,7 +489,7 @@ server {
     limit_conn_dry_run off;
     limit_conn_log_level error;
     limit_conn_status 503;
-    limit_conn pol_cl_default_per-client_vs_default_cafe_4460bcb9 10;
+    limit_conn pol_cl_default_per-client_vs_default_cafe_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a 10;
 
     location /coffee {
         # No limit_conn here: the server limit applies.
@@ -497,8 +499,8 @@ server {
         limit_conn_dry_run off;
         limit_conn_log_level error;
         limit_conn_status 503;
-        limit_conn pol_cl_default_per-client_vs_default_cafe_4460bcb9 10;
-        limit_conn pol_cl_default_downloads-total_vs_default_cafe_04d092fd 200;
+        limit_conn pol_cl_default_per-client_vs_default_cafe_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a 10;
+        limit_conn pol_cl_default_downloads-total_vs_default_cafe_11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7 200;
     }
 
     location /tea {
@@ -506,7 +508,7 @@ server {
         limit_conn_dry_run off;
         limit_conn_log_level error;
         limit_conn_status 503;
-        limit_conn pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_4460bcb9 10;
+        limit_conn pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a 10;
     }
 }
 ```
@@ -516,8 +518,8 @@ references `per-client`, and two minions: `tea/tea-minion` references no
 policies, and `coffee/coffee-minion` references `coffee-strict`.
 
 ```nginx
-limit_conn_zone ${binary_remote_addr} zone=pol_cl_default_per-client_ing_default_cafe-master_4460bcb9:10m;
-limit_conn_zone ${binary_remote_addr} zone=pol_cl_coffee_coffee-strict_ing_default_cafe-master_ing_coffee_coffee-minion_4460bcb9:1m;
+limit_conn_zone ${binary_remote_addr} zone=pol_cl_default_per-client_ing_default_cafe-master_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a:10m;
+limit_conn_zone ${binary_remote_addr} zone=pol_cl_coffee_coffee-strict_ing_default_cafe-master_ing_coffee_coffee-minion_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a:1m;
 
 server {
     server_name cafe.example.com;
@@ -525,7 +527,7 @@ server {
     limit_conn_dry_run off;
     limit_conn_log_level error;
     limit_conn_status 503;
-    limit_conn pol_cl_default_per-client_ing_default_cafe-master_4460bcb9 10;
+    limit_conn pol_cl_default_per-client_ing_default_cafe-master_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a 10;
 
     location /tea {
         # tea-minion has no ConnectionLimit Policy: the master limit applies.
@@ -536,7 +538,7 @@ server {
         limit_conn_dry_run on;
         limit_conn_log_level warn;
         limit_conn_status 429;
-        limit_conn pol_cl_coffee_coffee-strict_ing_default_cafe-master_ing_coffee_coffee-minion_4460bcb9 2;
+        limit_conn pol_cl_coffee_coffee-strict_ing_default_cafe-master_ing_coffee_coffee-minion_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a 2;
     }
 }
 ```
@@ -630,8 +632,8 @@ hexadecimal key hash.
   `nginx_ingress_nginxplus_limit_connection_rejected`, and
   `nginx_ingress_nginxplus_limit_connection_rejected_dry_run`, labeled by zone.
 - **Status and events.** The Policy status reports validation failures. The
-  referencing resources report option conflicts and scaling adjustments as
-  warnings.
+  referencing resources report conflicting block options and scaling
+  adjustments as warnings.
 - **Telemetry.** A `ConnectionLimitPolicies` count joins the existing per-type
   Policy counts.
 - **Memory.** Each referencing object gets its own zone, so shared memory grows
@@ -678,9 +680,9 @@ returns 500. All four pull requests are planned for the 5.8.0 milestone.
 - Configuration generation tests for zone names at every attachment point,
   including a VirtualServerRoute with the same namespace and name as its
   VirtualServer, deduplication, the master's zones in a merged mergeable
-  configuration, a new zone name after a key change, option conflict warnings
-  reported once per Ingress, and `scale` rounding, clamping, and unknown
-  replica counts.
+  configuration, a new zone name after a key change, the warning when Policies 
+  in one block set different `dryRun`, `rejectCode`, or `logLevel` values, 
+  reported once per Ingress, and `scale` rounding, clamping, and unknown replica counts.
 - Snapshot tests for the NGINX and NGINX Plus VirtualServer and Ingress
   templates that show the new directives.
 - Controller tests for the Ingress policy allowlist, and for regenerating
