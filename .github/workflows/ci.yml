@@ -218,7 +218,7 @@ jobs:
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
 
       - name: Check if CRDs changed
-        run: make update-crds && git diff --name-only --exit-code config/crd/bases
+        run: make update-crds && git diff --name-only --exit-code config/crd/bases config/crd/upstream
 
       - name: Check if Codegen changed
         run: |

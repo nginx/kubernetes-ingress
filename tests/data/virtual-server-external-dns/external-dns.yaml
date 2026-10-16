@@ -20,10 +20,10 @@ rules:
 - apiGroups: ["extensions","networking.k8s.io"]
   resources: ["ingresses"]
   verbs: ["get","watch","list"]
-- apiGroups: ["externaldns.nginx.org"]
+- apiGroups: ["externaldns.k8s.io"]
   resources: ["dnsendpoints"]
   verbs: ["get","watch","list"]
-- apiGroups: ["externaldns.nginx.org"]
+- apiGroups: ["externaldns.k8s.io"]
   resources: ["dnsendpoints/status"]
   verbs: ["update"]
 - apiGroups: [""]
@@ -62,10 +62,9 @@ spec:
       serviceAccountName: external-dns
       containers:
       - name: external-dns
-        image: registry.k8s.io/external-dns/external-dns:v0.20.0
+        image: registry.k8s.io/external-dns/external-dns:v0.21.0
         args:
         - --source=crd
-        - --crd-source-apiversion=externaldns.nginx.org/v1
         - --crd-source-kind=DNSEndpoint
         - --provider=inmemory
         - --dry-run

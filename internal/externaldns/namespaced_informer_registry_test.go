@@ -29,7 +29,7 @@ func TestSyncFnSkipsUnwatchedNamespace(t *testing.T) {
 		},
 	}
 
-	fn := SyncFnFor(EventRecorder{}, nil, nsregistry.New[namespacedInformer]())
+	fn := SyncFnFor(EventRecorder{}, nsregistry.New[namespacedInformer]())
 
 	if err := fn(context.Background(), vs); err != nil {
 		t.Errorf("sync for an unwatched namespace returned %v, want nil", err)

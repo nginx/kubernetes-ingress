@@ -173,3 +173,78 @@ class TestExternalDNSVirtualServerWatchLabel:
             and response["status"]["reason"] == "AddedOrUpdated"
             and response["status"]["state"] == "Valid"
         )
+
+
+@pytest.mark.vs
+@pytest.mark.vs_externaldns
+@pytest.mark.parametrize(
+    "crd_ingress_controller_with_ed, virtual_server_setup",
+    [
+        (
+            {
+                "type": "complete",
+                "extra_args": [f"-enable-custom-resources", f"-enable-external-dns"],
+                "external_dns_group_version": "externaldns.nginx.org/v1",
+            },
+            {"example": "virtual-server-external-dns", "app_type": "simple"},
+        )
+    ],
+    indirect=True,
+)
+class TestExternalDNSVirtualServerNginxGroup:
+    """
+    The Ingress Controller writes DNSEndpoints to externaldns.nginx.org/v1 by default, so this class runs without the
+    -external-dns-group-version flag. external-dns v0.21.0+ cannot read that group, so there is no
+    external-dns deployment here: the assertions cover what the Ingress Controller owns, the DNSEndpoint it writes.
+    """
+
+    def test_dnsendpoint_in_nginx_group(self, kube_apis, crd_ingress_controller_with_ed, virtual_server_setup):
+        print("\nStep 1: Verify DNSEndpoint exists in the externaldns.nginx.org group")
+        dns_ep_name = get_name_from_yaml(VS_YAML)
+        retry = 0
+        dep = is_dnsendpoint_present(
+            kube_apis.custom_objects,
+            dns_ep_name,
+            virtual_server_setup.namespace,
+            api_group="externaldns.nginx.org",
+            api_version="v1",
+        )
+        while dep == False and retry <= 60:
+            dep = is_dnsendpoint_present(
+                kube_apis.custom_objects,
+                dns_ep_name,
+                virtual_server_setup.namespace,
+                api_group="externaldns.nginx.org",
+                api_version="v1",
+            )
+            retry += 1
+            wait_before_test(1)
+            print(f"DNSEndpoint not created, retrying... #{retry}")
+        assert dep is True
+        print("\nStep 2: Verify the DNSEndpoint holds the VirtualServer host and a target")
+        dns_ep = read_custom_resource(
+            kube_apis.custom_objects,
+            virtual_server_setup.namespace,
+            "dnsendpoints",
+            dns_ep_name,
+            api_group="externaldns.nginx.org",
+            api_version="v1",
+        )
+        # one endpoint per record type, so assert on content rather than count
+        endpoints = dns_ep["spec"]["endpoints"]
+        assert endpoints
+        assert all(ep["dnsName"] == "virtual-server.example.com" and ep["targets"] for ep in endpoints)
+        print("\nStep 3: Verify VS status is Valid and no bad config events occurred")
+        events = get_events(kube_apis.v1, virtual_server_setup.namespace)
+        assert_event_not_present("Error creating DNSEndpoint for VirtualServer resource", events)
+        response = read_custom_resource(
+            kube_apis.custom_objects,
+            virtual_server_setup.namespace,
+            "virtualservers",
+            virtual_server_setup.vs_name,
+        )
+        assert (
+            response["status"]
+            and response["status"]["reason"] == "AddedOrUpdated"
+            and response["status"]["state"] == "Valid"
+        )
