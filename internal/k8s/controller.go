@@ -230,6 +230,7 @@ type LoadBalancerController struct {
 	ingressClass                  string
 	statusUpdater                 *statusUpdater
 	leaderElector                 *leaderelection.LeaderElector
+	leaseOwner                    *meta_v1.OwnerReference
 	reportIngressStatus           bool
 	isLeaderElectionEnabled       bool
 	leaderElectionLockName        string
@@ -849,7 +850,7 @@ func (lbc *LoadBalancerController) Run() {
 	}
 
 	if lbc.leaderElector != nil {
-		go lbc.leaderElector.Run(lbc.ctx)
+		go lbc.runLeaderElector(lbc.ctx)
 	}
 
 	if lbc.telemetryCollector != nil {

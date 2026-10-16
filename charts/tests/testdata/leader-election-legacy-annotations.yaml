@@ -1,0 +1,7 @@
+controller:
+  reportIngressStatus:
+    enable: true
+    enableLeaderElection: true
+    leaderElectionLockName: custom-leader-lock
+    annotations:
+      example.com/owner: platform-team
