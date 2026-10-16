@@ -274,7 +274,9 @@ it through `nginx.org/policies` as per existing pattern.
 A VirtualServer or VirtualServerRoute policy list cannot reference the same
 Policy twice.
 
-The counter owner decides which requests share a count:
+The counter owner decides which requests share a count. Each budget belongs to
+one Policy, one counter owner, and the VirtualServer or Ingress whose
+configuration contains it:
 
 - All references made by the same object share one counter per Policy. For
   example, a Policy referenced in `spec.policies` and again on a route of the
@@ -282,6 +284,15 @@ The counter owner decides which requests share a count:
 - References from different objects never share a counter. A
   VirtualServerRoute or minion that references the same Policy as its
   VirtualServer or master gets its own budget instead of joining the parent's.
+- A hostless VirtualServerRoute, which several VirtualServers can reference,
+  gets one budget per VirtualServer. For example, a constant-key limit of 200
+  on its subroute allows 200 requests per VirtualServer on each NIC pod. This
+  keeps the hosts apart, as RateLimit does. One budget across VirtualServers
+  would need its zone outside their configuration files, because NGINX accepts
+  each zone definition only once.
+- A hostless Ingress needs no such split. Only one Ingress, or one mergeable
+  master with its minions, can hold the empty host, and NIC renders it into a
+  single configuration, the default server, so it keeps one budget per Policy.
 
 ### Policy Status and Warnings
 
@@ -372,7 +383,8 @@ pol_cl_<policy-namespace>_<policy-name>_<parent-type>_<parent-namespace>_<parent
   zones.
 
 Because the parent is part of every name, two configuration files never define
-the same zone. Within one file, zones are deduplicated by name wherever they
+the same zone, even when several VirtualServers share a hostless
+VirtualServerRoute. Within one file, zones are deduplicated by name wherever they
 are collected: across the VirtualServer spec, routes, and subroutes, and across
 a master Ingress and its minions.
 
@@ -679,10 +691,12 @@ returns 500. All four pull requests are planned for the 5.8.0 milestone.
   the page size, so they do not depend on the machine that runs them.
 - Configuration generation tests for zone names at every attachment point,
   including a VirtualServerRoute with the same namespace and name as its
-  VirtualServer, deduplication, the master's zones in a merged mergeable
-  configuration, a new zone name after a key change, the warning when Policies 
-  in one block set different `dryRun`, `rejectCode`, or `logLevel` values, 
-  reported once per Ingress, and `scale` rounding, clamping, and unknown replica counts.
+  VirtualServer, and one hostless VirtualServerRoute referenced by two
+  VirtualServers, which gets a separate zone in each; deduplication; the
+  master's zones in a merged mergeable configuration; a new zone name after a
+  key change; the warning when Policies in one block set different `dryRun`,
+  `rejectCode`, or `logLevel` values, reported once per Ingress; and `scale`
+  rounding, clamping, and unknown replica counts.
 - Snapshot tests for the NGINX and NGINX Plus VirtualServer and Ingress
   templates that show the new directives.
 - Controller tests for the Ingress policy allowlist, and for regenerating
@@ -694,6 +708,8 @@ returns 500. All four pull requests are planned for the 5.8.0 milestone.
   - dry-run mode lets every request through and logs the rejections;
   - route and minion Policies replace the server and master limits;
   - a VirtualServerRoute and a minion count separately from their parent;
+  - a hostless VirtualServerRoute shared by two VirtualServers counts
+    separately for each;
   - changing the key of an attached Policy reloads successfully.
 - Gates: `make test`, `make lint`, `make test-update-snaps` with non-empty
   snapshot changes, and `make update-codegen`, `make update-crds`, and
