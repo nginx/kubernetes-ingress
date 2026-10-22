@@ -1007,7 +1007,7 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 
 		// handle virtualservers
 		if lbc.areCustomResourcesEnabled {
-			resources = lbc.findVirtualServersUsingRatelimitScaling()
+			resources = lbc.findResourcesUsingPolicyScaling()
 			resourceExes = lbc.createExtendedResources(resources)
 			for _, vserver := range resourceExes.VirtualServerExes {
 				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
@@ -1021,11 +1021,12 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 	}
 }
 
-func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []Resource {
+func (lbc *LoadBalancerController) findResourcesUsingPolicyScaling() []Resource {
 	policies := lbc.getAllPolicies()
 	resources := make([]Resource, 0, len(policies))
 	for _, policy := range policies {
-		if policy.Spec.RateLimit != nil && policy.Spec.RateLimit.Scale {
+		rl, cl := policy.Spec.RateLimit, policy.Spec.ConnectionLimit
+		if (rl != nil && rl.Scale) || (cl != nil && cl.Scale) {
 			newresources := lbc.configuration.FindResourcesForPolicy(policy.Namespace, policy.Name)
 			resources = append(resources, newresources...)
 		}

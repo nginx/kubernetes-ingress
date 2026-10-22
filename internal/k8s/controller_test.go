@@ -7984,3 +7984,54 @@ func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
 		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
 	}
 }
+
+func TestFindResourcesUsingPolicyScaling(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	for _, policy := range []*conf_v1.Policy{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10, Scale: true}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "unscaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-rl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M", Scale: true}},
+		},
+	} {
+		if err := store.Add(policy); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	configuration := createTestConfiguration()
+	for name, policy := range map[string]string{
+		"vs-scaled-cl":   "scaled-cl",
+		"vs-unscaled-cl": "unscaled-cl",
+		"vs-scaled-rl":   "scaled-rl",
+	} {
+		vs := createTestVirtualServer(name, name+".example.com")
+		vs.Spec.Policies = []conf_v1.PolicyReference{{Name: policy}}
+		configuration.AddOrUpdateVirtualServer(vs)
+	}
+
+	lbc := &LoadBalancerController{
+		configuration:       configuration,
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": {policyLister: store}}),
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	var got []string
+	for _, r := range lbc.findResourcesUsingPolicyScaling() {
+		got = append(got, r.GetKeyWithKind())
+	}
+	sort.Strings(got)
+	want := []string{"VirtualServer/default/vs-scaled-cl", "VirtualServer/default/vs-scaled-rl"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("findResourcesUsingPolicyScaling() mismatch (-want +got):\n%s", diff)
+	}
+}
