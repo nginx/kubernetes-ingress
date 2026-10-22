@@ -163,8 +163,7 @@ the types, the required field, the ranges, the enumeration, the `zoneSize` and
 at admission. NIC validation repeats these checks with its existing validators,
 such as `validateSize()`, and adds the variable allowlist and the zone size
 range. A Policy that fails is marked `Invalid`, and its status and an event
-give the reason. NIC applies the same defaults as the CRD schema when a field
-is empty.
+give the reason.
 
 #### Key
 
