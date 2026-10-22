@@ -327,6 +327,61 @@ spec:
                 x-kubernetes-validations:
                 - message: time is required when allowedCodes is specified
                   rule: '!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))'
+              connectionLimit:
+                description: The connection limit policy limits the number of requests
+                  in progress at the same time per a defined key.
+                properties:
+                  connections:
+                    description: The maximum number of requests in progress at the
+                      same time for each value of the key.
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  dryRun:
+                    default: false
+                    description: 'Enables dry-run mode: requests over the limit are
+                      logged but not rejected.'
+                    type: boolean
+                  key:
+                    default: ${binary_remote_addr}
+                    description: |-
+                      The key that decides which requests share a counter: literal text and variables written as ${name}.
+                      Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method},
+                      ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. The default is ${binary_remote_addr}.
+                    pattern: ^(?:[^\s"'\\#;{}$\x60]|\$\{[A-Za-z_][A-Za-z0-9_]*\})+$
+                    type: string
+                  logLevel:
+                    default: error
+                    description: The level at which rejected requests are logged.
+                      The default is error.
+                    enum:
+                    - info
+                    - notice
+                    - warn
+                    - error
+                    type: string
+                  rejectCode:
+                    default: 503
+                    description: The status code returned for rejected requests. The
+                      default is 503.
+                    maximum: 599
+                    minimum: 400
+                    type: integer
+                  scale:
+                    default: false
+                    description: Divides connections by the number of NGINX Ingress
+                      Controller replicas.
+                    type: boolean
+                  zoneSize:
+                    default: 10m
+                    description: |-
+                      The size of the shared memory zone, in bytes or with a k, K, m, or M suffix. It must be at least
+                      eight memory pages, for example 32k with 4 KiB pages. The default is 10m.
+                    pattern: ^[0-9]+[kKmM]?$
+                    type: string
+                required:
+                - connections
+                type: object
               cors:
                 description: The CORS policy configures Cross-Origin Resource Sharing
                   headers

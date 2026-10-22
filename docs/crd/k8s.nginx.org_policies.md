@@ -55,6 +55,14 @@ The `.spec` object supports the following fields:
 | `cache.overrideUpstreamCache` | `boolean` | OverrideUpstreamCache controls whether to override upstream cache headers (using proxy_ignore_headers directive). When true, NGINX will ignore cache-related headers from upstream servers like Cache-Control, Expires, etc. Default: false. |
 | `cache.time` | `string` | Time defines the default cache time. Required when allowedCodes is specified. Must be a number followed by a time unit: 's' for seconds, 'm' for minutes, 'h' for hours, 'd' for days. Examples: "30s", "5m", "1h", "2d". |
 | `cache.useTempPath` | `boolean` | UseTempPath controls whether temporary files and the cache are put on different file systems (use_temp_path parameter). If set to false, temporary files will be put directly in the cache directory (use_temp_path=off). Default: false (use_temp_path=off, which puts temp files directly in cache directory for better performance). |
+| `connectionLimit` | `object` | The connection limit policy limits the number of requests in progress at the same time per a defined key. |
+| `connectionLimit.connections` | `integer` | The maximum number of requests in progress at the same time for each value of the key. |
+| `connectionLimit.dryRun` | `boolean` | Enables dry-run mode: requests over the limit are logged but not rejected. |
+| `connectionLimit.key` | `string` | The key that decides which requests share a counter: literal text and variables written as ${name}. Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method}, ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. The default is ${binary_remote_addr}. |
+| `connectionLimit.logLevel` | `string` | The level at which rejected requests are logged. The default is error. Allowed values: `"info"`, `"notice"`, `"warn"`, `"error"`. |
+| `connectionLimit.rejectCode` | `integer` | The status code returned for rejected requests. The default is 503. |
+| `connectionLimit.scale` | `boolean` | Divides connections by the number of NGINX Ingress Controller replicas. |
+| `connectionLimit.zoneSize` | `string` | The size of the shared memory zone, in bytes or with a k, K, m, or M suffix. It must be at least eight memory pages, for example 32k with 4 KiB pages. The default is 10m. |
 | `cors` | `object` | The CORS policy configures Cross-Origin Resource Sharing headers |
 | `cors.allowCredentials` | `boolean` | AllowCredentials indicates whether the response to the request can be exposed when the credentials flag is true. When used as part of a response to a preflight request, this indicates whether the actual request can be made using credentials. |
 | `cors.allowHeaders` | `array[string]` | AllowHeaders defines the headers that are allowed in cross-origin requests. Common safe headers: ["Accept", "Accept-Language", "Content-Language", "Content-Type"] Custom headers: ["Authorization", "X-Requested-With", "X-Custom-Header"] |

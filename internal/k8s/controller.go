@@ -4331,6 +4331,7 @@ func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyVal
 		IsPlus:           lbc.isNginxPlus,
 		EnableOIDC:       lbc.enableOIDC,
 		EnableAppProtect: lbc.appProtectEnabled,
+		PageSize:         os.Getpagesize(),
 	}
 	if lbc.configuration != nil {
 		cfg.EnableSnippets = lbc.configuration.snippetsEnabled
