@@ -396,6 +396,9 @@ server {
             {{- range $lc := $l.LimitConns }}
         limit_conn {{ $lc.ZoneName }} {{ $lc.Connections }};
             {{- end }}
+        {{- else if and $l.ACMEChallenge $s.LimitConns }}
+        {{- /* The challenge location inherits the server's limit_conn; dry run keeps it from rejecting the ACME server. */}}
+        limit_conn_dry_run on;
         {{- end }}
 
         {{- if $l.ACMEChallenge }}

@@ -1007,13 +1007,9 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 
 		// handle virtualservers
 		if lbc.areCustomResourcesEnabled {
-			resources = lbc.findResourcesUsingPolicyScaling()
-			resourceExes = lbc.createExtendedResources(resources)
-			for _, vserver := range resourceExes.VirtualServerExes {
-				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
-				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
-				if err != nil {
-					nl.Errorf(l, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
+			for _, r := range lbc.findResourcesUsingPolicyScaling() {
+				if _, ok := r.(*VirtualServerConfiguration); ok {
+					lbc.processAddOrUpdate(ResourceChange{Op: AddOrUpdate, Resource: r})
 				}
 			}
 		}
@@ -1031,7 +1027,7 @@ func (lbc *LoadBalancerController) findResourcesUsingPolicyScaling() []Resource 
 			resources = append(resources, newresources...)
 		}
 	}
-	return resources
+	return removeDuplicateResources(resources)
 }
 
 func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *configs.VirtualServerEx, svcNamespace, serviceName string) bool {

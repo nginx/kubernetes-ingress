@@ -2158,13 +2158,13 @@ func TestGenerateVirtualServerConfigConnectionLimit(t *testing.T) {
 	}
 	vs := func(name string, policies []conf_v1.PolicyReference, routes ...conf_v1.Route) *conf_v1.VirtualServer {
 		return &conf_v1.VirtualServer{
-			Name: name, Namespace: "default",
-			Spec: conf_v1.VirtualServerSpec{Host: name + ".example.com", Policies: policies, Upstreams: upstreams, Routes: routes},
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec:       conf_v1.VirtualServerSpec{Host: name + ".example.com", Policies: policies, Upstreams: upstreams, Routes: routes},
 		}
 	}
 	vsr := func(name string, policies []conf_v1.PolicyReference) *conf_v1.VirtualServerRoute {
 		return &conf_v1.VirtualServerRoute{
-			Name: name, Namespace: "default",
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
 			Spec: conf_v1.VirtualServerRouteSpec{
 				Upstreams: upstreams,
 				Subroutes: []conf_v1.Route{{Path: "/tea", Policies: policies, Action: &conf_v1.Action{Pass: "tea"}}},

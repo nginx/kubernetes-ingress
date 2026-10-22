@@ -5473,6 +5473,38 @@ func TestVirtualServerForNginxPlusACMEChallengeWithJWTAndOIDC(t *testing.T) {
 	snaps.MatchSnapshot(t, conf)
 }
 
+func testVirtualServerACMEChallengeWithConnectionLimit(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
+	t.Helper()
+
+	cfg := acmeChallengeTestCfg(base, acmeChallengeTestLocation())
+	cfg.LimitConnZones = []LimitConnZone{{Key: "total", ZoneName: clZoneDownloadsTotal, ZoneSize: "10m"}}
+	cfg.Server.LimitConnOptions = LimitConnOptions{LogLevel: "error", RejectCode: 503}
+	cfg.Server.LimitConns = []LimitConn{{ZoneName: clZoneDownloadsTotal, Connections: 200}}
+
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	challenge := locationBlock(t, conf, acmeChallengeTestLocArg)
+	assertCount(t, challenge, "limit_conn_dry_run on;", 1)
+	assertCount(t, challenge, "limit_conn", 1)
+	assertCount(t, locationBlock(t, conf, `"/coffee"`), "limit_conn", 0)
+	assertCount(t, conf, "limit_conn "+clZoneDownloadsTotal+" 200;", 1)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxACMEChallengeWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeWithConnectionLimit(t, newTmplExecutorNGINX(t), virtualServerCfg)
+}
+
+func TestVirtualServerForNginxPlusACMEChallengeWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeWithConnectionLimit(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
+}
+
 func testVirtualServerRedirectNoChallengeUnchanged(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
 	t.Helper()
 
