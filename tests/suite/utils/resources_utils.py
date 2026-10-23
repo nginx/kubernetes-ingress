@@ -1253,10 +1253,14 @@ def hold_requests_open(ip, port, host, path, count) -> list:
     :return: the open sockets
     """
     sockets = []
-    for _ in range(count):
-        sock = socket.create_connection((ip, port), timeout=10)
-        sock.sendall(f"POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 1024\r\n\r\n".encode())
-        sockets.append(sock)
+    try:
+        for _ in range(count):
+            sock = socket.create_connection((ip, port), timeout=10)
+            sockets.append(sock)
+            sock.sendall(f"POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 1024\r\n\r\n".encode())
+    except Exception:
+        close_sockets(sockets)
+        raise
     wait_before_test(1)
     return sockets
 
