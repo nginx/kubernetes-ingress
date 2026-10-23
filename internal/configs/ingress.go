@@ -374,6 +374,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				oidcNativeLocations: oidcNativeLocations,
 			},
 			bundleValidator,
+			nil, // no JWT claim variables on Ingress, see generatePolicies
 		)
 		allWarnings.Add(warnings)
 	}

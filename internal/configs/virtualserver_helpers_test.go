@@ -1230,7 +1230,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		VSRNamespace:             "",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "", nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -1284,7 +1284,7 @@ func TestGenerateLocationForProxying_WithUseForwardedHeaders(t *testing.T) {
 		UseForwardedHeaders:      true,
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "", nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -1333,7 +1333,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		GRPCPass:                 "grpc://test-upstream",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "", nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForForGrpcProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -3554,7 +3554,7 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := generateProxySetHeaders(test.proxy, test.useForwardedHeaders)
+		result := generateProxySetHeaders(test.proxy, test.useForwardedHeaders, nil)
 		if diff := cmp.Diff(test.expected, result); diff != "" {
 			t.Errorf("generateProxySetHeaders() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}

@@ -1842,6 +1842,7 @@ func TestGenerateSplits(t *testing.T) {
 				"default",
 				vsc.warnings,
 				vsc.DynamicWeightChangesReload,
+				nil,
 			)
 
 			if !cmp.Equal(test.expectedSplitClients, resultSplitClients) {
@@ -3513,6 +3514,7 @@ func TestGenerateSplitsWeightChangesDynamicReload(t *testing.T) {
 				"default",
 				vsc.warnings,
 				vsc.DynamicWeightChangesReload,
+				nil,
 			)
 
 			if !cmp.Equal(test.expectedSplitClients, resultSplitClients) {
@@ -3645,7 +3647,7 @@ func TestGenerateDefaultSplitsConfig(t *testing.T) {
 	}
 
 	result := generateDefaultSplitsConfig(route, upstreamNamer, crUpstreams, variableNamer, index, &cfgParams,
-		errorPageDetails, "", locSnippet, enableSnippets, 0, true, "coffee", "default", Warnings{}, weightChangesDynamicReload)
+		errorPageDetails, "", locSnippet, enableSnippets, 0, true, "coffee", "default", Warnings{}, weightChangesDynamicReload, nil)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateDefaultSplitsConfig() returned \n%+v but expected \n%+v", result, expected)
 	}
@@ -4060,6 +4062,7 @@ func TestGenerateMatchesConfig(t *testing.T) {
 		"",
 		Warnings{},
 		weightChangesDynamicReload,
+		nil,
 	)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateMatchesConfig() returned \n%+v but expected \n%+v", result, expected)
@@ -4472,6 +4475,7 @@ func TestGenerateMatchesConfigWithMultipleSplits(t *testing.T) {
 		"default",
 		Warnings{},
 		weightChangesWithoutReload,
+		nil,
 	)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateMatchesConfig() returned \n%+v but expected \n%+v", result, expected)
