@@ -127,7 +127,7 @@ Tenant mode is available from two charts:
 | `platform.tenantNamespace` | string | — | `platform`, required | Namespace of the tenant ServiceAccount that the reader ClusterRole is bound to |
 | `platform.tenantReader.create` | boolean | `true` | `platform` | Renders the tenant reader ClusterRole and its binding |
 | `controller.serviceAccount.name` | string | Chart full name | `tenant`, required; `platform`, required when `platform.tenantReader.create` | Must be the same in the tenant release and its platform release |
-| `controller.watchNamespace` | string | `""` | All | In `tenant` mode, an empty value means the release namespace only, never all namespaces. The chart always adds the release namespace and renders one Role and RoleBinding per watched namespace. It trims each entry and drops empty entries and duplicates before rendering `-watch-namespace`. |
+| `controller.watchNamespace` | string | `""` | All | In `tenant` mode, an empty value means the release namespace only, never all namespaces. The chart always adds the release namespace and renders one Role and RoleBinding per watched namespace. It trims each entry and drops empty entries and duplicates before rendering `-watch-namespace`. The installer must be admin in every listed namespace, because Helm creates these Roles as the installing user. |
 | `controller.ingressClass.validation` | `strict` or `skip` | `strict` | `full` and `tenant` | Sets `-ingress-class-validation` |
 
 `controller.ingressClass.create` keeps its meaning in `platform` mode. Set it
@@ -309,8 +309,12 @@ it, and can manage VirtualServers, Policies and the other NIC resources.
 The manifest is static and unconditional, like `deploy/crds.yaml`, so it
 belongs to no Helm release and is shared by every tenant. A `make` target
 generates it from the chart's rule fragments, and a Helm unit test checks that
-it still covers every rule the tenant Role can render. Rules for resources
-whose CRDs aren't installed are harmless.
+it still covers every rule the tenant Role can render. Rules that the tenant
+Role limits with `resourceNames`, such as the leader-election Lease, are
+written without `resourceNames` in the aggregate, so they cover every
+release's lock name. Namespace admins also already hold Lease read/write
+through the built-in `edit` role. Rules for resources whose CRDs aren't
+installed are harmless.
 
 ### Startup Behaviour
 
@@ -507,7 +511,8 @@ need manual RBAC. All three are planned for the 5.8.0 milestone.
     for the same settings (the named Lease rules come from today's
     `controller-role.yaml`);
   - all three static manifests in `deployments/rbac/` match the generator
-    output, and `nic-tenant-aggregate.yaml` covers every tenant Role rule.
+    output, and `nic-tenant-aggregate.yaml` covers every tenant Role rule;
+    an unscoped rule covers a `resourceNames`-scoped one.
 - Packaging check in CI: package the chart with the `tenant` input, then
   `helm show crds` on the result prints nothing and `helm show values` shows
   `installMode: tenant`.
