@@ -994,13 +994,19 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			}
 		}
 
-		// handle virtualservers
+		// handle resources that reference a scaled Policy
 		if lbc.areCustomResourcesEnabled {
+			// Skip Ingresses the loops above already regenerated, so each resource reloads once.
+			regenerated := make(map[string]bool, len(resources))
+			for _, r := range resources {
+				regenerated[r.GetKeyWithKind()] = true
+			}
 			for _, r := range lbc.findResourcesUsingPolicyScaling() {
-				if _, ok := r.(*VirtualServerConfiguration); ok {
-					found = true
-					lbc.processAddOrUpdate(ResourceChange{Op: AddOrUpdate, Resource: r})
+				if regenerated[r.GetKeyWithKind()] {
+					continue
 				}
+				found = true
+				lbc.processAddOrUpdate(ResourceChange{Op: AddOrUpdate, Resource: r})
 			}
 		}
 

@@ -68,6 +68,7 @@ markers = [
     "policies_cl",
     "policies_cl_vs",
     "policies_cl_vsr",
+    "policies_cl_ingress",
     "policies_jwt",
     "policies_ac",
     "policies_mtls",

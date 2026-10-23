@@ -7889,6 +7889,20 @@ func TestFindResourcesUsingPolicyScaling(t *testing.T) {
 		configuration.AddOrUpdateVirtualServer(vs)
 	}
 
+	ing := createTestIngress("ing-scaled-cl", "ing-scaled-cl.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "scaled-cl"
+	configuration.AddOrUpdateIngress(ing)
+
+	ing = createTestIngress("ing-unscaled-cl", "ing-unscaled-cl.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "unscaled-cl"
+	configuration.AddOrUpdateIngress(ing)
+
+	// A minion that references a scaled Policy makes its master's configuration need an update.
+	configuration.AddOrUpdateIngress(createTestIngressMaster("master", "master.example.com"))
+	minion := createTestIngressMinion("minion-scaled-cl", "master.example.com", "/coffee")
+	minion.Annotations[configs.PoliciesAnnotation] = "scaled-cl"
+	configuration.AddOrUpdateIngress(minion)
+
 	lbc := &LoadBalancerController{
 		configuration:       configuration,
 		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": {policyLister: store}}),
@@ -7900,7 +7914,13 @@ func TestFindResourcesUsingPolicyScaling(t *testing.T) {
 		got = append(got, r.GetKeyWithKind())
 	}
 	sort.Strings(got)
-	want := []string{"VirtualServer/default/vs-scaled-both", "VirtualServer/default/vs-scaled-cl", "VirtualServer/default/vs-scaled-rl"}
+	want := []string{
+		"Ingress/default/ing-scaled-cl",
+		"Ingress/default/master",
+		"VirtualServer/default/vs-scaled-both",
+		"VirtualServer/default/vs-scaled-cl",
+		"VirtualServer/default/vs-scaled-rl",
+	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("findResourcesUsingPolicyScaling() mismatch (-want +got):\n%s", diff)
 	}
@@ -7951,5 +7971,63 @@ func TestUpdateNumberOfIngressControllerReplicasReportsScaleWarnings(t *testing.
 		if err := lbc.getNamespacedInformer("default").virtualServerLister.Update(got); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestUpdateNumberOfIngressControllerReplicasRegeneratesEachIngressOnce(t *testing.T) {
+	t.Parallel()
+
+	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	err := policies.Add(&conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
+			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configuration := createTestConfiguration()
+	// The RateLimit scale annotation already regenerates this Ingress, so its Policy must not regenerate it again.
+	both := createTestIngress("both", "both.example.com")
+	both.Annotations["nginx.org/limit-req-rate"] = "10r/s"
+	both.Annotations["nginx.org/limit-req-scale"] = "true"
+	both.Annotations[configs.PoliciesAnnotation] = "cl"
+	configuration.AddOrUpdateIngress(both)
+	policyOnly := createTestIngress("policy-only", "policy-only.example.com")
+	policyOnly.Annotations[configs.PoliciesAnnotation] = "cl"
+	configuration.AddOrUpdateIngress(policyOnly)
+
+	manager := newTestNginxManager()
+	recorder := record.NewFakeRecorder(10)
+	lbc := &LoadBalancerController{
+		configuration:             configuration,
+		configurator:              createTestPolicySyncConfigurator(t, manager),
+		recorder:                  recorder,
+		namespacedInformers:       registryFrom(map[string]*namespacedInformer{"default": {policyLister: policies}}),
+		areCustomResourcesEnabled: true,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	var slice discovery_v1.EndpointSlice
+	for range 3 {
+		slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
+	}
+	if !lbc.updateNumberOfIngressControllerReplicas(slice) {
+		t.Fatal("updateNumberOfIngressControllerReplicas() = false, want true")
+	}
+
+	// Each Ingress update also rewrites the default server.
+	written := slices.DeleteFunc(manager.CreatedConfigNames, func(name string) bool { return name == "_default-server" })
+	if diff := cmp.Diff([]string{"default-both", "default-policy-only"}, written); diff != "" {
+		t.Errorf("configs written on replica change mismatch (-want +got):\n%s", diff)
+	}
+	// Only the Policy path reports events, so the Ingress without the annotation gets the new scale warning.
+	if len(recorder.Events) != 1 {
+		t.Fatalf("want 1 event, got %d", len(recorder.Events))
+	}
+	if event := <-recorder.Events; !strings.Contains(event, "default/policy-only") || !strings.Contains(event, "scaling 2 connections across 3 replicas") {
+		t.Errorf("want a scale warning event for default/policy-only, got %q", event)
 	}
 }
