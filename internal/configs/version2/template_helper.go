@@ -297,9 +297,21 @@ func hasExternalAuthNoSignin(s Server) bool {
 	return false
 }
 
+// jwtAuthBlockData is the data of the "jwtAuth" template, which renders the JWT directives of a
+// server or a location. The two sit at different indentation, so it is passed in.
+type jwtAuthBlockData struct {
+	Auth   *JWTAuth
+	Indent string
+}
+
+func jwtAuthBlock(auth *JWTAuth, indent string) jwtAuthBlockData {
+	return jwtAuthBlockData{Auth: auth, Indent: indent}
+}
+
 var helperFunctions = template.FuncMap{
 	"headerListToCIMap":       headerListToCIMap,
 	"hasCIKey":                hasCIKey,
+	"jwtAuthBlock":            jwtAuthBlock,
 	"contains":                strings.Contains,
 	"hasPrefix":               strings.HasPrefix,
 	"hasSuffix":               strings.HasSuffix,
