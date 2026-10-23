@@ -465,7 +465,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		parentName:      vsEx.VirtualServer.Name,
 		parentType:      "vs",
 	}
-	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator)
+	jwtClaims := make(jwtClaimRegistry)
+
+	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator, jwtClaims)
 	if len(warnings) > 0 {
 		vsc.mergeWarnings(warnings)
 	}
@@ -486,6 +488,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		policiesCfg.APIKey.ClientMap = make(map[string][]apiKeyClient)
 		policiesCfg.APIKey.ClientMap[apiMapName] = policiesCfg.APIKey.Clients
 	}
+
+	maps = append(maps, policiesCfg.JWTAuth.Maps...)
 
 	if len(policiesCfg.RateLimit.GroupMaps) > 0 {
 		maps = append(maps, policiesCfg.RateLimit.GroupMaps...)
@@ -517,6 +521,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	limitConnZones = append(limitConnZones, policiesCfg.ConnectionLimit.Zones...)
+	// Authorization claim sets go first: de-duplication keeps the first per variable, and a colliding
+	// rate limit must not displace them.
+	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.JWTAuth.ClaimSets...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 	if policiesCfg.OIDCProvider != nil {
 		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
@@ -738,7 +745,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			parentName:      vsEx.VirtualServer.Name,
 			parentType:      "vs",
 		}
-		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
+		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator, jwtClaims)
 
 		// Inherit spec-level CORS if route doesn't have its own CORS policy
 		if len(routePoliciesCfg.CORSHeaders) == 0 && len(policiesCfg.CORSHeaders) > 0 {
@@ -842,7 +849,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 		limitConnZones = append(limitConnZones, routePoliciesCfg.ConnectionLimit.Zones...)
+		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.JWTAuth.ClaimSets...)
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+		maps = append(maps, routePoliciesCfg.JWTAuth.Maps...)
 		if routePoliciesCfg.OIDCProvider != nil {
 			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
 		}
@@ -851,6 +860,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
+		policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg)
 
 		rc := locationContext{
 			upstreamNamer:  virtualServerUpstreamNamer,
@@ -862,6 +872,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			enableSnippets: vsc.enableSnippets,
 			isVSR:          isVSR,
 			warnings:       vsc.warnings,
+			policyHeaders:  policyHeaders,
 		}
 
 		if len(r.Matches) > 0 {
@@ -964,7 +975,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
+			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator, jwtClaims)
 			if len(warnings) > 0 {
 				vsc.mergeWarnings(warnings)
 			}
@@ -1067,7 +1078,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 			limitConnZones = append(limitConnZones, routePoliciesCfg.ConnectionLimit.Zones...)
+			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.JWTAuth.ClaimSets...)
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+			maps = append(maps, routePoliciesCfg.JWTAuth.Maps...)
 			if routePoliciesCfg.OIDCProvider != nil {
 				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
 			}
@@ -1076,6 +1089,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
+			policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg)
 
 			rc := locationContext{
 				upstreamNamer:  upstreamNamer,
@@ -1089,6 +1103,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				vsrName:        vsr.Name,
 				vsrNamespace:   vsr.Namespace,
 				warnings:       vsc.warnings,
+				policyHeaders:  policyHeaders,
 			}
 
 			if len(r.Matches) > 0 {
@@ -1224,6 +1239,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	if policiesCfg.OIDC != nil {
 		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
+	// auth_jwt_require cannot be turned off, so these locations reset the inherited one.
+	jwtResetVariable := generateJWTAuthzNoneVariable(vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+	if addJWTRequireReset(locations, policiesCfg.JWTAuth.Auth, jwtResetVariable) {
+		maps = append(maps, generateJWTAuthzNoneMap(jwtResetVariable))
 	}
 
 	vsCfg := version2.VirtualServerConfig{
@@ -2112,6 +2133,7 @@ type locationContext struct {
 	vsrName        string
 	vsrNamespace   string
 	warnings       Warnings
+	policyHeaders  []version2.Header
 }
 
 func generateLocation(rc locationContext, path string, action *conf_v1.Action, internal bool, retLocIndex int,
@@ -2135,13 +2157,16 @@ func generateLocation(rc locationContext, path string, action *conf_v1.Action, i
 	proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 	return generateLocationForProxying(path, upstreamName, upstream, rc.cfgParams, rc.errorPages.pages, internal,
-		rc.errorPages.index, proxySSLName, action.Proxy, rc.originalPath, locationSnippets, rc.isVSR, rc.vsrName, rc.vsrNamespace, serviceName), nil
+		rc.errorPages.index, proxySSLName, action.Proxy, rc.originalPath, locationSnippets, rc.isVSR, rc.vsrName, rc.vsrNamespace, serviceName, rc.policyHeaders), nil
 }
 
-func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
+// generateProxySetHeaders merges here, not in the template, because the template's default-header
+// checks only see this list. Precedence, case-insensitive: route requestHeaders, policy headers, NIC
+// defaults. The fallback Host is added only if neither the route nor a policy sets one.
+func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool, policyHeaders []version2.Header) []version2.Header {
 	var headers []version2.Header
 
-	hasHostHeader := false
+	seen := make(map[string]struct{})
 
 	if proxy != nil && proxy.RequestHeaders != nil {
 		for _, h := range proxy.RequestHeaders.Set {
@@ -2149,13 +2174,20 @@ func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders boo
 				Name:  h.Name,
 				Value: h.Value,
 			})
-
-			if strings.ToLower(h.Name) == "host" {
-				hasHostHeader = true
-			}
+			seen[strings.ToLower(h.Name)] = struct{}{}
 		}
 	}
 
+	for _, h := range policyHeaders {
+		lower := strings.ToLower(h.Name)
+		if _, ok := seen[lower]; ok {
+			continue
+		}
+		seen[lower] = struct{}{}
+		headers = append(headers, h)
+	}
+
+	_, hasHostHeader := seen["host"]
 	if !hasHostHeader {
 		hostVal := "$host"
 		if useForwardedHeaders {
@@ -2224,7 +2256,7 @@ func generateProxyAddHeaders(proxy *conf_v1.ActionProxy) []version2.AddHeader {
 
 func generateLocationForProxying(path string, upstreamName string, upstream conf_v1.Upstream,
 	cfgParams *ConfigParams, errorPages []conf_v1.ErrorPage, internal bool, errPageIndex int,
-	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string,
+	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string, policyHeaders []version2.Header,
 ) version2.Location {
 	return version2.Location{
 		Path:                     generatePath(path),
@@ -2246,7 +2278,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
 		ProxyInterceptErrors:     generateProxyInterceptErrors(errorPages),
 		ProxyPassRequestHeaders:  generateProxyPassRequestHeaders(proxy),
-		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders),
+		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders, policyHeaders),
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
