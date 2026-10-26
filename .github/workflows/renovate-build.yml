@@ -18,7 +18,7 @@ concurrency:
 jobs:
   check:
     name: Check for changes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       generate: ${{ steps.filter.outputs.generate }}
       helm: ${{ steps.filter.outputs.helm }}
@@ -42,7 +42,7 @@ jobs:
 
   build:
     name: Build for renovate PRs
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: check
     permissions:
       contents: write

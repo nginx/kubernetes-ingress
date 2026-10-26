@@ -34,7 +34,7 @@ jobs:
   certify-ubi-images:
     name: Certify OpenShift UBI images
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write

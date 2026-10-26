@@ -35,7 +35,7 @@ jobs:
   checks:
     name: Checks and variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -193,7 +193,7 @@ jobs:
 
   verify-codegen:
     name: Verify generated code
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -237,7 +237,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -308,7 +308,7 @@ jobs:
 
   staticcheck:
     name: Static Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -342,7 +342,7 @@ jobs:
 
   govulncheck:
     name: Vulnerability Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -428,7 +428,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Package Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     permissions:
       contents: read
@@ -502,7 +502,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
@@ -683,7 +683,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [build-artifacts, checks]
     permissions:
       contents: read
@@ -880,7 +880,7 @@ jobs:
       )
   final-results:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: Final CI Results
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
     steps:

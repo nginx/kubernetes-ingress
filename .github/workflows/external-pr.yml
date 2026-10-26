@@ -15,7 +15,7 @@ jobs:
       github.event.issue.pull_request &&
       github.event.comment.body == '/approve-pipeline-run'
       )
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
         is_fork: ${{ steps.pr-info.outputs.is_fork }}
         fork_owner: ${{ steps.pr-info.outputs.fork_owner }}
@@ -58,7 +58,7 @@ jobs:
       github.repository == 'nginx/kubernetes-ingress' && (
       needs.pr-details.outputs.is_fork == 'true'
       )
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Check commenter permissions
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

@@ -295,7 +295,7 @@ jobs:
   certify-openshift-images:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && github.ref_name == github.event.repository.default_branch)
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -324,7 +324,7 @@ jobs:
 
   scan-docker-oss:
     name: Scan ${{ matrix.build_os }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -424,7 +424,7 @@ jobs:
 
   scan-docker-plus:
     name: Scan ${{ matrix.build_os }}-${{ matrix.target }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -524,7 +524,7 @@ jobs:
 
   scan-docker-nap:
     name: Scan ${{ matrix.build_os }}-${{ matrix.target }}-${{ matrix.nap_modules }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, tag-candidate]
     permissions:
       contents: read
@@ -625,7 +625,7 @@ jobs:
   update-release-draft:
     name: Update Release Draft
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks]
     permissions:
       contents: write
