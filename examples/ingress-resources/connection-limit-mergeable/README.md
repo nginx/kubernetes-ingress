@@ -59,10 +59,10 @@ kubectl apply -f coffee-minion.yaml
 
 ## Step 4 - Test the Configuration
 
-1. Keep one request to `/tea` in progress by uploading a body slowly. This command runs for about 100 seconds:
+1. Keep one request to `/tea` in progress by uploading a body slowly. This command runs for about 10 seconds:
 
     ```console
-    head -c 100000 /dev/zero | curl --limit-rate 1k --data-binary @- --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/tea
+    head -c 100000 /dev/zero | curl --limit-rate 10k --data-binary @- --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/tea
     ```
 
 1. While it runs, send a second request to `/tea` from another terminal. The master policy rejects it with 429:
