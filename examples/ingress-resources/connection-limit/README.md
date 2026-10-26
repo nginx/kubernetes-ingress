@@ -60,10 +60,10 @@ annotation. The policy applies to every path of the Ingress, and the paths share
 ## Step 4 - Test the Configuration
 
 Let's test the configuration. Keep one request to `/coffee` in progress by uploading a body slowly. This command runs
-for about 100 seconds:
+for about 10 seconds:
 
 ```console
-head -c 100000 /dev/zero | curl --limit-rate 1k --data-binary @- --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee
+head -c 100000 /dev/zero | curl --limit-rate 10k --data-binary @- --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee
 ```
 
 While it runs, send a request to `/tea` from another terminal. NGINX rejects it, because the paths share the limit:
