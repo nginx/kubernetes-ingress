@@ -55,7 +55,7 @@ jobs:
   variables:
     name: Set Variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     outputs:
@@ -160,7 +160,7 @@ jobs:
   certify-openshift-images:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images'))
     name: Certify OpenShift UBI images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -194,7 +194,7 @@ jobs:
     # remote sync workflow with an empty version when running publish on its own.
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && inputs.operator_version != '' && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart'))
     name: Trigger PR for Operator
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [variables, publish-helm-chart]
     permissions:
       contents: read
@@ -261,7 +261,7 @@ jobs:
   # because its own `if` excludes dry_run and honours skip_step.
   release-gate:
     name: All prerequisites met
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [release-oss, release-plus-gcr-nginx, publish-helm-chart]
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
@@ -275,7 +275,7 @@ jobs:
 
   tag:
     name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [release-gate]
     # !cancelled() makes this job run even when a dependency failed, so the
     # dependency result has to be asserted explicitly or a tag would be pushed
@@ -320,7 +320,7 @@ jobs:
   release-assets:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
     name: Upload binaries GitHub Release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [variables, tag]
     permissions:
       id-token: write
@@ -395,7 +395,7 @@ jobs:
       needs.release-assets.result == 'success'
       )
     name: Publish release to GitHub
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [tag, release-assets]
     permissions:
       contents: write # to modify the release

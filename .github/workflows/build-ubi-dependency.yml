@@ -23,7 +23,7 @@ jobs:
   build-binaries:
     name: Build Binary Container Image
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       packages: write
       contents: read
