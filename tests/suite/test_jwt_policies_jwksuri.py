@@ -5,7 +5,8 @@ import pytest
 import requests
 import yaml
 from settings import TEST_DATA
-from suite.utils.policy_resources_utils import delete_policy
+from suite.utils.jwt_authorization_utils import get_with_token, vs_manifest
+from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
     create_secret_from_yaml,
@@ -18,6 +19,7 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import (
+    create_virtual_server,
     create_virtual_server_from_yaml,
     delete_and_create_vs_from_yaml,
     delete_virtual_server,
@@ -42,6 +44,7 @@ jwt_vs_invalid_pol_route_subpath_src = (
     f"{TEST_DATA}/jwt-policy-jwksuri/virtual-server/virtual-server-invalid-policy-route-subpath.yaml"
 )
 jwt_cm_src = f"{TEST_DATA}/jwt-policy-jwksuri/configmap/nginx-config.yaml"
+jwt_authz_unavailable_src = f"{TEST_DATA}/jwt-policy/authorization/policy-jwks-unavailable.yaml"
 keycloak_src = f"{TEST_DATA}/oidc/keycloak.yaml"
 keycloak_vs_src = f"{TEST_DATA}/oidc/virtual-server-idp.yaml"
 
@@ -499,3 +502,71 @@ class TestJWTPoliciesVsJwksuri:
 
         assert resp_2_no_token.status_code == 401 and f"Authorization Required" in resp_2_no_token.text
         assert resp_2_valid_token.status_code == 200 and f"Request ID:" in resp_2_valid_token.text
+
+
+@pytest.mark.skip_for_nginx_oss
+@pytest.mark.policies
+@pytest.mark.policies_jwt
+@pytest.mark.parametrize(
+    "crd_ingress_controller, virtual_server_setup",
+    [
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-custom-resources",
+                    f"-enable-leader-election=false",
+                ],
+            },
+            {
+                "example": "virtual-server",
+                "app_type": "simple",
+            },
+        )
+    ],
+    indirect=True,
+)
+class TestJWTAuthorizationJwksUnavailable:
+    def test_keys_unavailable_rejects_requests(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        """
+        With claim authorization configured and a JWKS URI that cannot be reached, no key can be fetched
+        or cached, so every request is rejected, with and without a token. It never reaches the
+        backend, and no request is let through unauthorized.
+        """
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            ingress_controller_prerequisites.config_map["metadata"]["name"],
+            ingress_controller_prerequisites.namespace,
+            jwt_cm_src,
+        )
+        pol_name = create_policy_from_yaml(kube_apis.custom_objects, jwt_authz_unavailable_src, test_namespace)
+        wait_before_test()
+
+        vs = vs_manifest(std_vs_src, spec_policy=pol_name)
+        delete_virtual_server(kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace)
+        create_virtual_server(kube_apis.custom_objects, vs, virtual_server_setup.namespace)
+        wait_before_test()
+
+        try:
+            statuses = [
+                get_with_token(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host, token).status_code
+                for token in [None, "basic"]
+            ]
+        finally:
+            delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+            delete_and_create_vs_from_yaml(
+                kube_apis.custom_objects,
+                virtual_server_setup.vs_name,
+                std_vs_src,
+                virtual_server_setup.namespace,
+            )
+
+        assert all(status in (401, 500, 502, 503) for status in statuses), statuses
+        assert 200 not in statuses

@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend1
+  template:
+    metadata:
+      labels:
+        app: backend1
+    spec:
+      containers:
+      - name: backend1
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: config-volume
+        configMap:
+          name: backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend1-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: backend1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend2
+  template:
+    metadata:
+      labels:
+        app: backend2
+    spec:
+      containers:
+      - name: backend2
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: config-volume
+        configMap:
+          name: backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend2-svc
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: backend2
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  app.conf: |-
+    server {
+      listen 8080;
+      listen [::]:8080;
+
+      location / {
+        default_type text/plain;
+        expires -1;
+        # Echo the headers the upstream received, one per line, so tests can assert on them.
+        return 200 'Request ID: $request_id\nX-Token-Scope: [$http_x_token_scope]\nX-Role: [$http_x_role]\nX-Injected: [$http_x_injected]\nX-Real-IP: [$http_x_real_ip]\nHost: [$http_host]\n';
+      }
+    }

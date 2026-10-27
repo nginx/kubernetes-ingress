@@ -1,0 +1,20 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-array-negate
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - require: All
+        claims:
+        - name: aud
+          match: Contains
+          values: [orders-api]
+        - name: realm_access.roles
+          match: Contains
+          values: [guest]
+          negate: true
