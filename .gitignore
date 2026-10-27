@@ -342,6 +342,20 @@ common-secrets/claims-partner-jwt-token.yaml
 examples/custom-resources/jwt/token-partner.jwt
 common-secrets/claims-partner-delegated-jwt-token.yaml
 examples/custom-resources/jwt/token-partner-delegated.jwt
+common-secrets/tests-jwt-policy-authz-basic-token.yaml
+tests/data/jwt-policy/tokens/authz-basic.jwt
+common-secrets/tests-jwt-policy-authz-array-token.yaml
+tests/data/jwt-policy/tokens/authz-array.jwt
+common-secrets/tests-jwt-policy-authz-guest-token.yaml
+tests/data/jwt-policy/tokens/authz-guest.jwt
+common-secrets/tests-jwt-policy-authz-noclaims-token.yaml
+tests/data/jwt-policy/tokens/authz-noclaims.jwt
+common-secrets/tests-jwt-policy-authz-wrong-case-token.yaml
+tests/data/jwt-policy/tokens/authz-wrong-case.jwt
+common-secrets/tests-jwt-policy-authz-header-injection-token.yaml
+tests/data/jwt-policy/tokens/authz-header-injection.jwt
+common-secrets/tests-jwt-policy-authz-expired-token.yaml
+tests/data/jwt-policy/tokens/authz-expired.jwt
 
 # API Key secrets
 common-secrets/apikey-secret-1.yaml
