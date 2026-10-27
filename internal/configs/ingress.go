@@ -686,7 +686,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			if cfgParams.LimitReqRate != "" {
-				zoneName := ncp.ingEx.Ingress.Namespace + "/" + ncp.ingEx.Ingress.Name
+				zoneName := fmt.Sprintf("%v/%v_%v", ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name, zoneHash(ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name, cfgParams.LimitReqKey))
 				if ncp.ingEx.ZoneSync {
 					zoneName = fmt.Sprintf("%v_sync", zoneName)
 				}

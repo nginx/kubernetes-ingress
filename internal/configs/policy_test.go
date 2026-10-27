@@ -212,7 +212,7 @@ func TestGeneratePolicies(t *testing.T) {
 				RateLimit: rateLimit{
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs_50f30d0d1b3b",
 						},
 					},
 					Zones: []version2.LimitReqZone{
@@ -220,7 +220,7 @@ func TestGeneratePolicies(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "10r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs_50f30d0d1b3b",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -278,13 +278,13 @@ func TestGeneratePolicies(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "10r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs_50f30d0d1b3b",
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs_afe2adb0a9d6",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -293,10 +293,10 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs_50f30d0d1b3b",
 						},
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs_afe2adb0a9d6",
 						},
 					},
 				},
@@ -335,7 +335,7 @@ func TestGeneratePolicies(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "5r/s",
-							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test_vs_e87c8ed5cf53",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -344,7 +344,7 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimitScale_policy_default_test_vs_e87c8ed5cf53",
 						},
 					},
 				},
@@ -416,10 +416,10 @@ func TestGeneratePolicies(t *testing.T) {
 				RateLimit: rateLimit{
 					Zones: []version2.LimitReqZone{
 						{
-							Key:           "$pol_rl_default_rateLimit_basic_policy_default_test_vs",
+							Key:           "$pol_rl_default_rateLimit_basic_policy_default_test_vs_d157b7c0d25c",
 							ZoneSize:      "10M",
 							Rate:          "10r/s",
-							ZoneName:      "pol_rl_default_rateLimit_basic_policy_default_test_vs",
+							ZoneName:      "pol_rl_default_rateLimit_basic_policy_default_test_vs_d157b7c0d25c",
 							GroupValue:    `"basic"`,
 							GroupVariable: "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
 							PolicyValue:   "rl_default_test_vs_match_ratelimit_basic_policy",
@@ -428,10 +428,10 @@ func TestGeneratePolicies(t *testing.T) {
 							GroupDefault:  true,
 						},
 						{
-							Key:           "$pol_rl_default_rateLimit_premium_policy_default_test_vs",
+							Key:           "$pol_rl_default_rateLimit_premium_policy_default_test_vs_e995a4f04d6d",
 							ZoneSize:      "10M",
 							Rate:          "100r/s",
-							ZoneName:      "pol_rl_default_rateLimit_premium_policy_default_test_vs",
+							ZoneName:      "pol_rl_default_rateLimit_premium_policy_default_test_vs_e995a4f04d6d",
 							GroupValue:    `"premium"`,
 							GroupVariable: "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
 							PolicyValue:   "rl_default_test_vs_match_ratelimit_premium_policy",
@@ -445,10 +445,10 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_basic_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_basic_policy_default_test_vs_d157b7c0d25c",
 						},
 						{
-							ZoneName: "pol_rl_default_rateLimit_premium_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_premium_policy_default_test_vs_e995a4f04d6d",
 						},
 					},
 					GroupMaps: []version2.Map{
@@ -465,7 +465,7 @@ func TestGeneratePolicies(t *testing.T) {
 					PolicyGroupMaps: []version2.Map{
 						{
 							Source:   "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
-							Variable: "$pol_rl_default_rateLimit_basic_policy_default_test_vs",
+							Variable: "$pol_rl_default_rateLimit_basic_policy_default_test_vs_d157b7c0d25c",
 							Parameters: []version2.Parameter{
 								{Value: "default", Result: "''"},
 								{Value: "rl_default_test_vs_match_ratelimit_basic_policy", Result: "Val$apikey_client_name"},
@@ -473,7 +473,7 @@ func TestGeneratePolicies(t *testing.T) {
 						},
 						{
 							Source:   "$rl_default_test_vs_variable_apikey_client_name_route_L2NvZmZlZQ",
-							Variable: "$pol_rl_default_rateLimit_premium_policy_default_test_vs",
+							Variable: "$pol_rl_default_rateLimit_premium_policy_default_test_vs_e995a4f04d6d",
 							Parameters: []version2.Parameter{
 								{Value: "default", Result: "''"},
 								{Value: "rl_default_test_vs_match_ratelimit_premium_policy", Result: "Val$apikey_client_name"},
@@ -900,7 +900,7 @@ func TestGeneratePolicies(t *testing.T) {
 					Scope:                "openid profile",
 					RedirectURI:          "/callback",
 					CookieName:           "NGX_OIDC_oidc_default_oidc_native_policy_default_test_vs",
-					SessionStore:         "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs",
+					SessionStore:         "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs_3df0cf2bf169",
 					LogoutURI:            "/logout",
 					SessionTimeout:       "4h",
 					SSLTrustedCert:       "/etc/ssl/certs/ca-certificate.crt",
@@ -944,7 +944,7 @@ func TestGeneratePolicies(t *testing.T) {
 					ClientID:             "nginx-plus",
 					RedirectURI:          "/oidc_callback_oidc_default_oidc_native_minimal_default_test_vs",
 					CookieName:           "NGX_OIDC_oidc_default_oidc_native_minimal_default_test_vs",
-					SessionStore:         "oidc_sessions_oidc_default_oidc_native_minimal_default_test_vs",
+					SessionStore:         "oidc_sessions_oidc_default_oidc_native_minimal_default_test_vs_679dfb194e4d",
 					SSLTrustedCert:       "/etc/ssl/certs/ca-certificate.crt",
 					SSLVerify:            true,
 					SSLName:              "",
@@ -1025,7 +1025,7 @@ func TestGeneratePolicies(t *testing.T) {
 					},
 					FrontChannelLogoutURI: "/frontchannel_logout",
 					LogoutTokenHint:       true,
-					SessionStore:          "oidc_sessions_oidc_default_oidc_native_full_default_test_vs",
+					SessionStore:          "oidc_sessions_oidc_default_oidc_native_full_default_test_vs_3e3b11e5bd66",
 					SessionTimeout:        "8h",
 					UserInfoEnable:        true,
 					SSLTrustedCert:        "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt",
@@ -1220,7 +1220,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_vs_basic-cache",
+					ZoneName: "default_test_vs_basic-cache_6a171f41fe0a",
 					ZoneSize: "10m",
 					Valid:    map[string]string{},
 					CacheKey: "$scheme$proxy_host$request_uri",
@@ -1281,7 +1281,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:              "default_test_vs_full-cache",
+					ZoneName:              "default_test_vs_full-cache_8a0b2445c365",
 					ZoneSize:              "100m",
 					Time:                  "1h",
 					Valid:                 map[string]string{"any": "1h"},
@@ -1340,7 +1340,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_vs_status-cache",
+					ZoneName: "default_test_vs_status-cache_7a20941b944c",
 					ZoneSize: "50m",
 					Time:     "30m",
 					Valid: map[string]string{
@@ -1379,7 +1379,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:       "default_test_vs_methods-cache",
+					ZoneName:       "default_test_vs_methods-cache_e181ce0fbf61",
 					ZoneSize:       "25m",
 					Valid:          map[string]string{},
 					AllowedMethods: []string{"GET", "HEAD"},
@@ -1414,7 +1414,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName:        "default_test_vs_purge-cache",
+					ZoneName:        "default_test_vs_purge-cache_53b3084eca96",
 					ZoneSize:        "75m",
 					Valid:           map[string]string{},
 					CachePurgeAllow: []string{"192.168.1.0/24", "10.0.0.1"},
@@ -1447,7 +1447,7 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				Cache: &version2.Cache{
-					ZoneName: "default_test_vs_implicit-cache",
+					ZoneName: "default_test_vs_implicit-cache_d4ca549cbfc5",
 					ZoneSize: "15m",
 					Time:     "45m",
 					Valid:    map[string]string{},
@@ -2917,13 +2917,13 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							Key:      "test",
 							ZoneSize: "10M",
 							Rate:     "10r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs_50f30d0d1b3b",
 						},
 						{
 							Key:      "test2",
 							ZoneSize: "20M",
 							Rate:     "20r/s",
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs_afe2adb0a9d6",
 						},
 					},
 					Options: version2.LimitReqOptions{
@@ -2932,10 +2932,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 					Reqs: []version2.LimitReq{
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs_50f30d0d1b3b",
 						},
 						{
-							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs",
+							ZoneName: "pol_rl_default_rateLimit_policy2_default_test_vs_afe2adb0a9d6",
 						},
 					},
 				},
@@ -4812,7 +4812,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					ClientSecret:    "super_secret_123",
 					RedirectURI:     "/oidc_callback_oidc_default_oidc_native_policy_default_test_vs",
 					CookieName:      "NGX_OIDC_oidc_default_oidc_native_policy_default_test_vs",
-					SessionStore:    "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs",
+					SessionStore:    "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs_d2307a4e249b",
 					SSLVerify:       true,
 					SSLVerifyDepth:  1,
 					ProxyLocation:   "/_oidc_idp_oidc_default_oidc_native_policy_default_test_vs",
@@ -4995,7 +4995,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					ClientID:        "client-1",
 					RedirectURI:     "/oidc_callback_oidc_default_oidc_native_1_default_test_vs",
 					CookieName:      "NGX_OIDC_oidc_default_oidc_native_1_default_test_vs",
-					SessionStore:    "oidc_sessions_oidc_default_oidc_native_1_default_test_vs",
+					SessionStore:    "oidc_sessions_oidc_default_oidc_native_1_default_test_vs_9515cb6b56e5",
 					SSLVerify:       true,
 					SSLName:         "",
 					SSLVerifyDepth:  1,
@@ -5890,4 +5890,223 @@ func TestOIDCAndOIDCNativeSharedLocationRegistry(t *testing.T) {
 			t.Fatal("expected NJS OIDC's default callback /_codexch to be rejected when a native provider already claims it")
 		}
 	})
+}
+
+func TestAddRateLimitConfigZoneName(t *testing.T) {
+	t.Parallel()
+	one, ten := 1, 10
+	tests := []struct {
+		msg        string
+		namespace  string
+		name       string
+		parentNs   string
+		parentName string
+		rateLimit  conf_v1.RateLimit
+		zoneSync   bool
+		wantZone   string
+	}{
+		{
+			msg: "base", namespace: "default", name: "rl", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"},
+			wantZone:  "pol_rl_default_rl_default_cafe_vs_cacbd2b9c629",
+		},
+		{
+			msg: "key changed renames the zone", namespace: "default", name: "rl", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${http_x_forwarded_for}", ZoneSize: "10M"},
+			wantZone:  "pol_rl_default_rl_default_cafe_vs_f7858dff40fc",
+		},
+		{
+			msg: "rate, size, burst and delay changed keep the zone", namespace: "default", name: "rl", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{Rate: "500r/m", Key: "${binary_remote_addr}", ZoneSize: "20M", Burst: &ten, Delay: &one},
+			wantZone:  "pol_rl_default_rl_default_cafe_vs_cacbd2b9c629",
+		},
+		{
+			msg: "zone sync", namespace: "default", name: "rl", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"},
+			zoneSync:  true,
+			wantZone:  "pol_rl_default_rl_default_cafe_vs_cacbd2b9c629_sync",
+		},
+		{
+			msg: "condition renames the zone", namespace: "default", name: "rl", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{
+				Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M",
+				Condition: &conf_v1.RateLimitCondition{JWT: &conf_v1.JWTCondition{Claim: "user.tier", Match: "premium"}},
+			},
+			wantZone: "pol_rl_default_rl_default_cafe_vs_33f6fef7b985",
+		},
+		{
+			msg: "key changed with condition keeps the zone", namespace: "default", name: "rl", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{
+				Rate: "10r/s", Key: "${http_x_forwarded_for}", ZoneSize: "10M",
+				Condition: &conf_v1.RateLimitCondition{JWT: &conf_v1.JWTCondition{Claim: "user.tier", Match: "premium"}},
+			},
+			wantZone: "pol_rl_default_rl_default_cafe_vs_33f6fef7b985",
+		},
+		{
+			msg: "team-a/rate-limit", namespace: "team-a", name: "rate-limit", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"},
+			wantZone:  "pol_rl_team_a_rate_limit_default_cafe_vs_58b5c61e5e81",
+		},
+		{
+			msg: "team/a-rate-limit does not collide with team-a/rate-limit", namespace: "team", name: "a-rate-limit", parentNs: "default", parentName: "cafe",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"},
+			wantZone:  "pol_rl_team_a_rate_limit_default_cafe_vs_6d4c87741230",
+		},
+		{
+			msg: "virtual server x-y/z", namespace: "default", name: "rl", parentNs: "x-y", parentName: "z",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"},
+			wantZone:  "pol_rl_default_rl_x_y_z_vs_c5082e66aa8c",
+		},
+		{
+			msg: "virtual server x/y-z does not collide with x-y/z", namespace: "default", name: "rl", parentNs: "x", parentName: "y-z",
+			rateLimit: conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"},
+			wantZone:  "pol_rl_default_rl_x_y_z_vs_8bdb7cb9cc0f",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			pol := &conf_v1.Policy{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: test.namespace, Name: test.name},
+				Spec:       conf_v1.PolicySpec{RateLimit: &test.rateLimit},
+			}
+			owner := policyOwnerDetails{
+				ownerNamespace: test.parentNs, ownerName: test.parentName,
+				parentNamespace: test.parentNs, parentName: test.parentName, parentType: "vs",
+			}
+			cfg := newPoliciesConfig(nil)
+			cfg.Context = context.Background()
+			if res := cfg.addRateLimitConfig(pol, owner, 1, test.zoneSync, "server", "/"); res.isError {
+				t.Fatalf("addRateLimitConfig() returned an error: %v", res.warnings)
+			}
+			if got := cfg.RateLimit.Zones[0].ZoneName; got != test.wantZone {
+				t.Errorf("zone name = %q, want %q", got, test.wantZone)
+			}
+			if got := cfg.RateLimit.Reqs[0].ZoneName; got != test.wantZone {
+				t.Errorf("limit_req zone = %q, want %q", got, test.wantZone)
+			}
+		})
+	}
+}
+
+func TestGenerateCacheConfigZoneName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg      string
+		cache    conf_v1.Cache
+		owner    policyOwnerDetails
+		wantZone string
+	}{
+		{
+			msg:      "no levels",
+			cache:    conf_v1.Cache{CacheZoneName: "my_cache", CacheZoneSize: "10m"},
+			owner:    policyOwnerDetails{ownerNamespace: "default", ownerName: "cafe", parentNamespace: "default", parentName: "cafe", parentType: "vs"},
+			wantZone: "default_cafe_vs_my_cache_a38238e95ecd",
+		},
+		{
+			msg:      "levels set renames the zone",
+			cache:    conf_v1.Cache{CacheZoneName: "my_cache", CacheZoneSize: "10m", Levels: "1:2"},
+			owner:    policyOwnerDetails{ownerNamespace: "default", ownerName: "cafe", parentNamespace: "default", parentName: "cafe", parentType: "vs"},
+			wantZone: "default_cafe_vs_my_cache_7344844ad42c",
+		},
+		{
+			msg: "size, inactive, max size and min free changed keep the zone",
+			cache: conf_v1.Cache{
+				CacheZoneName: "my_cache", CacheZoneSize: "20m", Inactive: "1h", MaxSize: "1g", MinFree: "100m",
+			},
+			owner:    policyOwnerDetails{ownerNamespace: "default", ownerName: "cafe", parentNamespace: "default", parentName: "cafe", parentType: "vs"},
+			wantZone: "default_cafe_vs_my_cache_a38238e95ecd",
+		},
+		{
+			msg:      "zone c_d_e of virtual server a/b",
+			cache:    conf_v1.Cache{CacheZoneName: "c_d_e", CacheZoneSize: "10m"},
+			owner:    policyOwnerDetails{ownerNamespace: "a", ownerName: "b", parentNamespace: "a", parentName: "b", parentType: "vs"},
+			wantZone: "a_b_vs_c_d_e_61e0f5d6ed86",
+		},
+		{
+			msg:      "zone e of route c/d in virtual server a/b does not collide with c_d_e",
+			cache:    conf_v1.Cache{CacheZoneName: "e", CacheZoneSize: "10m"},
+			owner:    policyOwnerDetails{ownerNamespace: "c", ownerName: "d", parentNamespace: "a", parentName: "b", parentType: "vs"},
+			wantZone: "a_b_vs_c_d_e_9c803acb9658",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			got := generateCacheConfig(&test.cache, test.owner)
+			if got == nil {
+				t.Fatal("generateCacheConfig() returned nil")
+			}
+			if got.ZoneName != test.wantZone {
+				t.Errorf("zone name = %q, want %q", got.ZoneName, test.wantZone)
+			}
+		})
+	}
+}
+
+func TestAddOIDCNativeConfigSessionStore(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg            string
+		polNamespace   string
+		polName        string
+		sessionTimeout string
+		zoneSync       bool
+		wantStore      string
+	}{
+		{
+			msg: "no sync, no timeout", polNamespace: "default", polName: "oidc-pol",
+			wantStore: "oidc_sessions_oidc_default_oidc_pol_default_test_vs_b3883d61af2f",
+		},
+		{
+			msg: "timeout set where there was none renames the store", polNamespace: "default", polName: "oidc-pol",
+			sessionTimeout: "4h",
+			wantStore:      "oidc_sessions_oidc_default_oidc_pol_default_test_vs_3a712bedd314",
+		},
+		{
+			msg: "timeout value changed keeps the store", polNamespace: "default", polName: "oidc-pol",
+			sessionTimeout: "2h",
+			wantStore:      "oidc_sessions_oidc_default_oidc_pol_default_test_vs_3a712bedd314",
+		},
+		{
+			msg: "sync renames the store", polNamespace: "default", polName: "oidc-pol",
+			zoneSync:  true,
+			wantStore: "oidc_sessions_oidc_default_oidc_pol_default_test_vs_30d90bf4b83c",
+		},
+		{
+			msg: "sync with a timeout is the same store as sync without", polNamespace: "default", polName: "oidc-pol",
+			zoneSync: true, sessionTimeout: "4h",
+			wantStore: "oidc_sessions_oidc_default_oidc_pol_default_test_vs_30d90bf4b83c",
+		},
+		{
+			msg: "team-a/x", polNamespace: "team-a", polName: "x",
+			wantStore: "oidc_sessions_oidc_team_a_x_default_test_vs_ad27263e3cd7",
+		},
+		{
+			msg: "team/a-x does not collide with team-a/x", polNamespace: "team", polName: "a-x",
+			wantStore: "oidc_sessions_oidc_team_a_x_default_test_vs_79d764fb63c5",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			cfg := newPoliciesConfig(nil)
+			opts := policyOptions{zoneSync: test.zoneSync, oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+			owner := policyOwnerDetails{ownerNamespace: "default", ownerName: "test", parentNamespace: "default", parentName: "test", parentType: "vs"}
+			res := cfg.addOIDCNativeConfig(&conf_v1.OIDCNative{
+				Issuer:         "https://accounts.google.com",
+				ClientID:       "client",
+				SessionTimeout: test.sessionTimeout,
+			}, test.polNamespace+"/"+test.polName, test.polNamespace, owner, opts)
+			if res.isError {
+				t.Fatalf("addOIDCNativeConfig() returned an error: %v", res.warnings)
+			}
+			if got := cfg.OIDCProvider.SessionStore; got != test.wantStore {
+				t.Errorf("session store = %q, want %q", got, test.wantStore)
+			}
+		})
+	}
 }

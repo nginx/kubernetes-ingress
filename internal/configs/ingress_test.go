@@ -1443,7 +1443,7 @@ func TestGenerateNginxCfgForOIDCNative(t *testing.T) {
 			RedirectURI:     "/oidc_callback_" + providerName,
 			LogoutURI:       "",
 			CookieName:      "NGX_OIDC_" + providerName,
-			SessionStore:    "oidc_sessions_" + providerName,
+			SessionStore:    "oidc_sessions_" + providerName + "_d5877467dd42",
 			SSLVerify:       true,
 			SSLName:         "",
 			SSLVerifyDepth:  1,
@@ -1453,7 +1453,7 @@ func TestGenerateNginxCfgForOIDCNative(t *testing.T) {
 	}
 	expected.KeyValZones = []version2.KeyValZone{
 		{
-			Name: "oidc_sessions_" + providerName,
+			Name: "oidc_sessions_" + providerName + "_d5877467dd42",
 			Size: "10m",
 		},
 	}
@@ -3288,7 +3288,7 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T)
 			RedirectURI:     "/oidc_callback_" + providerName,
 			LogoutURI:       "",
 			CookieName:      "NGX_OIDC_" + providerName,
-			SessionStore:    "oidc_sessions_" + providerName,
+			SessionStore:    "oidc_sessions_" + providerName + "_bc0fee15d420",
 			SSLVerify:       true,
 			SSLName:         "",
 			SSLVerifyDepth:  1,
@@ -3298,7 +3298,7 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T)
 	}
 	expected.KeyValZones = []version2.KeyValZone{
 		{
-			Name: "oidc_sessions_" + providerName,
+			Name: "oidc_sessions_" + providerName + "_bc0fee15d420",
 			Size: "10m",
 		},
 	}
@@ -3782,7 +3782,7 @@ func TestGenerateNginxCfgForLimitReq(t *testing.T) {
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress",
+			Name: "default/cafe-ingress_2953c47cb824",
 			Key:  "${request_uri}",
 			Size: "11m",
 			Rate: "200r/s",
@@ -3790,7 +3790,7 @@ func TestGenerateNginxCfgForLimitReq(t *testing.T) {
 	}
 
 	expectedReqs := &version1.LimitReq{
-		Zone:       "default/cafe-ingress",
+		Zone:       "default/cafe-ingress_2953c47cb824",
 		Burst:      100,
 		Delay:      80,
 		NoDelay:    true,
@@ -3838,7 +3838,7 @@ func TestGenerateNginxCfgForLimitReqDefaults(t *testing.T) {
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress",
+			Name: "default/cafe-ingress_3eb2eacec161",
 			Key:  "${binary_remote_addr}",
 			Size: "10m",
 			Rate: "200r/s",
@@ -3846,7 +3846,7 @@ func TestGenerateNginxCfgForLimitReqDefaults(t *testing.T) {
 	}
 
 	expectedReqs := &version1.LimitReq{
-		Zone:       "default/cafe-ingress",
+		Zone:       "default/cafe-ingress_3eb2eacec161",
 		Burst:      100,
 		Delay:      80,
 		LogLevel:   "error",
@@ -3894,7 +3894,7 @@ func TestGenerateNginxCfgForLimitReqZoneSync(t *testing.T) {
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress_sync",
+			Name: "default/cafe-ingress_2953c47cb824_sync",
 			Key:  "${request_uri}",
 			Size: "11m",
 			Rate: "200r/s",
@@ -3943,13 +3943,13 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReq(t *testing.T) {
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress-coffee-minion",
+			Name: "default/cafe-ingress-coffee-minion_5b69b8f9371c",
 			Key:  "${request_uri}",
 			Size: "11m",
 			Rate: "200r/s",
 		},
 		{
-			Name: "default/cafe-ingress-tea-minion",
+			Name: "default/cafe-ingress-tea-minion_c6fb0ef1f382",
 			Key:  "${binary_remote_addr}",
 			Size: "12m",
 			Rate: "400r/s",
@@ -3958,7 +3958,7 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReq(t *testing.T) {
 
 	expectedReqs := map[string]*version1.LimitReq{
 		"cafe-ingress-coffee-minion": {
-			Zone:       "default/cafe-ingress-coffee-minion",
+			Zone:       "default/cafe-ingress-coffee-minion_5b69b8f9371c",
 			Burst:      100,
 			Delay:      80,
 			LogLevel:   "info",
@@ -3967,7 +3967,7 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReq(t *testing.T) {
 			DryRun:     true,
 		},
 		"cafe-ingress-tea-minion": {
-			Zone:       "default/cafe-ingress-tea-minion",
+			Zone:       "default/cafe-ingress-tea-minion_c6fb0ef1f382",
 			Burst:      200,
 			Delay:      160,
 			LogLevel:   "error",
@@ -4026,7 +4026,7 @@ func TestGenerateNginxCfgForLimitReqWithScaling(t *testing.T) {
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress",
+			Name: "default/cafe-ingress_2953c47cb824",
 			Key:  "${request_uri}",
 			Size: "11m",
 			Rate: "50r/s",
@@ -4034,7 +4034,7 @@ func TestGenerateNginxCfgForLimitReqWithScaling(t *testing.T) {
 	}
 
 	expectedReqs := &version1.LimitReq{
-		Zone:       "default/cafe-ingress",
+		Zone:       "default/cafe-ingress_2953c47cb824",
 		Burst:      100,
 		Delay:      80,
 		NoDelay:    true,
@@ -4092,13 +4092,13 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReqWithScaling(t *testing.
 
 	expectedZones := []version1.LimitReqZone{
 		{
-			Name: "default/cafe-ingress-coffee-minion",
+			Name: "default/cafe-ingress-coffee-minion_5b69b8f9371c",
 			Key:  "${request_uri}",
 			Size: "11m",
 			Rate: "100r/s",
 		},
 		{
-			Name: "default/cafe-ingress-tea-minion",
+			Name: "default/cafe-ingress-tea-minion_c6fb0ef1f382",
 			Key:  "${binary_remote_addr}",
 			Size: "12m",
 			Rate: "200r/s",
@@ -4107,7 +4107,7 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReqWithScaling(t *testing.
 
 	expectedReqs := map[string]*version1.LimitReq{
 		"cafe-ingress-coffee-minion": {
-			Zone:       "default/cafe-ingress-coffee-minion",
+			Zone:       "default/cafe-ingress-coffee-minion_5b69b8f9371c",
 			Burst:      100,
 			Delay:      80,
 			LogLevel:   "info",
@@ -4116,7 +4116,7 @@ func TestGenerateNginxCfgForMergeableIngressesForLimitReqWithScaling(t *testing.
 			DryRun:     true,
 		},
 		"cafe-ingress-tea-minion": {
-			Zone:       "default/cafe-ingress-tea-minion",
+			Zone:       "default/cafe-ingress-tea-minion_c6fb0ef1f382",
 			Burst:      200,
 			Delay:      160,
 			LogLevel:   "error",
@@ -7263,5 +7263,65 @@ func assertUpstreamKeepalive(t *testing.T, label, got, want string) {
 	t.Helper()
 	if got != want {
 		t.Errorf("%s Keepalive = %q, want %q", label, got, want)
+	}
+}
+
+func TestGenerateNginxCfgLimitReqZoneName(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg         string
+		annotations map[string]string
+		zoneSync    bool
+		wantZone    string
+	}{
+		{
+			msg:         "base",
+			annotations: map[string]string{"nginx.org/limit-req-rate": "10r/s", "nginx.org/limit-req-key": "${request_uri}"},
+			wantZone:    "default/cafe-ingress_2953c47cb824",
+		},
+		{
+			msg:         "key changed renames the zone",
+			annotations: map[string]string{"nginx.org/limit-req-rate": "10r/s", "nginx.org/limit-req-key": "${binary_remote_addr}"},
+			wantZone:    "default/cafe-ingress_3eb2eacec161",
+		},
+		{
+			msg: "rate, zone size and burst changed keep the zone",
+			annotations: map[string]string{
+				"nginx.org/limit-req-rate":      "500r/m",
+				"nginx.org/limit-req-key":       "${request_uri}",
+				"nginx.org/limit-req-zone-size": "20m",
+				"nginx.org/limit-req-burst":     "50",
+			},
+			wantZone: "default/cafe-ingress_2953c47cb824",
+		},
+		{
+			msg:         "zone sync suffix comes last",
+			annotations: map[string]string{"nginx.org/limit-req-rate": "10r/s", "nginx.org/limit-req-key": "${request_uri}"},
+			zoneSync:    true,
+			wantZone:    "default/cafe-ingress_2953c47cb824_sync",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			ingEx := createCafeIngressEx()
+			for k, v := range test.annotations {
+				ingEx.Ingress.Annotations[k] = v
+			}
+			ingEx.ZoneSync = test.zoneSync
+			result, _ := generateNginxCfg(NginxCfgParams{
+				ingEx:         &ingEx,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), test.zoneSync),
+				staticParams:  &StaticConfigParams{},
+				isPlus:        test.zoneSync,
+			})
+			if len(result.LimitReqZones) != 1 {
+				t.Fatalf("got %d limit_req zones, want 1", len(result.LimitReqZones))
+			}
+			if got := result.LimitReqZones[0].Name; got != test.wantZone {
+				t.Errorf("zone name = %q, want %q", got, test.wantZone)
+			}
+		})
 	}
 }

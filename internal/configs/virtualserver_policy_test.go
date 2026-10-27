@@ -1902,7 +1902,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{
 					{
 						Key:      "$binary_remote_addr",
-						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs_sync",
+						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs_ab2a0982beaa_sync",
 						ZoneSize: "10M",
 						Rate:     "10r/s",
 						Sync:     true,
@@ -1915,7 +1915,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs_sync", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs_ab2a0982beaa_sync", Burst: 0, NoDelay: false, Delay: 0},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
@@ -2051,7 +2051,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{
 					{
 						Key:      "$binary_remote_addr",
-						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs",
+						ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs_ab2a0982beaa",
 						ZoneSize: "10M",
 						Rate:     "10r/s",
 						Sync:     false,
@@ -2064,7 +2064,7 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					LimitReqs: []version2.LimitReq{
-						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs", Burst: 0, NoDelay: false, Delay: 0},
+						{ZoneName: "pol_rl_default_rate_limit_policy_default_cafe_vs_ab2a0982beaa", Burst: 0, NoDelay: false, Delay: 0},
 					},
 					LimitReqOptions: version2.LimitReqOptions{
 						DryRun:     false,
@@ -2246,9 +2246,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:   "default_cafe_vs_my-cache",
+						Name:   "default_cafe_vs_my-cache_b21c20a29f9f",
 						Size:   "10m",
-						Path:   "/var/cache/nginx/default_cafe_vs_my-cache",
+						Path:   "/var/cache/nginx/default_cafe_vs_my-cache_b21c20a29f9f",
 						Levels: "",
 					},
 				},
@@ -2259,7 +2259,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "cafe",
 					Cache: &version2.Cache{
-						ZoneName:              "default_cafe_vs_my-cache",
+						ZoneName:              "default_cafe_vs_my-cache_b21c20a29f9f",
 						ZoneSize:              "10m",
 						Time:                  "1h",
 						Valid:                 map[string]string{},
@@ -2402,9 +2402,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:   "default_cafe_vs_route-cache",
+						Name:   "default_cafe_vs_route-cache_c8458d9e2f67",
 						Size:   "5m",
-						Path:   "/var/cache/nginx/default_cafe_vs_route-cache",
+						Path:   "/var/cache/nginx/default_cafe_vs_route-cache_c8458d9e2f67",
 						Levels: "",
 					},
 				},
@@ -2426,7 +2426,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 							ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
 							ServiceName:              "tea-svc",
 							Cache: &version2.Cache{
-								ZoneName:              "default_cafe_vs_route-cache",
+								ZoneName:              "default_cafe_vs_route-cache_c8458d9e2f67",
 								ZoneSize:              "5m",
 								Time:                  "30m",
 								Valid:                 map[string]string{"200": "30m", "404": "30m"},
@@ -2606,9 +2606,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:    "default_cafe_vs_default_tea-vsr_vsr-cache",
+						Name:    "default_cafe_vs_default_tea-vsr_vsr-cache_06bb87857dc4",
 						Size:    "20m",
-						Path:    "/var/cache/nginx/default_cafe_vs_default_tea-vsr_vsr-cache",
+						Path:    "/var/cache/nginx/default_cafe_vs_default_tea-vsr_vsr-cache_06bb87857dc4",
 						Levels:  "2:2",
 						MinFree: "100m",
 					},
@@ -2634,7 +2634,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 							VSRName:                  "tea-vsr",
 							VSRNamespace:             "default",
 							Cache: &version2.Cache{
-								ZoneName:              "default_cafe_vs_default_tea-vsr_vsr-cache",
+								ZoneName:              "default_cafe_vs_default_tea-vsr_vsr-cache_06bb87857dc4",
 								ZoneSize:              "20m",
 								Time:                  "2h",
 								Valid:                 map[string]string{},
@@ -2767,9 +2767,9 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{},
 				CacheZones: []version2.CacheZone{
 					{
-						Name:             "default_extended-cache_vs_extended-cache",
+						Name:             "default_extended-cache_vs_extended-cache_442ff383d610",
 						Size:             "100m",
-						Path:             "/var/cache/nginx/default_extended-cache_vs_extended-cache",
+						Path:             "/var/cache/nginx/default_extended-cache_vs_extended-cache_442ff383d610",
 						Levels:           "",
 						Inactive:         "7d",
 						UseTempPath:      false,
@@ -2787,7 +2787,7 @@ func TestGenerateVirtualServerConfigCache(t *testing.T) {
 					VSNamespace:  "default",
 					VSName:       "extended-cache",
 					Cache: &version2.Cache{
-						ZoneName:              "default_extended-cache_vs_extended-cache",
+						ZoneName:              "default_extended-cache_vs_extended-cache_442ff383d610",
 						ZoneSize:              "100m",
 						Levels:                "",
 						Inactive:              "7d",
@@ -4174,7 +4174,7 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 				LimitReqZones: []version2.LimitReqZone{
 					{
 						Key:      "$binary_remote_addr",
-						ZoneName: "pol_rl_policy_rate_limit_policy_default_cafe_vs",
+						ZoneName: "pol_rl_policy_rate_limit_policy_default_cafe_vs_a529d1b6a631",
 						ZoneSize: "10M",
 						Rate:     "10r/s",
 					},
@@ -4206,7 +4206,7 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 							VSRName:                  "coffee",
 							VSRNamespace:             "coffee",
 							LimitReqs: []version2.LimitReq{
-								{ZoneName: "pol_rl_policy_rate_limit_policy_default_cafe_vs", Burst: 0, NoDelay: false, Delay: 0},
+								{ZoneName: "pol_rl_policy_rate_limit_policy_default_cafe_vs_a529d1b6a631", Burst: 0, NoDelay: false, Delay: 0},
 							},
 							LimitReqOptions: version2.LimitReqOptions{
 								DryRun:     false,

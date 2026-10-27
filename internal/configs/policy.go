@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -205,7 +206,13 @@ func (p *policiesCfg) addRateLimitConfig(
 	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
 	l := nl.LoggerFromContext(p.Context)
 
-	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType))
+	zoneID := []string{policy.Namespace, policy.Name, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType}
+	if rateLimit.Condition != nil {
+		zoneID = append(zoneID, "condition") // the key of a grouped zone is derived from its name
+	} else {
+		zoneID = append(zoneID, "key", rateLimit.Key)
+	}
+	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType, zoneHash(zoneID...)))
 	if zoneSync {
 		rlZoneName = fmt.Sprintf("%v_sync", rlZoneName)
 	}
@@ -964,8 +971,9 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	}
 
 	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
-	sessionStore := fmt.Sprintf("oidc_sessions_%s", providerName)
 	sync := policyOpts.zoneSync
+	timeoutSet := oidcNative.SessionTimeout != "" || sync // NIC sets a default timeout when sync is on
+	sessionStore := fmt.Sprintf("oidc_sessions_%s_%s", providerName, zoneHash(polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType, "sync", strconv.FormatBool(sync), "timeout", strconv.FormatBool(timeoutSet)))
 	proxyLocation := fmt.Sprintf("/_oidc_idp_%s", providerName)
 
 	sslName := oidcNative.SSLName
@@ -1832,6 +1840,7 @@ func generateCacheConfig(cache *conf_v1.Cache, ownerDetails policyOwnerDetails) 
 		// Policy is applied to VirtualServerRoute, include both VS and owner info
 		uniqueZoneName = fmt.Sprintf("%s_%s_%s_%s_%s_%s", parentNamespace, parentName, parentType, ownerNamespace, ownerName, cache.CacheZoneName)
 	}
+	uniqueZoneName = fmt.Sprintf("%s_%s", uniqueZoneName, zoneHash(parentNamespace, parentName, parentType, ownerNamespace, ownerName, cache.CacheZoneName, "levels", cache.Levels))
 
 	// Set cache key with default if not provided
 	cacheKey := "$scheme$proxy_host$request_uri"
@@ -1897,4 +1906,10 @@ func generateCacheConfig(cache *conf_v1.Cache, ownerDetails policyOwnerDetails) 
 
 func rfc1123ToSnake(rfc1123String string) string {
 	return strings.ReplaceAll(rfc1123String, "-", "_")
+}
+
+// zoneHash names a shared memory zone so that it changes when a setting NGINX cannot change on a live zone does.
+func zoneHash(parts ...string) string {
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return hex.EncodeToString(sum[:])[:12]
 }
