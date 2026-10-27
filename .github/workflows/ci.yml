@@ -125,7 +125,7 @@ jobs:
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -451,7 +451,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -547,7 +547,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -709,7 +709,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -717,7 +717,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
