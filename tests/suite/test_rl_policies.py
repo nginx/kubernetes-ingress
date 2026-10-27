@@ -1,9 +1,11 @@
+import re
 import time
 
 import jwt
 import pytest
 import requests
 from settings import TEST_DATA
+from suite.utils.custom_assertions import assert_valid_vs
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.nginx_api_utils import (
     check_synced_zone_exists,
@@ -14,6 +16,7 @@ from suite.utils.policy_resources_utils import (
     apply_and_assert_valid_policy,
     create_policy_from_yaml,
     delete_policy,
+    patch_policy,
     read_policy,
 )
 from suite.utils.resources_utils import (
@@ -189,6 +192,91 @@ class TestRateLimitingPolicies:
             1,
             headers={"host": virtual_server_setup.vs_host},
         )
+
+        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+
+    @pytest.mark.parametrize("src", [rl_vs_pri_src])
+    def test_rl_policy_key_edited_in_place(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        ingress_controller_prerequisites,
+        virtual_server_setup,
+        test_namespace,
+        src,
+    ):
+        """
+        Test editing the key of a live RateLimit policy is applied. NGINX rejects a reload that changes the key of an
+        existing limit_req_zone, so the zone must get a new name.
+        """
+        new_key = "${request_uri}"
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
+        apply_and_assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name, src)
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+
+        old_conf = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        old_zone = re.search(r"limit_req_zone \S+ zone=(\S+?):", old_conf).group(1)
+
+        patch_policy(kube_apis.custom_objects, pol_name, test_namespace, {"spec": {"rateLimit": {"key": new_key}}})
+
+        wait_before_test()
+        assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name)
+        new_conf = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        assert f"limit_req_zone {new_key} zone=" in new_conf
+        assert re.search(r"limit_req_zone \S+ zone=(\S+?):", new_conf).group(1) != old_zone
+
+        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+        self.restore_default_vs(kube_apis, virtual_server_setup)
+
+    def test_rl_policy_condition_added_in_place(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        ingress_controller_prerequisites,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        """
+        Test adding a condition to a live RateLimit policy is applied. The key NGINX sees changes from the user key
+        to a variable derived from the zone name, which NGINX rejects on an existing zone.
+        """
+        pol_name = apply_and_assert_valid_policy(kube_apis, test_namespace, rl_pol_pri_src)
+        apply_and_assert_valid_vs(
+            kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name, rl_vs_pri_src
+        )
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+
+        patch_policy(
+            kube_apis.custom_objects,
+            pol_name,
+            test_namespace,
+            {"spec": {"rateLimit": {"condition": {"jwt": {"claim": "user_details.level", "match": "premium"}}}}},
+        )
+
+        wait_before_test()
+        assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name)
+        conf = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        assert "limit_req_zone $pol_rl_" in conf
+        assert "limit_req_zone ${binary_remote_addr} zone=pol_rl_" not in conf
 
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
         self.restore_default_vs(kube_apis, virtual_server_setup)
@@ -573,8 +661,12 @@ class TestRateLimitingPolicies:
         )
 
         policy = read_policy(kube_apis.custom_objects, test_namespace, pol_name)
-        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{virtual_server_setup.namespace.replace("-", "_", -1)}_{virtual_server_setup.vs_name.replace("-", "_", -1)}_vs_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
-        assert expected_conf_line in vs_config
+        zone_prefix = f"pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{virtual_server_setup.namespace.replace("-", "_", -1)}_{virtual_server_setup.vs_name.replace("-", "_", -1)}_vs"
+        expected_conf_line = re.escape(f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone={zone_prefix}") + (
+            rf"_[0-9a-f]{{12}}_sync:{policy["spec"]["rateLimit"]["zoneSize"]} "
+            rf"rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        )
+        assert re.search(expected_conf_line, vs_config)
 
         # revert changes
         scale_deployment(

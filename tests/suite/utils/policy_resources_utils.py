@@ -47,6 +47,19 @@ def create_policy_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, nam
         raise
 
 
+def patch_policy(custom_objects: CustomObjectsApi, name, namespace, body) -> None:
+    """
+    Patch a Policy in place.
+
+    :param custom_objects: CustomObjectsApi
+    :param name:
+    :param namespace:
+    :param body: dict merged into the Policy
+    """
+    print(f"Patch a Policy: {name}")
+    custom_objects.patch_namespaced_custom_object("k8s.nginx.org", "v1", namespace, "policies", name, body)
+
+
 def delete_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
     """
     Delete a Policy.

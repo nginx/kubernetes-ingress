@@ -1,3 +1,4 @@
+import re
 import time
 
 import pytest
@@ -26,6 +27,7 @@ from suite.utils.resources_utils import (
     get_pod_list,
     read_ingress,
     replace_configmap_from_yaml,
+    replace_ingress,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -126,6 +128,44 @@ class TestRateLimitIngress:
             )
             counter.append(resp.status_code)
         assert (counter.count(200)) <= 2 and (429 in counter)  # check for only 2 200s in the list
+
+
+@pytest.mark.annotations
+@pytest.mark.parametrize("annotations_setup", ["standard"], indirect=True)
+class TestRateLimitIngressKeyEditedInPlace:
+    def test_ingress_rate_limit_key_edited_in_place(
+        self, kube_apis, annotations_setup, ingress_controller_prerequisites, test_namespace
+    ):
+        """
+        Test editing nginx.org/limit-req-key of a live Ingress is applied. NGINX rejects a reload that changes the key
+        of an existing limit_req_zone, so the zone must get a new name.
+        """
+        new_key = "${request_uri}"
+        ensure_response_from_backend(annotations_setup.request_url, annotations_setup.ingress_host, check404=True)
+
+        old_conf = get_ingress_nginx_template_conf(
+            kube_apis.v1,
+            test_namespace,
+            annotations_setup.ingress_name,
+            annotations_setup.ingress_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        old_zone = re.search(r"limit_req_zone \S+ zone=(\S+?):", old_conf).group(1)
+
+        ingress = read_ingress(kube_apis.networking_v1, annotations_setup.ingress_name, test_namespace)
+        ingress.metadata.annotations["nginx.org/limit-req-key"] = new_key
+        replace_ingress(kube_apis.networking_v1, annotations_setup.ingress_name, test_namespace, ingress)
+
+        wait_before_test()
+        new_conf = get_ingress_nginx_template_conf(
+            kube_apis.v1,
+            test_namespace,
+            annotations_setup.ingress_name,
+            annotations_setup.ingress_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        assert f"limit_req_zone {new_key} zone=" in new_conf
+        assert re.search(r"limit_req_zone \S+ zone=(\S+?):", new_conf).group(1) != old_zone
 
 
 @pytest.mark.skip_for_nginx_oss
@@ -283,7 +323,8 @@ class TestRateLimitIngressScaledWithZoneSync:
         rate = ingress.metadata.annotations.get("nginx.org/limit-req-rate")
         zone_size = ingress.metadata.annotations.get("nginx.org/limit-req-zone-size")
         expected_conf_line = (
-            f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}_sync:{zone_size} rate={rate} sync;"
+            re.escape(f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}")
+            + rf"_[0-9a-f]{{12}}_sync:{zone_size} rate={rate} sync;"
         )
 
         ic_pods = get_pod_list(kube_apis.v1, ns, IC_SELECTOR)
@@ -299,7 +340,7 @@ class TestRateLimitIngressScaledWithZoneSync:
                     ingress_controller_prerequisites.namespace,
                 )
 
-                if expected_conf_line in conf:
+                if re.search(expected_conf_line, conf):
                     flag = True
                     print(f"Expected configuration line found in pod {pod.metadata.name}")
                     break

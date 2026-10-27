@@ -1,3 +1,4 @@
+import re
 import time
 
 import jwt
@@ -618,8 +619,12 @@ class TestRateLimitingPoliciesVsr:
         )
 
         policy = read_policy(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, pol_name)
-        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}_vs_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
-        assert expected_conf_line in vsr_config
+        zone_prefix = f"pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}_vs"
+        expected_conf_line = re.escape(f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone={zone_prefix}") + (
+            rf"_[0-9a-f]{{12}}_sync:{policy["spec"]["rateLimit"]["zoneSize"]} "
+            rf"rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        )
+        assert re.search(expected_conf_line, vsr_config)
 
         # revert changes
         scale_deployment(

@@ -3,8 +3,16 @@ import re
 import pytest
 import requests
 from settings import TEST_DATA
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import IC_SELECTOR, ensure_connection_to_public_endpoint, pod_restart, wait_before_test
+from suite.utils.custom_assertions import assert_valid_vs
+from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy, patch_policy
+from suite.utils.resources_utils import (
+    IC_SELECTOR,
+    ensure_connection_to_public_endpoint,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    pod_restart,
+    wait_before_test,
+)
 from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 
 std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
@@ -42,6 +50,42 @@ class TestCachePolicies:
         pol_name = create_policy_from_yaml(kube_apis.custom_objects, policy_src, test_namespace)
         wait_before_test()
         return pol_name
+
+    def test_cache_policy_levels_edited_in_place(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        """
+        Test adding levels to a live cache policy is applied. NGINX rejects a reload that changes the levels of an
+        existing proxy_cache_path, so the cache zone must get a new name.
+        """
+        pol_name = self.setup_cache_policy(kube_apis, test_namespace, cache_pol_basic_src)
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects, virtual_server_setup.vs_name, cache_vs_basic_spec_src, test_namespace
+        )
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+
+        patch_policy(kube_apis.custom_objects, pol_name, test_namespace, {"spec": {"cache": {"levels": "2:2"}}})
+
+        wait_before_test()
+        assert_valid_vs(kube_apis, test_namespace, virtual_server_setup.vs_name)
+        conf = get_vs_nginx_template_conf(
+            kube_apis.v1,
+            test_namespace,
+            virtual_server_setup.vs_name,
+            pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        assert "levels=2:2" in conf
+
+        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, test_namespace
+        )
 
     @pytest.mark.parametrize("src", [cache_vs_basic_spec_src, cache_vs_basic_route_src])
     def test_cache_policy_basic(

@@ -7,7 +7,7 @@ import yaml
 from playwright.sync_api import Error, sync_playwright
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_assertions import assert_vs_status
-from suite.utils.policy_resources_utils import delete_policy
+from suite.utils.policy_resources_utils import delete_policy, patch_policy
 from suite.utils.resources_utils import (
     IC_SELECTOR,
     create_example_app,
@@ -526,3 +526,81 @@ class TestOIDCNativeTrustedCA:
                 ingress_controller_prerequisites.namespace,
                 orig_cm_src,
             )
+
+
+@pytest.mark.native_oidc
+@pytest.mark.skip_for_nginx_oss
+@pytest.mark.parametrize(
+    "crd_ingress_controller, virtual_server_setup, keycloak_setup",
+    [
+        (
+            {"type": "complete", "extra_args": ["-enable-oidc"]},
+            {"example": "virtual-server-tls", "app_type": "simple"},
+            {},
+        )
+    ],
+    indirect=True,
+)
+class TestOIDCNativeSessionTimeoutEditedInPlace:
+    def test_session_timeout_added_in_place(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        test_namespace,
+        virtual_server_setup,
+        keycloak_setup,
+    ):
+        """
+        Test setting sessionTimeout on a live native OIDC policy is applied. NGINX rejects a reload that adds a
+        timeout to an existing keyval_zone, so the session zone must get a new name.
+        """
+        secret_name = None
+        pol = None
+        vs_patched = False
+        try:
+            with open(oidc_native_secret_src) as f:
+                secret_data = yaml.safe_load(f)
+            secret_data["data"]["client-secret"] = keycloak_setup.secret
+            secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
+
+            with open(oidc_native_pol_src["http"]) as f:
+                doc = yaml.safe_load(f)
+            doc["spec"]["oidcNative"]["issuer"] = f"https://{keycloak_setup.host}/realms/master"
+            doc["spec"]["oidcNative"]["sslName"] = keycloak_setup.host
+            pol = doc["metadata"]["name"]
+            kube_apis.custom_objects.create_namespaced_custom_object(
+                "k8s.nginx.org", "v1", test_namespace, "policies", doc
+            )
+            wait_before_test()
+
+            patch_virtual_server_from_yaml(
+                kube_apis.custom_objects, virtual_server_setup.vs_name, oidc_native_vs_src, test_namespace
+            )
+            vs_patched = True
+            assert_vs_status(kube_apis, test_namespace, virtual_server_setup.vs_name, "Valid")
+            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+
+            patch_policy(
+                kube_apis.custom_objects, pol, test_namespace, {"spec": {"oidcNative": {"sessionTimeout": "4h"}}}
+            )
+
+            wait_before_test()
+            assert_vs_status(kube_apis, test_namespace, virtual_server_setup.vs_name, "Valid")
+            conf = get_vs_nginx_template_conf(
+                kube_apis.v1,
+                test_namespace,
+                virtual_server_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            assert "timeout=4h" in conf
+        finally:
+            if vs_patched:
+                patch_virtual_server_from_yaml(
+                    kube_apis.custom_objects, virtual_server_setup.vs_name, orig_vs_src, test_namespace
+                )
+            if pol:
+                delete_policy(kube_apis.custom_objects, pol, test_namespace)
+            if secret_name:
+                delete_secret(kube_apis.v1, secret_name, test_namespace)
