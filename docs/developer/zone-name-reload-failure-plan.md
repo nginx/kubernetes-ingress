@@ -24,7 +24,8 @@ Zone name = existing readable prefix + `_` + a short, stable hash. A changed set
 fresh zone and never runs the failing check.
 
 - The hash covers the resource identity (namespace, name, parent) and every setting NGINX cannot change on a live zone.
-- Safe settings (rate, size, burst, `inactive`, timeout value) stay out of the hash, so counters and caches survive those edits.
+- Safe settings (rate, burst, `inactive`, timeout value) stay out of the hash, so counters and caches survive those edits.
+  A size change also stays out of the hash and reloads cleanly, but NGINX allocates a new zone, so its counters reset.
 - The raw setting text is hashed, never normalised, because NGINX compares it as text (`$x` and `${x}` are different keys).
 - Identity parts are joined with a separator that cannot appear in Kubernetes names, so different boundaries give different hashes.
 - The `_sync` suffix stays last where it already exists.
@@ -85,7 +86,7 @@ No template, struct, CRD or codegen changes.
 ## Must not break
 
 - One Policy used from several places in a VirtualServer still produces one zone.
-- Editing rate, burst, size and similar keeps the zone, so counters and cache contents survive.
+- Editing rate, burst and similar keeps the zone, so counters and cache contents survive. A size change reloads cleanly but resets the zone's counters.
 - OIDC callback URI and cookie name.
 
 ## Definition of done
