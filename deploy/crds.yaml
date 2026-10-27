@@ -2745,6 +2745,21 @@ spec:
                         to consider the server unavailable. The default is set in
                         the fail-timeout ConfigMap key.
                       type: string
+                    hash-subset:
+                      description: HashSubset configures deterministic routing to
+                        a subset of the service endpoints. The hash key selects a
+                        subset and NGINX randomly selects a healthy endpoint within
+                        that subset.
+                      properties:
+                        key:
+                          description: Key is the NGINX variable, text, or combination
+                            used to select a subset.
+                          type: string
+                        size:
+                          description: Size is the number of endpoints in each subset.
+                          minimum: 1
+                          type: integer
+                      type: object
                     healthCheck:
                       description: 'The health check configuration for the Upstream.
                         Note: this feature is supported only in NGINX Plus.'
@@ -4257,6 +4272,21 @@ spec:
                         to consider the server unavailable. The default is set in
                         the fail-timeout ConfigMap key.
                       type: string
+                    hash-subset:
+                      description: HashSubset configures deterministic routing to
+                        a subset of the service endpoints. The hash key selects a
+                        subset and NGINX randomly selects a healthy endpoint within
+                        that subset.
+                      properties:
+                        key:
+                          description: Key is the NGINX variable, text, or combination
+                            used to select a subset.
+                          type: string
+                        size:
+                          description: Size is the number of endpoints in each subset.
+                          minimum: 1
+                          type: integer
+                      type: object
                     healthCheck:
                       description: 'The health check configuration for the Upstream.
                         Note: this feature is supported only in NGINX Plus.'
