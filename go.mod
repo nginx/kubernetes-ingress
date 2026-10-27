@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/cert-manager/cert-manager v1.21.3
-	github.com/dlclark/regexp2/v2 v2.9.1
+	github.com/dlclark/regexp2/v2 v2.11.0
 	github.com/gkampitakis/go-snaps v0.5.24
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
