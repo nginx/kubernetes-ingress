@@ -2,6 +2,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
+from suite.utils.jwt_authorization_utils import AuthzScenario, get_with_token
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
 from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_virtual_server_from_yaml
@@ -22,6 +23,9 @@ jwt_vsr_valid_src = f"{TEST_DATA}/jwt-policy/route-subroute/virtual-server-route
 jwt_vsr_valid_multi_src = f"{TEST_DATA}/jwt-policy/route-subroute/virtual-server-route-valid-subroute-multi.yaml"
 jwt_vs_override_spec_src = f"{TEST_DATA}/jwt-policy/route-subroute/virtual-server-vsr-spec-override.yaml"
 jwt_vs_override_route_src = f"{TEST_DATA}/jwt-policy/route-subroute/virtual-server-vsr-route-override.yaml"
+jwt_vsr_authz_src = f"{TEST_DATA}/jwt-policy/authorization/vsr-subroute-policy.yaml"
+jwt_vsr_authz_two_src = f"{TEST_DATA}/jwt-policy/authorization/vsr-subroute-two-policies.yaml"
+jwt_vs_authz_spec_src = f"{TEST_DATA}/jwt-policy/authorization/vs-vsr-spec-policy.yaml"
 valid_token = f"{TEST_DATA}/jwt-policy/token.jwt"
 invalid_token = f"{TEST_DATA}/jwt-policy/invalid-token.jwt"
 
@@ -545,3 +549,104 @@ class TestJWTPoliciesVsr:
         )
         assert resp.status_code == 401
         assert f"Authorization Required" in resp.text
+
+
+@pytest.mark.skip_for_nginx_oss
+@pytest.mark.policies
+@pytest.mark.policies_jwt
+@pytest.mark.parametrize(
+    "crd_ingress_controller, v_s_route_setup",
+    [
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-custom-resources",
+                    f"-enable-leader-election=false",
+                ],
+            },
+            {"example": "virtual-server-route"},
+        )
+    ],
+    indirect=True,
+)
+class TestJWTAuthorizationPoliciesVsr:
+    """Claim authorization (spec.jwt.authorization) on a VirtualServerRoute subroute."""
+
+    def request(self, v_s_route_setup, path, token_name):
+        url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}{path}"
+        return get_with_token(url, v_s_route_setup.vs_host, token_name)
+
+    def test_subroute_policy_claims(self, kube_apis, crd_ingress_controller, v_s_route_app_setup, v_s_route_setup):
+        """
+        The subroute with the policy returns 401 without a valid token, 403 when the claims fail and 200
+        when they pass. The other subroute has no policy and is not affected.
+        """
+        namespace = v_s_route_setup.route_m.namespace
+        with AuthzScenario(kube_apis, namespace, ["policy-claims"]):
+            patch_v_s_route_from_yaml(
+                kube_apis.custom_objects, v_s_route_setup.route_m.name, jwt_vsr_authz_src, namespace
+            )
+            wait_before_test()
+            guarded = v_s_route_setup.route_m.paths[0]
+            open_path = v_s_route_setup.route_m.paths[1]
+            try:
+                no_token = self.request(v_s_route_setup, guarded, None)
+                passes = self.request(v_s_route_setup, guarded, "basic")
+                fails = self.request(v_s_route_setup, guarded, "guest")
+                missing = self.request(v_s_route_setup, guarded, "noclaims")
+                unguarded = self.request(v_s_route_setup, open_path, None)
+            finally:
+                patch_v_s_route_from_yaml(
+                    kube_apis.custom_objects, v_s_route_setup.route_m.name, std_vsr_src, namespace
+                )
+
+        assert no_token.status_code == 401
+        assert passes.status_code == 200
+        assert fails.status_code == 403
+        assert missing.status_code == 403
+        assert unguarded.status_code == 200
+
+    def test_two_subroutes_with_different_authorization(
+        self, kube_apis, crd_ingress_controller, v_s_route_app_setup, v_s_route_setup
+    ):
+        """Each subroute is gated by its own policy: one returns 403, the other 401, for the same token."""
+        namespace = v_s_route_setup.route_m.namespace
+        with AuthzScenario(kube_apis, namespace, ["policy-claims", "policy-error-code-401"]):
+            patch_v_s_route_from_yaml(
+                kube_apis.custom_objects, v_s_route_setup.route_m.name, jwt_vsr_authz_two_src, namespace
+            )
+            wait_before_test()
+            first, second = v_s_route_setup.route_m.paths[0], v_s_route_setup.route_m.paths[1]
+            try:
+                resp_first = self.request(v_s_route_setup, first, "guest")
+                resp_second = self.request(v_s_route_setup, second, "guest")
+            finally:
+                patch_v_s_route_from_yaml(
+                    kube_apis.custom_objects, v_s_route_setup.route_m.name, std_vsr_src, namespace
+                )
+
+        assert resp_first.status_code == 403  # no scope claim
+        assert resp_second.status_code == 401  # role is guest, errorCode is 401
+
+    def test_vs_spec_policy_applies_to_subroutes(
+        self, kube_apis, crd_ingress_controller, v_s_route_app_setup, v_s_route_setup
+    ):
+        """A policy on the parent VirtualServer spec gates the subroutes that have none of their own."""
+        namespace = v_s_route_setup.namespace
+        with AuthzScenario(kube_apis, namespace, ["policy-claims"]):
+            patch_virtual_server_from_yaml(
+                kube_apis.custom_objects, v_s_route_setup.vs_name, jwt_vs_authz_spec_src, namespace
+            )
+            wait_before_test()
+            path = v_s_route_setup.route_m.paths[0]
+            try:
+                passes = self.request(v_s_route_setup, path, "basic")
+                fails = self.request(v_s_route_setup, path, "guest")
+                no_token = self.request(v_s_route_setup, path, None)
+            finally:
+                patch_virtual_server_from_yaml(kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, namespace)
+
+        assert passes.status_code == 200
+        assert fails.status_code == 403
+        assert no_token.status_code == 401
