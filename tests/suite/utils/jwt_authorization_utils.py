@@ -3,8 +3,8 @@
 import requests
 import yaml
 from settings import TEST_DATA
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
+from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
+from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, retry_get_until_status_code
 
 AUTHZ_DIR = f"{TEST_DATA}/jwt-policy/authorization"
 TOKENS_DIR = f"{TEST_DATA}/jwt-policy/tokens"
@@ -39,11 +39,18 @@ def vs_manifest(vs_src: str, spec_policy=None, route_policy=None) -> dict:
     return vs
 
 
-def create_authz_policy(custom_objects, name: str, namespace: str) -> str:
-    """Create one of the policies in tests/data/jwt-policy/authorization and wait for it to be applied."""
-    pol_name = create_policy_from_yaml(custom_objects, policy_src(name), namespace)
-    wait_before_test()
-    return pol_name
+def create_authz_policy(kube_apis, name: str, namespace: str) -> str:
+    """Create one of the policies in tests/data/jwt-policy/authorization and wait until it is Valid."""
+    return apply_and_wait_for_valid_policy(kube_apis, namespace, policy_src(name))
+
+
+def wait_for_jwt_policy(url: str, host: str) -> None:
+    """
+    Poll without a token until the response is 401, which only happens once the JWT policy is live in
+    NGINX (before that the route returns 200 or 404). Tolerates connections dropped during a reload.
+    """
+    resp = retry_get_until_status_code(url, host, 401, timeout=5)
+    assert resp.status_code == 401, f"JWT policy not applied on {url}, last status {resp.status_code}"
 
 
 def get_with_token(url: str, host: str, token_name=None, extra_headers=None) -> requests.Response:
@@ -87,7 +94,7 @@ class AuthzScenario:
     def __enter__(self):
         self.secret_name = create_secret_from_yaml(self.kube_apis.v1, self.namespace, jwk_secret_valid_src)
         for pol in self.policies:
-            self.policy_names.append(create_authz_policy(self.kube_apis.custom_objects, pol, self.namespace))
+            self.policy_names.append(create_authz_policy(self.kube_apis, pol, self.namespace))
         return self
 
     def __exit__(self, *exc):
