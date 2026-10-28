@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/dlclark/regexp2/v2"
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -241,7 +242,8 @@ func validateJWTClaimValue(value string, match v1.JWTClaimMatchType, fieldPath *
 	if value == "" {
 		return field.ErrorList{field.Invalid(fieldPath, value, "must not be empty, use match: Present to check that a claim exists")}
 	}
-	if len(value) > maxJWTClaimValueLength {
+	// The CRD maxLength counts characters, not bytes.
+	if utf8.RuneCountInString(value) > maxJWTClaimValueLength {
 		return field.ErrorList{field.TooLong(fieldPath, value, maxJWTClaimValueLength)}
 	}
 	// The generator escapes quotes and backslashes in every value, but other control
@@ -275,92 +277,21 @@ func validateJWTClaimRegex(pattern string, fieldPath *field.Path) field.ErrorLis
 	if strings.ContainsAny(pattern, "\r\n`") {
 		return field.ErrorList{field.Invalid(fieldPath, pattern, "must not include line breaks or backticks")}
 	}
+	// The two checks below mirror the CRD CEL rule on JWTClaim.values. They are deliberately plain
+	// substring tests, so escaped or bracketed text such as \(?<n> or [(?<n>] is refused too.
+	//
 	// NGINX registers a named capture in a map regex as an HTTP variable, so (?<host>.*) would
 	// collide with $host and fail to load. Numbered captures and non-capturing groups are fine.
-	if hasNamedCapture(pattern) {
-		return field.ErrorList{field.Invalid(fieldPath, pattern, "must not use named captures, use a numbered or non-capturing group instead")}
-	}
 	// regexp2 accepts variable-length lookbehind, but NGINX builds with PCRE2 older than 10.43 reject it
 	// and fail to load the configuration, so lookbehind is refused outright.
-	if hasLookbehind(pattern) {
+	if strings.Contains(pattern, "(?<=") || strings.Contains(pattern, "(?<!") {
 		return field.ErrorList{field.Invalid(fieldPath, pattern, "must not use lookbehind ((?<= or (?<!), it is not supported by every PCRE2 version NGINX is built with")}
+	}
+	if strings.Contains(pattern, "(?<") || strings.Contains(pattern, "(?P<") || strings.Contains(pattern, "(?'") {
+		return field.ErrorList{field.Invalid(fieldPath, pattern, "must not use named captures, use a numbered or non-capturing group instead")}
 	}
 	if _, err := regexp2.Compile(pattern); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, pattern, fmt.Sprintf("must be a valid regular expression: %v", err))}
 	}
 	return nil
-}
-
-// hasNamedCapture reports whether the pattern defines a named capture group, in any of the
-// syntaxes (?<name>...), (?P<name>...) or (?'name'...). Escaped characters and character
-// classes are skipped, and lookbehinds ((?<= and (?<!) are not named captures.
-func hasNamedCapture(pattern string) bool {
-	return hasGroup(pattern, opensNamedCapture)
-}
-
-// hasLookbehind reports whether the pattern contains a lookbehind, (?<= or (?<!. Escaped
-// characters and character classes are skipped.
-func hasLookbehind(pattern string) bool {
-	return hasGroup(pattern, opensLookbehind)
-}
-
-// hasGroup reports whether opens is true for the text after any unescaped '(' outside a character class.
-func hasGroup(pattern string, opens func(rest []rune) bool) bool {
-	runes := []rune(pattern)
-	for i := 0; i < len(runes); i++ {
-		switch runes[i] {
-		case '\\':
-			i++ // skip the escaped character
-		case '[':
-			i = skipCharClass(runes, i)
-		case '(':
-			if opens(runes[i+1:]) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// skipCharClass returns the index of the ']' that closes the character class opened at runes[start].
-// A ']' directly after '[' or '[^' is a literal. An unterminated class runs to the end of the pattern.
-func skipCharClass(runes []rune, start int) int {
-	i := start + 1
-	if i < len(runes) && runes[i] == '^' {
-		i++
-	}
-	if i < len(runes) && runes[i] == ']' {
-		i++
-	}
-	for ; i < len(runes); i++ {
-		switch runes[i] {
-		case '\\':
-			i++
-		case ']':
-			return i
-		}
-	}
-	return len(runes)
-}
-
-// opensNamedCapture reports whether the text after a '(' starts a named capture group.
-func opensNamedCapture(rest []rune) bool {
-	if len(rest) < 2 || rest[0] != '?' {
-		return false
-	}
-	switch rest[1] {
-	case '\'':
-		return true
-	case 'P':
-		return len(rest) > 2 && rest[2] == '<'
-	case '<':
-		// (?<= and (?<! are lookbehinds.
-		return len(rest) > 2 && rest[2] != '=' && rest[2] != '!'
-	}
-	return false
-}
-
-// opensLookbehind reports whether the text after a '(' starts a lookbehind.
-func opensLookbehind(rest []rune) bool {
-	return len(rest) > 2 && rest[0] == '?' && rest[1] == '<' && (rest[2] == '=' || rest[2] == '!')
 }

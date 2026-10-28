@@ -50,6 +50,14 @@ func TestValidateJWTAuthorization_PassesOnValidInput(t *testing.T) {
 			}),
 		},
 		{
+			name: "256 multibyte characters in value",
+			jwt:  jwtWithClaims(v1.JWTClaim{Name: "iss", Values: []string{strings.Repeat("é", 256)}}),
+		},
+		{
+			name: "256 three-byte characters in value",
+			jwt:  jwtWithClaims(v1.JWTClaim{Name: "iss", Values: []string{strings.Repeat("日", 256)}}),
+		},
+		{
 			name: "present without values",
 			jwt:  jwtWithClaims(v1.JWTClaim{Name: "email", Match: jwtMatch(v1.JWTClaimMatchPresent)}),
 		},
@@ -226,6 +234,11 @@ func TestValidateJWTAuthorization_FailsOnInvalidInput(t *testing.T) {
 			wantErr: "values[0]",
 		},
 		{
+			name:    "value too long in multibyte characters",
+			jwt:     jwtWithClaims(v1.JWTClaim{Name: "aud", Values: []string{strings.Repeat("é", 257)}}),
+			wantErr: "values[0]",
+		},
+		{
 			name:    "unknown match type",
 			jwt:     jwtWithClaims(v1.JWTClaim{Name: "aud", Match: jwtMatch("Prefix"), Values: []string{"a"}}),
 			wantErr: "match",
@@ -382,6 +395,16 @@ func TestValidateJWTAuthorization_FailsOnInvalidInput(t *testing.T) {
 			wantErr: "lookbehind",
 		},
 		{
+			name:    "regex with escaped (?< is refused like the CRD CEL rule",
+			jwt:     jwtWithClaims(v1.JWTClaim{Name: "email", Match: jwtMatch(v1.JWTClaimMatchRegex), Values: []string{`^\(?<n>x\)$`}}),
+			wantErr: "named captures",
+		},
+		{
+			name:    "regex with (?< inside a character class is refused like the CRD CEL rule",
+			jwt:     jwtWithClaims(v1.JWTClaim{Name: "email", Match: jwtMatch(v1.JWTClaimMatchRegex), Values: []string{`^[(?<n>]x$`}}),
+			wantErr: "named captures",
+		},
+		{
 			name:    "claim name with empty segment",
 			jwt:     jwtWithClaims(v1.JWTClaim{Name: "a..b", Values: []string{"a"}}),
 			wantErr: "empty segments",
@@ -468,8 +491,6 @@ func TestValidateJWTAuthorization_AcceptsRegexesUsedInDocsAndExamples(t *testing
 		`^(Gold|Platinum)$`,
 		`^[a-z0-9]{3,12}$`,
 		`^(?:admin|root)$`,
-		`^[(?<n>]x$`,
-		`^\(?<n>x\)$`,
 	}
 
 	for _, pattern := range patterns {
@@ -497,63 +518,6 @@ func TestValidateJWTClaimPath(t *testing.T) {
 	for _, path := range invalid {
 		if allErrs := validateJWTClaimPath(path, field.NewPath("name")); len(allErrs) == 0 {
 			t.Errorf("validateJWTClaimPath(%q) returned no errors for invalid input", path)
-		}
-	}
-}
-
-func TestHasLookbehind(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		pattern string
-		want    bool
-	}{
-		{`(?<=a)b`, true},
-		{`(?<!a)b`, true},
-		{`x(?<=a+)b`, true},
-		{`\(?<=a)b`, false},
-		{`[(?<=]`, false},
-		{`(?<n>x)`, false},
-		{`(?=a)b`, false},
-		{`(?!a)b`, false},
-		{`^a$`, false},
-		{`(?<`, false},
-	}
-
-	for _, tc := range tests {
-		if got := hasLookbehind(tc.pattern); got != tc.want {
-			t.Errorf("hasLookbehind(%q) = %v, want %v", tc.pattern, got, tc.want)
-		}
-	}
-}
-
-func TestHasNamedCapture(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		pattern string
-		want    bool
-	}{
-		{`^(?<host>.*)$`, true},
-		{`^(?P<host>.*)$`, true},
-		{`^(?'host'.*)$`, true},
-		{`a(?<n>b)c`, true},
-		{`^(a|b)$`, false},
-		{`^(?:a|b)$`, false},
-		{`(?<=a)b`, false},
-		{`(?<!a)b`, false},
-		{`(?=a)b`, false},
-		{`\(?<n>b`, false},
-		{`[(?<n>]`, false},
-		{`[^(?<n>]`, false},
-		{`[]](?<n>x)`, true},
-		{`^a$`, false},
-		{`\\(?<n>x)`, true},
-	}
-
-	for _, tc := range tests {
-		if got := hasNamedCapture(tc.pattern); got != tc.want {
-			t.Errorf("hasNamedCapture(%q) = %v, want %v", tc.pattern, got, tc.want)
 		}
 	}
 }

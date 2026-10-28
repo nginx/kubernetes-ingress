@@ -233,10 +233,14 @@ func TestCRDSchemaGateJWTClaimValues(t *testing.T) {
 		{"regex named capture angle", policy(conf_v1.JWTClaimMatchRegex, `^(?<host>.*)$`), false},
 		{"regex named capture P", policy(conf_v1.JWTClaimMatchRegex, `^(?P<host>.*)$`), false},
 		{"regex named capture quote", policy(conf_v1.JWTClaimMatchRegex, `^(?'host'.*)$`), false},
+		{"regex escaped named capture", policy(conf_v1.JWTClaimMatchRegex, `^\(?<n>x\)$`), false},
+		{"regex bracketed named capture", policy(conf_v1.JWTClaimMatchRegex, `^[(?<n>]x$`), false},
 		{"32 values", policy(conf_v1.JWTClaimMatchExact, many(32)...), true},
 		{"33 values", policy(conf_v1.JWTClaimMatchExact, many(33)...), false},
 		{"256 character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("a", 256)), true},
 		{"257 character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("a", 257)), false},
+		{"256 multibyte character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("é", 256)), true},
+		{"257 multibyte character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("é", 257)), false},
 	}
 
 	for _, tc := range tests {
