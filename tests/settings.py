@@ -6,6 +6,7 @@ BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEPLOYMENTS = f"{BASEDIR}/deployments"
 HELM_CHARTS = f"{BASEDIR}/charts/nginx-ingress"
 CRDS = f"{BASEDIR}/config/crd/bases"
+CRDS_UPSTREAM = f"{BASEDIR}/config/crd/upstream"
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 TEST_DATA = f"{PROJECT_ROOT}/data"
 NUM_REPLICAS = 1
@@ -33,4 +34,4 @@ NS_COUNT = 0
 # Nginx registry address to pull waf components from
 NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
 # WAF component version to pull from above registry
-WAF_V5_VERSION = "5.15.0"
+WAF_V5_VERSION = "5.16.0"

@@ -8,6 +8,8 @@ from suite.utils.resources_utils import (
     create_namespace_with_name_from_yaml,
     delete_namespace,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import create_v_s_route_from_yaml, create_virtual_server_from_yaml
@@ -101,8 +103,9 @@ def vsr_canary_setup(
     backends_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}{vsr_paths[0]}"
 
     print("---------------------- Deploy simple app ----------------------------")
-    create_example_app(kube_apis, "simple", ns_1)
-    wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", ns_1, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, ns_1, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

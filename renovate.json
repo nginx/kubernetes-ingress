@@ -274,6 +274,7 @@
       "matchDatasources": [
         "docker",
         "github-releases",
+        "github-tags",
         "go",
         "golang-version"
       ],
@@ -296,16 +297,6 @@
         "**/*.md"
       ],
       "enabled": false
-    },
-    {
-      "description": "Hold external-dns at v0.20.x. From v0.21.0 its CRD source ignores --crd-source-apiversion and only reads externaldns.k8s.io/v1alpha1, which breaks the externaldns.nginx.org/v1 integration used by the example and the e2e fixture. Remove once NIC supports the upstream group - see https://github.com/nginx/kubernetes-ingress/issues/9779.",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "registry.k8s.io/external-dns/external-dns"
-      ],
-      "allowedVersions": "/^v0\\.([0-9]|1[0-9]|20)\\.[0-9]+$/"
     }
   ],
   "kubernetes": {
@@ -454,7 +445,7 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.6",
+    "release-5.7",
     "release-2026-lts"
   ],
   "commitBodyTable": true,

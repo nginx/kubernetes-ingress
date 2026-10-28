@@ -314,3 +314,5 @@ Rules:
 ## GitHub Copilot Code Review bot
 
 The bot reads `.github/copilot-instructions.md` on every PR. The `Skills` and `Code Review Checklist` sections there reference this file, so keep this skill authoritative and keep `copilot-instructions.md` short.
+
+Before walking the review dimensions, the bot runs the triage gates in [`nic-contribution-review`](../nic-contribution-review/SKILL.md) and reviews only the code those gates leave in scope. That skill is bot-only: local reviews (`/pr-review`, IDE chat, Copilot CLI, Claude Code) never load it and run this workflow unchanged.

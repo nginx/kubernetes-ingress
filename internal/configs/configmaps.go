@@ -18,7 +18,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	k8s_validation "k8s.io/apimachinery/pkg/util/validation" // still used by parseConfigMapOpenTelemetry
 )
 
 const (
@@ -35,6 +34,16 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	l := nl.LoggerFromContext(ctx)
 	cfgParams := NewDefaultConfigParams(ctx, nginxPlus)
 	configOk := true
+	parseString := func(key string, parseFunc func(string) (string, error), assignFunc func(string)) {
+		if err := parseStringField(cfgm, key, parseFunc, assignFunc, "", l, eventLog); err != nil {
+			configOk = false
+		}
+	}
+	parseStrings := func(key string, parseFunc func(string) ([]string, error), assignFunc func([]string)) {
+		if err := parseStringSliceField(cfgm, key, parseFunc, assignFunc, l, eventLog); err != nil {
+			configOk = false
+		}
+	}
 
 	// valid values for server token are on | off | build | string;
 	// oss can only use on | off
@@ -42,7 +51,19 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		// this may be a build | string
 		if err != nil {
 			if nginxPlus {
-				cfgParams.ServerTokens = cfgm.Data["server-tokens"]
+				serverTokensValue := cfgm.Data["server-tokens"]
+				// The ingress template quotes this value plainly, so it is
+				// already escaped for NGINX and must be validated as such.
+				// Escaping it again here would change the Server header NGINX
+				// sends.
+				if err := validation.ValidateQuotedDirectiveValue(serverTokensValue); err != nil {
+					errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'server-tokens': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), serverTokensValue, err)
+					nl.Error(l, errorText)
+					eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+					configOk = false
+				} else {
+					cfgParams.ServerTokens = serverTokensValue
+				}
 			} else {
 				errorText := fmt.Sprintf("ConfigMap %s/%s: 'server-tokens' must be a bool for OSS, ignoring", cfgm.GetNamespace(), cfgm.GetName())
 				nl.Error(l, errorText)
@@ -79,25 +100,11 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if proxyConnectTimeout, exists := cfgm.Data["proxy-connect-timeout"]; exists {
-		cfgParams.ProxyConnectTimeout = proxyConnectTimeout
-	}
-
-	if proxyReadTimeout, exists := cfgm.Data["proxy-read-timeout"]; exists {
-		cfgParams.ProxyReadTimeout = proxyReadTimeout
-	}
-
-	if proxySendTimeout, exists := cfgm.Data["proxy-send-timeout"]; exists {
-		cfgParams.ProxySendTimeout = proxySendTimeout
-	}
-
-	if proxyHideHeaders, exists := GetMapKeyAsStringSlice(cfgm.Data, "proxy-hide-headers", cfgm, ","); exists {
-		cfgParams.ProxyHideHeaders = proxyHideHeaders
-	}
-
-	if proxyPassHeaders, exists := GetMapKeyAsStringSlice(cfgm.Data, "proxy-pass-headers", cfgm, ","); exists {
-		cfgParams.ProxyPassHeaders = proxyPassHeaders
-	}
+	parseString("proxy-connect-timeout", ParseTime, func(value string) { cfgParams.ProxyConnectTimeout = value })
+	parseString("proxy-read-timeout", ParseTime, func(value string) { cfgParams.ProxyReadTimeout = value })
+	parseString("proxy-send-timeout", ParseTime, func(value string) { cfgParams.ProxySendTimeout = value })
+	parseStrings("proxy-hide-headers", ParseHeaderList, func(value []string) { cfgParams.ProxyHideHeaders = value })
+	parseStrings("proxy-pass-headers", ParseHeaderList, func(value []string) { cfgParams.ProxyPassHeaders = value })
 
 	if addHeader, exists := cfgm.Data["add-header"]; exists {
 		// ConfigMap "add-header" is a global default → http {} context.
@@ -146,9 +153,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		configOk = false
 	}
 
-	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
-		cfgParams.ClientMaxBodySize = clientMaxBodySize
-	}
+	parseString("client-max-body-size", ParseOffset, func(value string) { cfgParams.ClientMaxBodySize = value })
 
 	if clientBodyBufferSize, exists := cfgm.Data["client-body-buffer-size"]; exists {
 		if parsedClientBodyBufferSize, err := ParseSize(clientBodyBufferSize); err != nil {
@@ -161,21 +166,10 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if serverNamesHashBucketSize, exists := cfgm.Data["server-names-hash-bucket-size"]; exists {
-		cfgParams.MainServerNamesHashBucketSize = serverNamesHashBucketSize
-	}
-
-	if serverNamesHashMaxSize, exists := cfgm.Data["server-names-hash-max-size"]; exists {
-		cfgParams.MainServerNamesHashMaxSize = serverNamesHashMaxSize
-	}
-
-	if mapHashBucketSize, exists := cfgm.Data["map-hash-bucket-size"]; exists {
-		cfgParams.MainMapHashBucketSize = mapHashBucketSize
-	}
-
-	if mapHashMaxSize, exists := cfgm.Data["map-hash-max-size"]; exists {
-		cfgParams.MainMapHashMaxSize = mapHashMaxSize
-	}
+	parseString("server-names-hash-bucket-size", ParseUnsignedInteger, func(value string) { cfgParams.MainServerNamesHashBucketSize = value })
+	parseString("server-names-hash-max-size", ParseUnsignedInteger, func(value string) { cfgParams.MainServerNamesHashMaxSize = value })
+	parseString("map-hash-bucket-size", ParseUnsignedInteger, func(value string) { cfgParams.MainMapHashBucketSize = value })
+	parseString("map-hash-max-size", ParseUnsignedInteger, func(value string) { cfgParams.MainMapHashMaxSize = value })
 
 	if HTTP2, exists, err := GetMapKeyAsBool(cfgm.Data, "http2", cfgm); exists {
 		if err != nil {
@@ -279,7 +273,15 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if realIPHeader, exists := cfgm.Data["real-ip-header"]; exists {
-		if hasTLSPassthrough {
+		// A YAML block scalar adds a trailing newline, which NGINX reads as a
+		// token separator, so surrounding whitespace was always accepted.
+		realIPHeader = strings.TrimSpace(realIPHeader)
+		if msgs := validation.ValidateRealIPHeader(realIPHeader); len(msgs) != 0 {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'real-ip-header': %q, %s, ignoring", cfgm.GetNamespace(), cfgm.GetName(), realIPHeader, strings.Join(msgs, "; "))
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else if hasTLSPassthrough {
 			errorText := fmt.Sprintf("ConfigMap %s/%s: 'real-ip-header' is ignored because 'real_ip_header' is automatically set to 'proxy_protocol' when TLS passthrough is enabled, ignoring", cfgm.GetNamespace(), cfgm.GetName())
 			if realIPHeader == "proxy_protocol" {
 				nl.Info(l, errorText)
@@ -293,9 +295,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if setRealIPFrom, exists := GetMapKeyAsStringSlice(cfgm.Data, "set-real-ip-from", cfgm, ","); exists {
-		cfgParams.SetRealIPFrom = setRealIPFrom
-	}
+	parseStrings("set-real-ip-from", ParseSetRealIPFrom, func(value []string) { cfgParams.SetRealIPFrom = value })
 
 	if realIPRecursive, exists, err := GetMapKeyAsBool(cfgm.Data, "real-ip-recursive", cfgm); exists {
 		if err != nil {
@@ -308,7 +308,14 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if sslProtocols, exists := cfgm.Data["ssl-protocols"]; exists {
-		cfgParams.MainServerSSLProtocols = sslProtocols
+		if err := validation.ValidateTLSProtocols(sslProtocols); err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'ssl-protocols': %q, ignoring", cfgm.GetNamespace(), cfgm.GetName(), sslProtocols)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else {
+			cfgParams.MainServerSSLProtocols = sslProtocols
+		}
 	}
 
 	if sslPreferServerCiphers, exists, err := GetMapKeyAsBool(cfgm.Data, "ssl-prefer-server-ciphers", cfgm); exists {
@@ -322,7 +329,15 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if sslCiphers, exists := cfgm.Data["ssl-ciphers"]; exists {
-		cfgParams.MainServerSSLCiphers = strings.Trim(sslCiphers, "\n")
+		sslCiphers = strings.Trim(sslCiphers, "\n")
+		if !validation.SSLCiphersRegex.MatchString(sslCiphers) {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'ssl-ciphers': %q, ignoring", cfgm.GetNamespace(), cfgm.GetName(), sslCiphers)
+			nl.Warn(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else {
+			cfgParams.MainServerSSLCiphers = sslCiphers
+		}
 	}
 
 	if sslDHParamFile, exists := cfgm.Data["ssl-dhparam-file"]; exists {
@@ -330,12 +345,11 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainServerSSLDHParamFileContent = &sslDHParamFile
 	}
 
-	if errorLogLevel, exists := cfgm.Data["error-log-level"]; exists {
-		cfgParams.MainErrorLogLevel = errorLogLevel
-	}
+	parseString("error-log-level", ParseErrorLogLevel, func(value string) { cfgParams.MainErrorLogLevel = value })
 
 	if accessLog, exists := cfgm.Data["access-log"]; exists {
-		if !strings.HasPrefix(accessLog, "syslog:") {
+		accessLog = strings.TrimSpace(accessLog)
+		if !strings.HasPrefix(accessLog, "syslog:") || validation.ValidateDirectiveValue(accessLog) != nil {
 			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'access-log': %q, ignoring", cfgm.GetNamespace(), cfgm.GetName(), accessLog)
 			nl.Warn(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
@@ -357,27 +371,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if logFormat, exists := GetMapKeyAsStringSlice(cfgm.Data, "log-format", cfgm, "\n"); exists {
-		cfgParams.MainLogFormat = logFormat
-	}
+	parseStrings("log-format", parseLogFormat, func(value []string) { cfgParams.MainLogFormat = value })
 
-	if logFormatEscaping, exists := cfgm.Data["log-format-escaping"]; exists {
-		logFormatEscaping = strings.TrimSpace(logFormatEscaping)
-		if logFormatEscaping != "" {
-			cfgParams.MainLogFormatEscaping = logFormatEscaping
-		}
-	}
+	parseString("log-format-escaping", ParseLogFormatEscaping, func(value string) { cfgParams.MainLogFormatEscaping = value })
 
-	if streamLogFormat, exists := GetMapKeyAsStringSlice(cfgm.Data, "stream-log-format", cfgm, "\n"); exists {
-		cfgParams.MainStreamLogFormat = streamLogFormat
-	}
+	parseStrings("stream-log-format", parseLogFormat, func(value []string) { cfgParams.MainStreamLogFormat = value })
 
-	if streamLogFormatEscaping, exists := cfgm.Data["stream-log-format-escaping"]; exists {
-		streamLogFormatEscaping = strings.TrimSpace(streamLogFormatEscaping)
-		if streamLogFormatEscaping != "" {
-			cfgParams.MainStreamLogFormatEscaping = streamLogFormatEscaping
-		}
-	}
+	parseString("stream-log-format-escaping", ParseLogFormatEscaping, func(value string) { cfgParams.MainStreamLogFormatEscaping = value })
 
 	if defaultServerAccessLogOff, exists, err := GetMapKeyAsBool(cfgm.Data, "default-server-access-log-off", cfgm); exists {
 		if err != nil {
@@ -389,9 +389,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if defaultServerReturn, exists := cfgm.Data["default-server-return"]; exists {
-		cfgParams.DefaultServerReturn = defaultServerReturn
-	}
+	parseString("default-server-return", func(value string) (string, error) {
+		value = strings.TrimSpace(value)
+		if err := validation.ValidateDirectiveValue(value); err != nil {
+			return "", err
+		}
+		return value, nil
+	}, func(value string) { cfgParams.DefaultServerReturn = value })
 
 	if proxyBuffering, exists, err := GetMapKeyAsBool(cfgm.Data, "proxy-buffering", cfgm); exists {
 		if err != nil {
@@ -454,9 +458,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if proxyMaxTempFileSize, exists := cfgm.Data["proxy-max-temp-file-size"]; exists {
-		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
-	}
+	parseString("proxy-max-temp-file-size", ParseSize, func(value string) { cfgParams.ProxyMaxTempFileSize = value })
 
 	if mainMainSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "main-snippets", cfgm, "\n"); exists {
 		cfgParams.MainMainSnippets = mainMainSnippets
@@ -495,21 +497,10 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if workerCPUAffinity, exists := cfgm.Data["worker-cpu-affinity"]; exists {
-		cfgParams.MainWorkerCPUAffinity = workerCPUAffinity
-	}
-
-	if workerShutdownTimeout, exists := cfgm.Data["worker-shutdown-timeout"]; exists {
-		cfgParams.MainWorkerShutdownTimeout = workerShutdownTimeout
-	}
-
-	if workerConnections, exists := cfgm.Data["worker-connections"]; exists {
-		cfgParams.MainWorkerConnections = workerConnections
-	}
-
-	if workerRlimitNofile, exists := cfgm.Data["worker-rlimit-nofile"]; exists {
-		cfgParams.MainWorkerRlimitNofile = workerRlimitNofile
-	}
+	parseString("worker-cpu-affinity", ParseWorkerCPUAffinity, func(value string) { cfgParams.MainWorkerCPUAffinity = value })
+	parseString("worker-shutdown-timeout", ParseTime, func(value string) { cfgParams.MainWorkerShutdownTimeout = value })
+	parseString("worker-connections", ParseUnsignedInteger, func(value string) { cfgParams.MainWorkerConnections = value })
+	parseString("worker-rlimit-nofile", ParseUnsignedInteger, func(value string) { cfgParams.MainWorkerRlimitNofile = value })
 
 	if keepalive, exists, err := GetMapKeyAsInt(cfgm.Data, "keepalive", cfgm); exists {
 		if err != nil {
@@ -541,13 +532,8 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		configOk = false
 	}
 
-	if upstreamZoneSize, exists := cfgm.Data["upstream-zone-size"]; exists {
-		cfgParams.UpstreamZoneSize = upstreamZoneSize
-	}
-
-	if failTimeout, exists := cfgm.Data["fail-timeout"]; exists {
-		cfgParams.FailTimeout = failTimeout
-	}
+	parseString("upstream-zone-size", ParseSize, func(value string) { cfgParams.UpstreamZoneSize = value })
+	parseString("fail-timeout", ParseTime, func(value string) { cfgParams.FailTimeout = value })
 
 	if mainTemplate, exists := cfgm.Data["main-template"]; exists {
 		cfgParams.MainTemplate = &mainTemplate
@@ -577,9 +563,17 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainStreamSnippets = mainStreamSnippets
 	}
 
-	if resolverAddresses, exists := GetMapKeyAsStringSlice(cfgm.Data, "resolver-addresses", cfgm, ","); exists {
+	if resolverAddresses, exists := cfgm.Data["resolver-addresses"]; exists {
 		if nginxPlus {
-			cfgParams.ResolverAddresses = resolverAddresses
+			parsedResolverAddresses, err := ParseResolverAddresses(resolverAddresses)
+			if err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-addresses': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverAddresses, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			} else {
+				cfgParams.ResolverAddresses = parsedResolverAddresses
+			}
 		} else {
 			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-addresses")
 			nl.Warn(l, errorText)
@@ -607,7 +601,15 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	if resolverValid, exists := cfgm.Data["resolver-valid"]; exists {
 		if nginxPlus {
-			cfgParams.ResolverValid = resolverValid
+			parsedResolverValid, err := ParseTime(resolverValid)
+			if err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-valid': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverValid, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			} else {
+				cfgParams.ResolverValid = parsedResolverValid
+			}
 		} else {
 			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-valid")
 			nl.Warn(l, errorText)
@@ -618,7 +620,15 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	if resolverTimeout, exists := cfgm.Data["resolver-timeout"]; exists {
 		if nginxPlus {
-			cfgParams.ResolverTimeout = resolverTimeout
+			parsedResolverTimeout, err := ParseTime(resolverTimeout)
+			if err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-timeout': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverTimeout, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			} else {
+				cfgParams.ResolverTimeout = parsedResolverTimeout
+			}
 		} else {
 			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-timeout")
 			nl.Warn(l, errorText)
@@ -627,9 +637,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if keepaliveTimeout, exists := cfgm.Data["keepalive-timeout"]; exists {
-		cfgParams.MainKeepaliveTimeout = keepaliveTimeout
-	}
+	parseString("keepalive-timeout", ParseKeepaliveTimeout, func(value string) { cfgParams.MainKeepaliveTimeout = value })
 
 	if keepaliveRequests, exists, err := GetMapKeyAsInt64(cfgm.Data, "keepalive-requests", cfgm); exists {
 		if err != nil {
@@ -700,10 +708,20 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 
 		if appProtectCookieSeed, exists := cfgm.Data["app-protect-cookie-seed"]; exists {
-			cfgParams.MainAppProtectCookieSeed = appProtectCookieSeed
+			// The seed is secret, so a rejected value is never logged or put in
+			// an Event: a near miss usually is most of the real seed.
+			if parsed, err := ParseAppProtectCookieSeed(appProtectCookieSeed); err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'app-protect-cookie-seed': %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			} else {
+				cfgParams.MainAppProtectCookieSeed = parsed
+			}
 		}
 
 		if appProtectCPUThresholds, exists := cfgm.Data["app-protect-cpu-thresholds"]; exists {
+			appProtectCPUThresholds = strings.TrimSpace(appProtectCPUThresholds)
 			if VerifyAppProtectThresholds(appProtectCPUThresholds) {
 				cfgParams.MainAppProtectCPUThresholds = appProtectCPUThresholds
 			} else {
@@ -720,6 +738,7 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 
 		if appProtectPhysicalMemoryThresholds, exists := cfgm.Data["app-protect-physical-memory-util-thresholds"]; exists {
+			appProtectPhysicalMemoryThresholds = strings.TrimSpace(appProtectPhysicalMemoryThresholds)
 			if VerifyAppProtectThresholds(appProtectPhysicalMemoryThresholds) {
 				cfgParams.MainAppProtectPhysicalMemoryThresholds = appProtectPhysicalMemoryThresholds
 			} else {
@@ -754,21 +773,23 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if hasAppProtectDos {
-		if appProtectDosLogFormat, exists := GetMapKeyAsStringSlice(cfgm.Data, "app-protect-dos-log-format", cfgm, "\n"); exists {
-			cfgParams.MainAppProtectDosLogFormat = appProtectDosLogFormat
-		}
+		parseStrings("app-protect-dos-log-format", parseLogFormat, func(value []string) {
+			cfgParams.MainAppProtectDosLogFormat = value
+		})
 
-		if appProtectDosLogFormatEscaping, exists := cfgm.Data["app-protect-dos-log-format-escaping"]; exists {
-			appProtectDosLogFormatEscaping = strings.TrimSpace(appProtectDosLogFormatEscaping)
-			if appProtectDosLogFormatEscaping != "" {
-				cfgParams.MainAppProtectDosLogFormatEscaping = appProtectDosLogFormatEscaping
-			}
-		}
+		parseString("app-protect-dos-log-format-escaping", ParseLogFormatEscaping, func(value string) {
+			cfgParams.MainAppProtectDosLogFormatEscaping = value
+		})
 
 		if appProtectDosArbFqdn, exists := cfgm.Data["app-protect-dos-arb-fqdn"]; exists {
-			appProtectDosArbFqdn = strings.TrimSpace(appProtectDosArbFqdn)
-			if appProtectDosArbFqdn != "" {
-				cfgParams.MainAppProtectDosArbFqdn = appProtectDosArbFqdn
+			parsedAppProtectDosArbFqdn, err := ParseFQDN(appProtectDosArbFqdn)
+			if err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'app-protect-dos-arb-fqdn': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), appProtectDosArbFqdn, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configOk = false
+			} else {
+				cfgParams.MainAppProtectDosArbFqdn = parsedAppProtectDosArbFqdn
 			}
 		}
 	}
@@ -970,6 +991,11 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 				return nil, err
 			}
+			if err := validation.ValidateDirectiveToken(otelExporterEndpoint); err != nil {
+				nl.Warn(l, err)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+				return nil, err
+			}
 			cfgParams.MainOtelExporterEndpoint = otelExporterEndpoint
 		}
 	}
@@ -977,9 +1003,9 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	if otelExporterHeaderName, exists := cfgm.Data["otel-exporter-header-name"]; exists {
 		otelExporterHeaderName = strings.TrimSpace(otelExporterHeaderName)
 		if otelExporterHeaderName != "" {
-			errorMessages := k8s_validation.IsHTTPHeaderName(otelExporterHeaderName)
+			errorMessages := validation.ValidateHeaderName(otelExporterHeaderName)
 			if len(errorMessages) > 0 {
-				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'otel-exporter-header-name': %q, %v", cfgm.GetNamespace(), cfgm.GetName(), otelExporterHeaderName, errorMessages)
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'otel-exporter-header-name': %q, %s", cfgm.GetNamespace(), cfgm.GetName(), otelExporterHeaderName, strings.Join(errorMessages, "; "))
 				nl.Error(l, errorText)
 				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 				otelValid = false
@@ -992,14 +1018,32 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 	if otelExporterHeaderValue, exists := cfgm.Data["otel-exporter-header-value"]; exists {
 		otelExporterHeaderValue = strings.TrimSpace(otelExporterHeaderValue)
 		if otelExporterHeaderValue != "" {
-			cfgParams.MainOtelExporterHeaderValue = otelExporterHeaderValue
+			// The template quotes this value plainly, so it is already escaped
+			// for NGINX and must be validated as such. Escaping it again here or
+			// with printf "%q" would change the header NGINX sends.
+			if err := validation.ValidateQuotedDirectiveValue(otelExporterHeaderValue); err != nil {
+				// The header usually carries a credential, so the value is not echoed.
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'otel-exporter-header-value': %v", cfgm.GetNamespace(), cfgm.GetName(), err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				otelValid = false
+			} else {
+				cfgParams.MainOtelExporterHeaderValue = otelExporterHeaderValue
+			}
 		}
 	}
 
 	if otelServiceName, exists := cfgm.Data["otel-service-name"]; exists {
 		otelServiceName = strings.TrimSpace(otelServiceName)
 		if otelServiceName != "" {
-			cfgParams.MainOtelServiceName = otelServiceName
+			if err := validation.ValidateRawQuotedDirectiveValue(otelServiceName); err != nil {
+				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'otel-service-name': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), otelServiceName, err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				otelValid = false
+			} else {
+				cfgParams.MainOtelServiceName = otelServiceName
+			}
 		}
 	}
 
@@ -1117,8 +1161,16 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 		}
 	}
 
-	if resolverAddresses, exists := GetMapKeyAsStringSlice(cfgm.Data, "resolver-addresses", cfgm, ","); exists {
-		mgmtCfgParams.ResolverAddresses = resolverAddresses
+	if resolverAddresses, exists := cfgm.Data["resolver-addresses"]; exists {
+		parsedResolverAddresses, err := ParseResolverAddresses(resolverAddresses)
+		if err != nil {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the resolver-addresses key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), resolverAddresses, err)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configWarnings = true
+		} else {
+			mgmtCfgParams.ResolverAddresses = parsedResolverAddresses
+		}
 	}
 
 	if resolverIpv6, exists, err := GetMapKeyAsBool(cfgm.Data, "resolver-ipv6", cfgm); exists {
@@ -1132,7 +1184,15 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 	}
 
 	if resolverValid, exists := cfgm.Data["resolver-valid"]; exists {
-		mgmtCfgParams.ResolverValid = resolverValid
+		parsedResolverValid, err := ParseTime(resolverValid)
+		if err != nil {
+			errorText := fmt.Sprintf("Configmap %s/%s: Invalid value for the resolver-valid key: got %q: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), resolverValid, err)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configWarnings = true
+		} else {
+			mgmtCfgParams.ResolverValid = parsedResolverValid
+		}
 	}
 
 	if enforceInitialReport, exists, err := GetMapKeyAsBool(cfgm.Data, "enforce-initial-report", cfgm); exists {
@@ -1211,11 +1271,27 @@ func ParseMGMTConfigMap(ctx context.Context, cfgm *v1.ConfigMap, eventLog record
 		}
 
 		if proxyUser := os.Getenv("PROXY_USER"); proxyUser != "" {
-			mgmtCfgParams.ProxyUser = strings.TrimSpace(proxyUser)
+			proxyUser = strings.TrimSpace(proxyUser)
+			if err := validation.ValidateRawQuotedDirectiveValue(proxyUser); err != nil {
+				errorText := fmt.Sprintf("Configmap %s/%s: invalid PROXY_USER value: %v. Ignoring.", cfgm.GetNamespace(), cfgm.GetName(), err)
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else {
+				mgmtCfgParams.ProxyUser = proxyUser
+			}
 		}
 
 		if proxyPass := os.Getenv("PROXY_PASS"); proxyPass != "" {
-			mgmtCfgParams.ProxyPass = strings.TrimSpace(proxyPass)
+			proxyPass = strings.TrimSpace(proxyPass)
+			if err := validation.ValidateRawQuotedDirectiveValue(proxyPass); err != nil {
+				errorText := fmt.Sprintf("Configmap %s/%s: invalid PROXY_PASS value. Ignoring.", cfgm.GetNamespace(), cfgm.GetName())
+				nl.Error(l, errorText)
+				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+				configWarnings = true
+			} else {
+				mgmtCfgParams.ProxyPass = proxyPass
+			}
 		}
 	}
 
@@ -1353,7 +1429,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 func parseAndValidateAddHeaders(raw string) ([]version2.AddHeader, error) {
 	parsed := version1.ParseAddHeaders(raw)
 	for _, h := range parsed {
-		if msgs := version1.ValidateAddHeaderName(h.Name); len(msgs) != 0 {
+		if msgs := validation.ValidateHeaderName(h.Name); len(msgs) != 0 {
 			return nil, fmt.Errorf("invalid 'add-header' header name %q: %s", h.Name, strings.Join(msgs, "; "))
 		}
 		if msgs := version1.ValidateAddHeaderValue(h.Value); len(msgs) != 0 {
@@ -1363,17 +1439,46 @@ func parseAndValidateAddHeaders(raw string) ([]version2.AddHeader, error) {
 	return parsed, nil
 }
 
-// parseStringField is a helper function to parse, validate, and optionally
-// report errors about fields in cfgm.Data that are going to be used as strings.
-// This is used to parse and validate the OIDC configmap fields for now.
-//
-// Usage is via curried functions where the cfgm, suggestion, logger, and
-// eventLog are fixed, and only the key and assignFunc vary.
+func parseLogFormat(raw string) ([]string, error) {
+	values := strings.Split(raw, "\n")
+	hasValue := false
+	for _, value := range values {
+		if err := validation.ValidateSingleQuotedDirectiveValue(value); err != nil {
+			return nil, err
+		}
+		if value != "" {
+			hasValue = true
+		}
+	}
+	if !hasValue {
+		return nil, errors.New("log format must not be empty")
+	}
+	return values, nil
+}
+
+// parseStringField parses and reports errors for string ConfigMap values.
 func parseStringField(cfgm *v1.ConfigMap, key string, parseFunc func(string) (string, error), assignFunc func(string), suggestion string, l *slog.Logger, eventLog record.EventRecorder) error {
 	if value, exists := cfgm.Data[key]; exists {
 		parsedValue, err := parseFunc(value)
 		if err != nil {
-			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for '%s': %q, %v, %s", cfgm.GetNamespace(), cfgm.GetName(), key, value, err, suggestion)
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for '%s': %q, %v", cfgm.GetNamespace(), cfgm.GetName(), key, value, err)
+			if suggestion != "" {
+				errorText += ", " + suggestion
+			}
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			return err
+		}
+		assignFunc(parsedValue)
+	}
+	return nil
+}
+
+func parseStringSliceField(cfgm *v1.ConfigMap, key string, parseFunc func(string) ([]string, error), assignFunc func([]string), l *slog.Logger, eventLog record.EventRecorder) error {
+	if value, exists := cfgm.Data[key]; exists {
+		parsedValue, err := parseFunc(value)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for '%s': %q, %v", cfgm.GetNamespace(), cfgm.GetName(), key, value, err)
 			nl.Error(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			return err

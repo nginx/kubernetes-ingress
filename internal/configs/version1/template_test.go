@@ -78,8 +78,8 @@ func TestExecuteMainTemplateForNGINXPlusMGMTProxyUser(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !strings.Contains(buf.String(), "proxy_username user;") {
-		t.Errorf("want %q in generated config", "proxy_username user;")
+	if !strings.Contains(buf.String(), `proxy_username "user";`) {
+		t.Errorf("want %q in generated config", `proxy_username "user";`)
 	}
 
 	snaps.MatchSnapshot(t, buf.String())
@@ -97,16 +97,120 @@ func TestExecuteMainTemplateForNGINXPlusMGMTProxyUserAndPass(t *testing.T) {
 		t.Error(err)
 	}
 
-	if !strings.Contains(buf.String(), "proxy_username user;") {
-		t.Errorf("want %q in generated config", "proxy_username user;")
+	if !strings.Contains(buf.String(), `proxy_username "user";`) {
+		t.Errorf("want %q in generated config", `proxy_username "user";`)
 	}
 
-	if !strings.Contains(buf.String(), "proxy_password pass;") {
-		t.Errorf("want %q in generated config", "proxy_password pass;")
+	if !strings.Contains(buf.String(), `proxy_password "pass";`) {
+		t.Errorf("want %q in generated config", `proxy_password "pass";`)
 	}
 
 	snaps.MatchSnapshot(t, buf.String())
 	t.Log(buf.String())
+}
+
+func TestExecuteMainTemplateForNGINXPlusQuotesOpaqueValues(t *testing.T) {
+	t.Parallel()
+
+	cfg := mainCfgWithMGMTProxyWithUserAndPass
+	cfg.MGMTConfig.ProxyUser = `u"ser`
+	cfg.MGMTConfig.ProxyPass = `pa"ss`
+	cfg.MainOtelLoadModule = true
+	cfg.MainOtelExporterEndpoint = "https://otel.example.com:4317"
+	cfg.MainOtelServiceName = `service "blue"`
+
+	buf := &bytes.Buffer{}
+	if err := newNGINXPlusMainTmpl(t).Execute(buf, cfg); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`proxy_username "u\"ser";`,
+		`proxy_password "pa\"ss";`,
+		`otel_service_name "service \"blue\"";`,
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+}
+
+// TestExecuteMainTemplateRendersPreEscapedOtelHeaderVerbatim covers the other
+// half of the escaping contract. otel-exporter-header-value has always been
+// rendered with plain template quoting, so an accepted value such as
+// tenant \"blue\" is already escaped for NGINX and reaches it as tenant "blue".
+// Rendering it with printf "%q" instead would escape the backslashes a second
+// time and change the header NGINX sends, so this test fails if that is
+// reintroduced. Unlike the opaque values above, this value cannot carry a bare
+// double quote: such a value produced a broken directive before this change and
+// is now rejected by ValidateQuotedDirectiveValue at parse time.
+func TestExecuteMainTemplateRendersPreEscapedOtelHeaderVerbatim(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXMainTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusMainTmpl},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := mainCfg
+			cfg.MainOtelLoadModule = true
+			cfg.MainOtelExporterEndpoint = "https://otel.example.com:4317"
+			cfg.MainOtelExporterHeaderName = "X-Tenant"
+			cfg.MainOtelExporterHeaderValue = `tenant \"blue\"`
+
+			buf := &bytes.Buffer{}
+			if err := test.newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			want := `header X-Tenant "tenant \"blue\"";`
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("want %q in generated config:\n%s", want, buf.String())
+			}
+		})
+	}
+}
+
+// TestExecuteMainTemplateRendersSSLCiphers renders the http-level ssl_ciphers
+// line, which only runs when the ssl-ciphers ConfigMap key is set. Template
+// fields inside an {{if}} are only resolved when the branch runs, so without
+// this a broken reference would surface only for users who set the key.
+func TestExecuteMainTemplateRendersSSLCiphers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXMainTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusMainTmpl},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := mainCfg
+			cfg.SSLCiphers = "HIGH:!aNULL:!MD5"
+
+			buf := &bytes.Buffer{}
+			if err := test.newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			want := `ssl_ciphers "HIGH:!aNULL:!MD5";`
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("want %q in generated config:\n%s", want, buf.String())
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
 }
 
 func TestExecuteMainTemplateForNGINXPlus(t *testing.T) {
@@ -135,6 +239,23 @@ func TestExecuteMainTemplateForNGINX(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, buf.String())
 	t.Log(buf.String())
+}
+
+// The http2 ConfigMap key sets http2 in the http context; servers only override it.
+func TestExecuteMainTemplateWithHTTP2(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXMainTmpl, "Plus": newNGINXPlusMainTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cfg := mainCfg
+			cfg.HTTP2 = true
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
 }
 
 func TestExecuteTemplate_ForIngressForNGINXPlus(t *testing.T) {
@@ -423,6 +544,21 @@ func TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus(t *testing.T) {
 		}
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForNGINXPlusQuotesCustomServerTokens(t *testing.T) {
+	t.Parallel()
+
+	cfg := ingressCfgEmptyHost
+	cfg.Servers = append([]Server(nil), cfg.Servers...)
+	cfg.Servers[0].ServerTokens = `NGINX \"Plus\"`
+	buf := &bytes.Buffer{}
+	if err := newNGINXPlusIngressTmpl(t).Execute(buf, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `server_tokens "NGINX \"Plus\"";`) {
+		t.Errorf("custom server token was not escaped exactly once:\n%s", buf.String())
+	}
 }
 
 func TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation(t *testing.T) {
@@ -2825,7 +2961,7 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		"otel_exporter {",
 		"endpoint https://otel-collector:4317;",
 		"header X-Custom-Header \"custom-value\";",
-		"otel_service_name nginx-ingress-controller:nginx;",
+		`otel_service_name "nginx-ingress-controller:nginx";`,
 		"otel_trace on;",
 		"otel_trace_context inject;",
 	}
@@ -2856,7 +2992,7 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOtel(t *testing.T) {
 		"otel_exporter {",
 		"endpoint https://otel-collector:4317;",
 		"header X-Custom-Header \"custom-value\";",
-		"otel_service_name nginx-ingress-controller:nginx;",
+		`otel_service_name "nginx-ingress-controller:nginx";`,
 		"otel_trace on;",
 		"otel_trace_context inject;",
 	}
@@ -3990,6 +4126,67 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
 		}
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, ingressCfgHTTP2OnNoTLS); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), "http2 on;") {
+				t.Error("want `http2 on;` in generated template")
+			}
+			if strings.Contains(buf.String(), "ssl") {
+				t.Error("unwant `ssl` in generated template for a server without TLS")
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+// http2 off; is only rendered when the http2 ConfigMap key turns HTTP/2 on in the http context.
+func TestExecuteTemplate_ForIngressWithHTTP2OffOverridingConfigMap(t *testing.T) {
+	t.Parallel()
+	cfg := ingressCfgHTTP2OnNoTLS
+	cfg.HTTP2 = true
+	cfg.Servers = []Server{cfg.Servers[0]}
+	cfg.Servers[0].HTTP2 = false
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), "http2 off;") {
+				t.Error("want `http2 off;` in generated template")
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, ingressCfgGRPCOnlyNoTLS); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"listen 8080 proxy_protocol;", "listen [::]:8080 proxy_protocol;", "http2 on;", "grpc_pass"} {
+				if !strings.Contains(buf.String(), want) {
+					t.Errorf("want %q in generated template", want)
+				}
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
 }
 
 func TestExecuteTemplate_ForIngressForNGINXWithHTTP2On(t *testing.T) {
@@ -6658,7 +6855,46 @@ var (
 		},
 	}
 
-	// Ingress Config example without added annotations
+	// gRPC-only server without TLS: plaintext listeners must still be rendered
+	ingressCfgGRPCOnlyNoTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:             "test.example.com",
+				ServerTokens:     "off",
+				StatusZone:       "test.example.com",
+				Ports:            []int{8080},
+				ProxyProtocol:    true,
+				HTTP2:            true,
+				GRPCOnly:         true,
+				HasGRPCLocations: true,
+				Locations: []Location{{
+					Path: "/helloworld.Greeter", Upstream: testUpstream, ProxyPass: "grpc://test", GRPC: true,
+					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
+				}},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+	}
+
+	ingressCfgHTTP2OnNoTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Ports:        []int{80},
+				HTTP2:        true,
+				Locations: []Location{{
+					Path: "/tea", Upstream: testUpstream, ProxyPass: "http://test",
+					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
+				}},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+	}
+
 	ingressCfgHTTP2On = IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -7923,7 +8159,6 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
 					{
 						Name:             "cafe.example.com",
 						ServerTokens:     "off",
-						HTTP2:            true,
 						HasGRPCLocations: true,
 						Locations: []Location{
 							{
@@ -8003,7 +8238,6 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
 					{
 						Name:             "cafe.example.com",
 						ServerTokens:     "off",
-						HTTP2:            true,
 						HasGRPCLocations: true,
 						Locations: []Location{
 							{
@@ -8517,6 +8751,96 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 			}
 			if gotUnauthorized := strings.Contains(got, "error_page 401 = @external_auth_unauthorized;"); gotUnauthorized != tc.wantUnauthorized {
 				t.Errorf("external auth unauthorized handler present = %v, want %v\n---\n%s", gotUnauthorized, tc.wantUnauthorized, got)
+			}
+
+			snaps.MatchSnapshot(t, got)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithExternalAuthHeaders(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						StatusZone:   "cafe.example.com",
+						Locations: []Location{
+							{
+								Path:      "/tea",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
+								ExternalAuth: &version2.ExternalAuth{
+									URI: &version2.AuthURI{
+										Service:      "oauth2-proxy",
+										Upstream:     "ext_auth_default_oauth2-proxy",
+										Path:         "/oauth2/auth",
+										InternalPath: "/_external_auth/oauth2/auth",
+									},
+								},
+							},
+							{
+								Path:                 "/_external_auth/oauth2/auth",
+								Internal:             true,
+								DisableWAF:           true,
+								ProxyPass:            "http://ext_auth_default_oauth2-proxy/oauth2/auth",
+								ProxyPassRequestBody: "off",
+								ClientMaxBodySize:    "0",
+								ProxySetHeaders: []version2.Header{
+									{Name: "Content-Length", Value: "0"},
+									{Name: "X-Scheme", Value: "$scheme"},
+									{Name: "X-Forwarded-Prefix", Value: ""},
+									{Name: "X-Forwarded-URI", Value: "$request_uri"},
+									{Name: "X-Forwarded-Method", Value: "$request_method"},
+									{Name: "X-Original-URI", Value: "$request_uri"},
+								},
+								ProxyConnectTimeout:      "10s",
+								ProxyReadTimeout:         "15s",
+								ProxySendTimeout:         "15s",
+								ProxyNextUpstream:        "error timeout",
+								ProxyNextUpstreamTimeout: "0s",
+							},
+						},
+					},
+				},
+				Upstreams: []Upstream{
+					testUpstream,
+					{
+						Name: "ext_auth_default_oauth2-proxy",
+						UpstreamServers: []UpstreamServer{
+							{Address: "10.0.0.40:4180"},
+						},
+					},
+				},
+			}
+			buf := &bytes.Buffer{}
+			if err := test.newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			got := buf.String()
+
+			for _, wantHeader := range []string{
+				`proxy_set_header Content-Length "0";`,
+				`proxy_set_header X-Scheme "$scheme";`,
+				`proxy_set_header X-Forwarded-Prefix "";`,
+				`proxy_set_header X-Forwarded-URI "$request_uri";`,
+				`proxy_set_header X-Forwarded-Method "$request_method";`,
+				`proxy_set_header X-Original-URI "$request_uri";`,
+			} {
+				if !strings.Contains(got, wantHeader) {
+					t.Errorf("want %q in rendered config\n---\n%s", wantHeader, got)
+				}
 			}
 
 			snaps.MatchSnapshot(t, got)

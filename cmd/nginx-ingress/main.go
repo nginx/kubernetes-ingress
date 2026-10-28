@@ -21,6 +21,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/externaldns"
 	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
@@ -38,6 +39,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	pkg_runtime "k8s.io/apimachinery/pkg/runtime"
 	util_version "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/dynamic"
@@ -107,6 +109,9 @@ func main() {
 	if err != nil {
 		nl.Fatalf(l, "Failed to get pod: %v", err)
 	}
+
+	controllerNodeName, controllerZone := getControllerTopology(ctx, kubeClient, pod, *enableTopologyAwareRouting)
+
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(func(format string, args ...interface{}) {
 		nl.Infof(l, format, args...)
@@ -118,6 +123,7 @@ func main() {
 		api_v1.EventSource{Component: k8s.EventReporterName})
 	defer eventBroadcaster.Shutdown()
 	mustValidateIngressClass(ctx, kubeClient)
+	mustValidateExternalDNSCRD(ctx, kubeClient)
 
 	checkNamespaces(ctx, kubeClient)
 
@@ -340,6 +346,7 @@ func main() {
 		SnippetsEnabled:              *enableSnippets,
 		CertManagerEnabled:           *enableCertManager,
 		ExternalDNSEnabled:           *enableExternalDNS,
+		ExternalDNSGroupVersion:      *externalDNSGroupVersion,
 		IsIPV6Disabled:               *disableIPV6,
 		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
 		AllowEmptyIngressHost:        *allowEmptyIngressHost,
@@ -351,6 +358,9 @@ func main() {
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
+		Zone:                         controllerZone,
+		NodeName:                     controllerNodeName,
+		TopologyAwareRouting:         *enableTopologyAwareRouting,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)
@@ -442,6 +452,54 @@ func mustCreateConfigAndKubeClient(ctx context.Context) (*rest.Config, *kubernet
 	return config, kubeClient
 }
 
+// getControllerTopology returns the node name and zone used for topology-aware
+// routing. When the feature is disabled it returns empty values without
+// querying the API, so that the default behavior and RBAC needs are unchanged.
+func getControllerTopology(ctx context.Context, kubeClient kubernetes.Interface, pod *api_v1.Pod, enabled bool) (nodeName, zone string) {
+	if !enabled {
+		return "", ""
+	}
+	return pod.Spec.NodeName, getControllerZone(ctx, kubeClient, pod.Spec.NodeName)
+}
+
+// getControllerZone returns the topology.kubernetes.io/zone label of the node the
+// controller is running on, used to honor zone hints on EndpointSlices. Failures
+// are non-fatal: an empty zone disables zone-based topology filtering only.
+//
+// It lists with a field selector rather than calling Get so that the existing
+// `list` permission on nodes is sufficient.
+func getControllerZone(ctx context.Context, kubeClient kubernetes.Interface, nodeName string) string {
+	l := nl.LoggerFromContext(ctx)
+	if nodeName == "" {
+		nl.Warnf(l, "Pod has no spec.nodeName; topology-aware routing using EndpointSlice hints is unavailable")
+		return ""
+	}
+
+	nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, meta_v1.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector("metadata.name", nodeName).String(),
+	})
+	if err != nil {
+		nl.Warnf(l, "Failed to list node %s for zone detection: %v; same-zone routing using EndpointSlice hints is unavailable", nodeName, err)
+		return ""
+	}
+
+	for _, node := range nodeList.Items {
+		if node.Name != nodeName {
+			continue
+		}
+		zone := node.Labels[api_v1.LabelTopologyZone]
+		if zone == "" {
+			nl.Warnf(l, "Node %s has no %s label; same-zone routing using EndpointSlice hints is unavailable", nodeName, api_v1.LabelTopologyZone)
+		} else {
+			nl.Infof(l, "Controller node: %s, zone: %s", nodeName, zone)
+		}
+		return zone
+	}
+
+	nl.Warnf(l, "Node %s not found for zone detection; same-zone routing using EndpointSlice hints is unavailable", nodeName)
+	return ""
+}
+
 // validateKubernetesVersionInfo returns an Error if
 // the k8s version can not be retrieved or the version is not supported.
 func validateKubernetesVersionInfo(ctx context.Context, kubeClient kubernetes.Interface) error {
@@ -474,6 +532,25 @@ func mustValidateIngressClass(ctx context.Context, kubeClient kubernetes.Interfa
 
 	if ingressClassRes.Spec.Controller != k8s.IngressControllerName {
 		nl.Fatalf(l, "IngressClass with name %v has an invalid Spec.Controller %v; expected %v", ingressClassRes.Name, ingressClassRes.Spec.Controller, k8s.IngressControllerName)
+	}
+}
+
+// mustValidateExternalDNSCRD calls internally os.Exit and terminates the
+// program if -enable-external-dns is set and the DNSEndpoint CRD for the
+// configured -external-dns-group-version is not installed.
+//
+// Without this check a missing CRD fails silently: the DNSEndpoint informer
+// never syncs and the ExternalDNS control loop stalls without creating or
+// updating any DNSEndpoint, while external-dns keeps reading whatever it read
+// last. See docs/crd/externaldns.nginx.org_dnsendpoints.md for where each
+// group's CRD comes from.
+func mustValidateExternalDNSCRD(ctx context.Context, kubeClient kubernetes.Interface) {
+	if !*enableExternalDNS {
+		return
+	}
+	l := nl.LoggerFromContext(ctx)
+	if err := externaldns.CheckDNSEndpointCRD(kubeClient.Discovery(), *externalDNSGroupVersion); err != nil {
+		nl.Fatalf(l, "Cannot enable external-dns: %v", err)
 	}
 }
 

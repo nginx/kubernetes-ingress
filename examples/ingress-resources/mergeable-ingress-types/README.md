@@ -40,6 +40,7 @@ Minions cannot contain the following annotations:
 - nginx.org/hsts-max-age
 - nginx.org/hsts-include-subdomains
 - nginx.org/server-tokens
+- nginx.org/http2
 - nginx.org/listen-ports
 - nginx.org/listen-ports-ssl
 - nginx.org/server-snippets

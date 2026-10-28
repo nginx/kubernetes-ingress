@@ -4,7 +4,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import ensure_connection_to_public_endpoint, pod_restart, wait_before_test
+from suite.utils.resources_utils import IC_SELECTOR, ensure_connection_to_public_endpoint, pod_restart, wait_before_test
 from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 
 std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
@@ -119,7 +119,7 @@ class TestCachePolicies:
         )
         ns = ingress_controller_prerequisites.namespace
         # Purge all existing cache entries by removing pods
-        pod_restart(kube_apis.v1, ns)
+        pod_restart(kube_apis.v1, ns, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
@@ -197,7 +197,7 @@ class TestCachePolicies:
 
         ns = ingress_controller_prerequisites.namespace
         # Purge all existing cache entries by removing pods
-        pod_restart(kube_apis.v1, ns)
+        pod_restart(kube_apis.v1, ns, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
@@ -281,7 +281,7 @@ class TestCachePolicies:
         )
         ns = ingress_controller_prerequisites.namespace
         # Purge all existing cache entries by removing pods
-        pod_restart(kube_apis.v1, ns)
+        pod_restart(kube_apis.v1, ns, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,

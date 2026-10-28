@@ -72,6 +72,14 @@ func TestParseProxySetHeaders(t *testing.T) {
 			annotation: "X-Header: val:with:colons",
 			want:       []version2.Header{{Name: "X-Header", Value: "val:with:colons"}},
 		},
+		{
+			name:       "headers with variable values",
+			annotation: "X-Real-IP: ${remote_addr}, X-URI: ${request_uri}",
+			want: []version2.Header{
+				{Name: "X-Real-IP", Value: "${remote_addr}"},
+				{Name: "X-URI", Value: "${request_uri}"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -225,34 +233,6 @@ func TestParseAddHeaders(t *testing.T) {
 			got := ParseAddHeaders(tc.annotation)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("ParseAddHeaders(%q) mismatch (-want +got):\n%s", tc.annotation, diff)
-			}
-		})
-	}
-}
-
-func TestValidateAddHeaderName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{name: "valid simple", input: "X-Frame-Options", wantErr: false},
-		{name: "valid with numbers", input: "X-Custom-123", wantErr: false},
-		{name: "space in name", input: "X Bad", wantErr: true},
-		{name: "at sign", input: "X-He@der", wantErr: true},
-		{name: "dollar sign", input: "$bad", wantErr: true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			msgs := ValidateAddHeaderName(tc.input)
-			if tc.wantErr && len(msgs) == 0 {
-				t.Errorf("ValidateAddHeaderName(%q): want error messages, got none", tc.input)
-			}
-			if !tc.wantErr && len(msgs) != 0 {
-				t.Errorf("ValidateAddHeaderName(%q): want no messages, got %v", tc.input, msgs)
 			}
 		})
 	}

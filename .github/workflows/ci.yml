@@ -35,7 +35,7 @@ jobs:
   checks:
     name: Checks and variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -125,7 +125,7 @@ jobs:
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -193,7 +193,7 @@ jobs:
 
   verify-codegen:
     name: Verify generated code
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -218,7 +218,7 @@ jobs:
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
 
       - name: Check if CRDs changed
-        run: make update-crds && git diff --name-only --exit-code config/crd/bases
+        run: make update-crds && git diff --name-only --exit-code config/crd/bases config/crd/upstream
 
       - name: Check if Codegen changed
         run: |
@@ -227,7 +227,7 @@ jobs:
           cd ../../.. && mv github.com/nginx/kubernetes-ingress kubernetes-ingress/kubernetes-ingress
 
       - name: Install gofumpt
-        run: go install mvdan.cc/gofumpt@v0.8.0
+        run: go install mvdan.cc/gofumpt@v0.12.0
 
       - name: Check if telemetry schema changed
         run: |
@@ -237,7 +237,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -251,7 +251,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v4.3.0 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
@@ -308,7 +308,7 @@ jobs:
 
   staticcheck:
     name: Static Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -336,13 +336,13 @@ jobs:
       - name: Run Static Check
         uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
         with:
-          version: 2026.2.1 # renovate: datasource=github-releases depName=dominikh/go-tools
+          version: 452d5bb86b45416c35891262f6a11dbd6a970117 # renovate: datasource=github-releases depName=dominikh/go-tools
           install-go: false
           use-cache: true
 
   govulncheck:
     name: Vulnerability Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -428,7 +428,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Package Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     permissions:
       contents: read
@@ -464,7 +464,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -505,7 +505,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
@@ -529,7 +529,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v4.3.0 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup NIC secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
@@ -567,7 +567,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -686,7 +686,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [build-artifacts, checks]
     permissions:
       contents: read
@@ -729,7 +729,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -737,7 +737,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -883,7 +883,7 @@ jobs:
       )
   final-results:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: Final CI Results
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
     steps:

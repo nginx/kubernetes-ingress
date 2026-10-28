@@ -10,9 +10,12 @@ from suite.utils.custom_assertions import (
     assert_response_codes,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_items_from_yaml,
     delete_items_from_yaml,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -36,19 +39,26 @@ def v_s_route_secure_app_setup(request, kube_apis, v_s_route_setup) -> None:
     :return:
     """
     print("---------------------- Deploy a VS Route Example Application ----------------------------")
+    e2e_run_id = generate_e2e_run_id()
     create_items_from_yaml(
-        kube_apis, f"{TEST_DATA}/common/app/vsr/secure/multiple.yaml", v_s_route_setup.route_m.namespace
+        kube_apis,
+        f"{TEST_DATA}/common/app/vsr/secure/multiple.yaml",
+        v_s_route_setup.route_m.namespace,
+        e2e_run_id=e2e_run_id,
     )
 
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/common/app/secure/app-tls-secret.yaml", v_s_route_setup.route_s.namespace
     )
     create_items_from_yaml(
-        kube_apis, f"{TEST_DATA}/common/app/vsr/secure/single.yaml", v_s_route_setup.route_s.namespace
+        kube_apis,
+        f"{TEST_DATA}/common/app/vsr/secure/single.yaml",
+        v_s_route_setup.route_s.namespace,
+        e2e_run_id=e2e_run_id,
     )
 
-    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_m.namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_s.namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_m.namespace, get_e2e_run_selector(e2e_run_id))
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_s.namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -89,7 +99,7 @@ class TestVSRouteUpstreamTls:
         v_s_route_setup,
         v_s_route_secure_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -143,7 +153,7 @@ class TestVSRouteUpstreamTls:
         v_s_route_setup,
         v_s_route_secure_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_events_ns_m = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         initial_events_ns_s = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
         with pytest.raises(ApiException) as exc_info:
@@ -193,7 +203,7 @@ class TestVSRouteUpstreamTls:
         v_s_route_setup,
         v_s_route_secure_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         text_s = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
         text_m = f"{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}"
         text_vs = f"{v_s_route_setup.namespace}/{v_s_route_setup.vs_name}"

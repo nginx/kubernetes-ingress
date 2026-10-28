@@ -1,0 +1,4 @@
+controller:
+  enableCustomResources: true
+  enableExternalDNS: true
+  externalDNSGroupVersion: "externaldns.k8s.io/v1alpha1"

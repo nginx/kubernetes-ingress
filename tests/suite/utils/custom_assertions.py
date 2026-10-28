@@ -2,8 +2,11 @@
 
 import time
 
+import grpc
 import pytest
 import requests
+from suite.grpc.helloworld_pb2 import HelloRequest
+from suite.grpc.helloworld_pb2_grpc import GreeterStub
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.resources_utils import (
     get_events,
@@ -12,6 +15,17 @@ from suite.utils.resources_utils import (
     get_vs_nginx_template_conf,
     wait_before_test,
 )
+
+
+def assert_h2c_grpc_hello(endpoint, host) -> None:
+    """Call the Greeter service over unencrypted HTTP/2 (h2c) on the HTTP port and check the reply."""
+    options = (("grpc.default_authority", host),)
+    with grpc.insecure_channel(f"{endpoint.public_ip}:{endpoint.port}", options) as channel:
+        try:
+            response = GreeterStub(channel).SayHello(HelloRequest(name="h2c"), timeout=10)
+            assert "Hello h2c" in response.message
+        except grpc.RpcError as e:
+            pytest.fail(f"h2c gRPC call failed: {e.code()} {e.details()}")
 
 
 def assert_no_new_events(old_list, new_list):

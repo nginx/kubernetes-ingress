@@ -424,6 +424,9 @@ Build the args for the service binary.
 - -enable-cert-manager={{ .Values.controller.enableCertManager }}
 - -enable-oidc={{ .Values.controller.enableOIDC }}
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
+{{- if .Values.controller.enableExternalDNS }}
+- -external-dns-group-version={{ .Values.controller.externalDNSGroupVersion }}
+{{- end }}
 {{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else if .Values.controller.globalConfiguration.customName }}
@@ -439,6 +442,7 @@ Build the args for the service binary.
 {{- if and .Values.controller.enableLatencyMetrics .Values.controller.latencyMetricsBuckets }}
 - -latency-metrics-buckets={{ .Values.controller.latencyMetricsBuckets }}
 {{- end }}
+- -enable-topology-aware-routing={{ .Values.controller.enableTopologyAwareRouting }}
 - -ssl-dynamic-reload={{ .Values.controller.enableSSLDynamicReload }}
 - -enable-telemetry-reporting={{ .Values.controller.telemetryReporting.enable}}
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}

@@ -82,6 +82,10 @@ http {
     keepalive_timeout {{.KeepaliveTimeout}};
     keepalive_requests {{.KeepaliveRequests}};
 
+    {{- if .HTTP2}}
+    http2 on;
+    {{- end}}
+
     #gzip  on;
 
     server_names_hash_max_size {{.ServerNamesHashMaxSize}};
@@ -135,7 +139,7 @@ http {
     ssl_protocols {{.SSLProtocols}};
     {{- end}}
     {{- if .SSLCiphers}}
-    ssl_ciphers "{{.SSLCiphers}}";
+    ssl_ciphers {{ printf "%q" .SSLCiphers }};
     {{- end}}
     {{- if .SSLPreferServerCiphers}}
     ssl_prefer_server_ciphers on;
@@ -153,7 +157,7 @@ http {
     }
 
     {{- if .MainOtelServiceName}}
-    otel_service_name {{ .MainOtelServiceName }};
+    otel_service_name {{ printf "%q" .MainOtelServiceName }};
     {{- end }}
     {{- if .MainOtelGlobalTraceEnabled }}
     otel_trace on;

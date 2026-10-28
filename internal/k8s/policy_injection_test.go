@@ -356,6 +356,8 @@ func baseOIDC() *conf_v1.OIDC {
 func TestPolicyCannotInjectConfiguration(t *testing.T) {
 	t.Parallel()
 
+	schema := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_policies.yaml")
+
 	// Policies are the surface where NGINX Plus adds the most: OIDC and JWT are
 	// Plus-only, so the OSS pass mostly measures that they are refused.
 	for _, isPlus := range []bool{false, true} {
@@ -365,7 +367,7 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 			EnableAppProtect: true,
 		}
 
-		var byValidation, admitted int
+		var bySchema, byValidation, admitted int
 		for _, field := range policyStringFields {
 			benign := policyWithField(field, field.benignValue())
 
@@ -380,9 +382,14 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 				continue
 			}
 
-			// The benign value must survive admission, or every payload for this
-			// field is rejected for the shape of the fixture rather than its
-			// content and the field is never really tested.
+			// The benign object has to clear both admission gates, or the fixture
+			// is wrong for this field and the payloads below would be measuring
+			// the fixture rather than the field.
+			if err := schema.admits(benign); err != nil {
+				t.Errorf("plus=%v field=%s: a benign value does not satisfy the CRD schema, so the fixture is wrong: %v",
+					isPlus, field.name, err)
+				continue
+			}
 			if err := validation.ValidatePolicy(benign, cfg); err != nil {
 				t.Errorf("plus=%v field=%s: the benign value %q is rejected at admission, so the fixture is wrong: %v",
 					isPlus, field.name, field.benignValue(), err)
@@ -399,6 +406,13 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 			for _, payload := range payloads {
 				policy := policyWithField(field, payload)
 
+				// Gate 1a. Anything the API server refuses never reaches the
+				// controller, so it cannot reach configuration either.
+				if schema.admits(policy) != nil {
+					bySchema++
+					continue
+				}
+				// Gate 1b.
 				if validation.ValidatePolicy(policy, cfg) != nil {
 					byValidation++
 					continue
@@ -419,13 +433,17 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 			}
 		}
 
+		if bySchema == 0 {
+			t.Errorf("plus=%v: no payload was rejected by the CRD schema, so that gate is not tested here", isPlus)
+		}
 		if byValidation == 0 {
 			t.Errorf("plus=%v: no payload was rejected by Go validation", isPlus)
 		}
 		if admitted == 0 {
 			t.Errorf("plus=%v: every payload was rejected at admission, so the rendering was never exercised", isPlus)
 		}
-		t.Logf("plus=%v: %d rejected by Go validation, %d admitted and rendered as data", isPlus, byValidation, admitted)
+		t.Logf("plus=%v: %d rejected by the CRD schema, %d by the Go validation, %d admitted and rendered as data",
+			isPlus, bySchema, byValidation, admitted)
 	}
 }
 

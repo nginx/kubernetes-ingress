@@ -1,12 +1,17 @@
 package configs
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
@@ -189,6 +194,11 @@ func TestParseConfigMapWithoutTLSPassthroughProxyProtocol(t *testing.T) {
 			realIPheader: "X-Forwarded-For",
 			want:         "X-Forwarded-For",
 			msg:          "valid real-ip-header X-Forwarded-For",
+		},
+		{
+			realIPheader: "X-Real-IP;return 204",
+			want:         "",
+			msg:          "invalid real-ip-header carrying NGINX syntax is rejected and ignored",
 		},
 		{
 			realIPheader: "",
@@ -1560,6 +1570,25 @@ func TestParseMGMTConfigMapUsageReportProxyCredentials(t *testing.T) {
 	}
 }
 
+func TestParseMGMTConfigMapRejectsProxyCredentialInjection(t *testing.T) {
+	t.Setenv("PROXY_USER", "user\nssl_verify off")
+	t.Setenv("PROXY_PASS", "pass\nssl_verify off")
+
+	cfg, warnings, err := ParseMGMTConfigMap(context.Background(), &v1.ConfigMap{Data: map[string]string{
+		"license-token-secret-name": "license-token",
+		"usage-report-proxy-host":   "proxy.example.com:3128",
+	}}, makeEventLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !warnings {
+		t.Fatal("expected invalid proxy credentials to produce warnings")
+	}
+	if cfg.ProxyUser != "" || cfg.ProxyPass != "" {
+		t.Fatalf("invalid proxy credentials were retained: user=%q pass=%q", cfg.ProxyUser, cfg.ProxyPass)
+	}
+}
+
 func TestParseZoneSync(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -2894,17 +2923,27 @@ func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
 func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 	t.Parallel()
 
-	testCases := []string{"debug", "error", "warning", "nonsense"}
+	testCases := []struct {
+		level        string
+		want         string
+		wantConfigOk bool
+	}{
+		{level: "debug", want: "debug", wantConfigOk: true},
+		{level: "error", want: "error", wantConfigOk: true},
+		{level: "warn", want: "warn", wantConfigOk: true},
+		{level: "warning", want: "notice", wantConfigOk: false},
+		{level: "nonsense", want: "notice", wantConfigOk: false},
+	}
 
-	for _, testLevel := range testCases {
-		t.Run(fmt.Sprintf("setting log level to %s", testLevel), func(t *testing.T) {
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("setting log level to %s", test.level), func(t *testing.T) {
 			cm := &v1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-configmap",
 					Namespace: "default",
 				},
 				Data: map[string]string{
-					"error-log-level": testLevel,
+					"error-log-level": test.level,
 				},
 			}
 
@@ -2912,11 +2951,11 @@ func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 
 			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, true, eventRecorder)
 
-			if !configOk {
-				t.Errorf("expected config map with error-log-level set to be %s to be valid", testLevel)
+			if configOk != test.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", test.wantConfigOk, configOk)
 			}
 
-			assert.Equal(t, testLevel, result.MainErrorLogLevel)
+			assert.Equal(t, test.want, result.MainErrorLogLevel)
 		})
 	}
 }
@@ -3427,6 +3466,392 @@ func TestParseConfigMapUseForwardedHeaders(t *testing.T) {
 			}
 			if cfgParams.UseForwardedHeaders != tc.wantUsed {
 				t.Errorf("UseForwardedHeaders: want %v, got %v", tc.wantUsed, cfgParams.UseForwardedHeaders)
+			}
+		})
+	}
+}
+
+func TestParseConfigMap_SSLAndRealIPValidation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		data         map[string]string
+		wantConfigOk bool
+	}{
+		{
+			name: "valid ssl-ciphers and ssl-protocols and real-ip-header",
+			data: map[string]string{
+				"ssl-ciphers":    "DEFAULT:@SECLEVEL=2,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				"ssl-protocols":  "TLSv1.2 TLSv1.3",
+				"real-ip-header": "X-Forwarded-For",
+			},
+			wantConfigOk: true,
+		},
+		{
+			name: "invalid ssl-ciphers with semicolon injection",
+			data: map[string]string{
+				"ssl-ciphers": "HIGH; return 500;",
+			},
+			wantConfigOk: false,
+		},
+		{
+			name: "invalid ssl-protocols with newline injection",
+			data: map[string]string{
+				"ssl-protocols": "TLSv1.2\nserver_tokens off;",
+			},
+			wantConfigOk: false,
+		},
+		{
+			name: "invalid real-ip-header with quote injection",
+			data: map[string]string{
+				"real-ip-header": "X-Real-IP\"; access_log /dev/null;",
+			},
+			wantConfigOk: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: tc.data,
+			}
+			recorder := makeEventLogger()
+			cfg, configOk := ParseConfigMap(context.Background(), cm, false, false, false, false, false, false, recorder)
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+			if value, ok := tc.data["ssl-ciphers"]; ok {
+				if tc.wantConfigOk {
+					assert.Equal(t, value, cfg.MainServerSSLCiphers)
+				} else {
+					assert.NotEqual(t, value, cfg.MainServerSSLCiphers)
+				}
+			}
+			if value, ok := tc.data["ssl-protocols"]; ok {
+				if tc.wantConfigOk {
+					assert.Equal(t, value, cfg.MainServerSSLProtocols)
+				} else {
+					assert.NotEqual(t, value, cfg.MainServerSSLProtocols)
+				}
+			}
+			if value, ok := tc.data["real-ip-header"]; ok {
+				if tc.wantConfigOk {
+					assert.Equal(t, value, cfg.RealIPHeader)
+				} else {
+					assert.NotEqual(t, value, cfg.RealIPHeader)
+				}
+			}
+		})
+	}
+}
+
+func TestParseConfigMapRawDirectiveValuesValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		data          map[string]string
+		hasAppProtect bool
+		hasDos        bool
+		get           func(*ConfigParams) any
+		want          any
+	}{
+		{name: "proxy connect timeout", data: map[string]string{"proxy-connect-timeout": "1h30m"}, get: func(p *ConfigParams) any { return p.ProxyConnectTimeout }, want: "1h30m"},
+		{name: "proxy read timeout", data: map[string]string{"proxy-read-timeout": "5m"}, get: func(p *ConfigParams) any { return p.ProxyReadTimeout }, want: "5m"},
+		{name: "proxy send timeout", data: map[string]string{"proxy-send-timeout": "600"}, get: func(p *ConfigParams) any { return p.ProxySendTimeout }, want: "600s"},
+		{name: "worker shutdown timeout", data: map[string]string{"worker-shutdown-timeout": "30s"}, get: func(p *ConfigParams) any { return p.MainWorkerShutdownTimeout }, want: "30s"},
+		{name: "keepalive timeout with header timeout", data: map[string]string{"keepalive-timeout": "75s 60s"}, get: func(p *ConfigParams) any { return p.MainKeepaliveTimeout }, want: "75s 60s"},
+		{name: "fail timeout", data: map[string]string{"fail-timeout": "10s"}, get: func(p *ConfigParams) any { return p.FailTimeout }, want: "10s"},
+		{name: "resolver timeout", data: map[string]string{"resolver-timeout": "30s"}, get: func(p *ConfigParams) any { return p.ResolverTimeout }, want: "30s"},
+		{name: "resolver valid", data: map[string]string{"resolver-valid": "5m"}, get: func(p *ConfigParams) any { return p.ResolverValid }, want: "5m"},
+		{name: "client max body size", data: map[string]string{"client-max-body-size": "2G"}, get: func(p *ConfigParams) any { return p.ClientMaxBodySize }, want: "2G"},
+		{name: "proxy max temp file size zero", data: map[string]string{"proxy-max-temp-file-size": "0"}, get: func(p *ConfigParams) any { return p.ProxyMaxTempFileSize }, want: "0"},
+		{name: "upstream zone size", data: map[string]string{"upstream-zone-size": "1m"}, get: func(p *ConfigParams) any { return p.UpstreamZoneSize }, want: "1m"},
+		{name: "server names hash bucket size", data: map[string]string{"server-names-hash-bucket-size": "512"}, get: func(p *ConfigParams) any { return p.MainServerNamesHashBucketSize }, want: "512"},
+		{name: "server names hash max size", data: map[string]string{"server-names-hash-max-size": "4096"}, get: func(p *ConfigParams) any { return p.MainServerNamesHashMaxSize }, want: "4096"},
+		{name: "map hash bucket size", data: map[string]string{"map-hash-bucket-size": "128"}, get: func(p *ConfigParams) any { return p.MainMapHashBucketSize }, want: "128"},
+		{name: "map hash max size", data: map[string]string{"map-hash-max-size": "8192"}, get: func(p *ConfigParams) any { return p.MainMapHashMaxSize }, want: "8192"},
+		{name: "worker connections", data: map[string]string{"worker-connections": "2048"}, get: func(p *ConfigParams) any { return p.MainWorkerConnections }, want: "2048"},
+		{name: "worker rlimit nofile", data: map[string]string{"worker-rlimit-nofile": "65535"}, get: func(p *ConfigParams) any { return p.MainWorkerRlimitNofile }, want: "65535"},
+		{name: "proxy hide headers", data: map[string]string{"proxy-hide-headers": "X-Accel-Redirect, X-Custom-Header"}, get: func(p *ConfigParams) any { return p.ProxyHideHeaders }, want: []string{"X-Accel-Redirect", "X-Custom-Header"}},
+		{name: "proxy pass headers", data: map[string]string{"proxy-pass-headers": "X-Accel-Expires, X-Accel-Limit-Rate"}, get: func(p *ConfigParams) any { return p.ProxyPassHeaders }, want: []string{"X-Accel-Expires", "X-Accel-Limit-Rate"}},
+		{name: "set real ip from all forms", data: map[string]string{"set-real-ip-from": "10.0.0.0/8, 2001:db8::/32, unix:, realip.example.com"}, get: func(p *ConfigParams) any { return p.SetRealIPFrom }, want: []string{"10.0.0.0/8", "2001:db8::/32", "unix:", "realip.example.com"}},
+		{name: "resolver addresses", data: map[string]string{"resolver-addresses": "10.0.0.10:53, [2001:db8::1]:5353, dns.example.com"}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string{"10.0.0.10:53", "[2001:db8::1]:5353", "dns.example.com"}},
+		{name: "error log level", data: map[string]string{"error-log-level": "warn"}, get: func(p *ConfigParams) any { return p.MainErrorLogLevel }, want: "warn"},
+		{name: "log format escaping", data: map[string]string{"log-format-escaping": "json"}, get: func(p *ConfigParams) any { return p.MainLogFormatEscaping }, want: "json"},
+		{name: "stream log format escaping", data: map[string]string{"stream-log-format-escaping": "none"}, get: func(p *ConfigParams) any { return p.MainStreamLogFormatEscaping }, want: "none"},
+		{name: "log format with variables and escaped quote", data: map[string]string{"log-format": `$remote_addr request=\'$request\'`}, get: func(p *ConfigParams) any { return p.MainLogFormat }, want: []string{`$remote_addr request=\'$request\'`}},
+		{name: "stream log format with variables", data: map[string]string{"stream-log-format": `$remote_addr $protocol $status`}, get: func(p *ConfigParams) any { return p.MainStreamLogFormat }, want: []string{`$remote_addr $protocol $status`}},
+		{name: "default server return quoted text", data: map[string]string{"default-server-return": `200 "healthy; ready"`}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: `200 "healthy; ready"`},
+		{name: "default server return apostrophe", data: map[string]string{"default-server-return": "200 don't"}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "200 don't"},
+		{name: "worker cpu affinity masks", data: map[string]string{"worker-cpu-affinity": "0001 0010 0100 1000"}, get: func(p *ConfigParams) any { return p.MainWorkerCPUAffinity }, want: "0001 0010 0100 1000"},
+		{name: "worker cpu affinity auto mask", data: map[string]string{"worker-cpu-affinity": "auto 01010101"}, get: func(p *ConfigParams) any { return p.MainWorkerCPUAffinity }, want: "auto 01010101"},
+		{name: "plus custom server tokens", data: map[string]string{"server-tokens": `NGINX Plus $hostname`}, get: func(p *ConfigParams) any { return p.ServerTokens }, want: `NGINX Plus $hostname`},
+		// server-tokens is rendered with plain template quoting, so a quote in
+		// the value must arrive already escaped for NGINX and is passed through
+		// unchanged. Escaping it again here would make NGINX emit the
+		// backslashes in the Server header.
+		{name: "plus custom server tokens escaped quote", data: map[string]string{"server-tokens": `NGINX \"Plus\"`}, get: func(p *ConfigParams) any { return p.ServerTokens }, want: `NGINX \"Plus\"`},
+		{name: "access log syslog parameters", data: map[string]string{"access-log": "syslog:server=unix:/var/run/nginx.sock,nohostname,tag=nginx main"}, get: func(p *ConfigParams) any { return p.MainAccessLog }, want: "syslog:server=unix:/var/run/nginx.sock,nohostname,tag=nginx main"},
+		{name: "app protect cookie seed", data: map[string]string{"app-protect-cookie-seed": "abcdefghijklmnopqrstuvwxyz012345"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCookieSeed }, want: "abcdefghijklmnopqrstuvwxyz012345"},
+		{name: "app protect dos fqdn", data: map[string]string{"app-protect-dos-arb-fqdn": "arb.example.com"}, hasDos: true, get: func(p *ConfigParams) any { return p.MainAppProtectDosArbFqdn }, want: "arb.example.com"},
+		{name: "app protect dos log format", data: map[string]string{"app-protect-dos-log-format": `$remote_addr $app_protect_dos_outcome`}, hasDos: true, get: func(p *ConfigParams) any { return p.MainAppProtectDosLogFormat }, want: []string{`$remote_addr $app_protect_dos_outcome`}},
+		{name: "app protect dos log format escaping", data: map[string]string{"app-protect-dos-log-format-escaping": "default"}, hasDos: true, get: func(p *ConfigParams) any { return p.MainAppProtectDosLogFormatEscaping }, want: "default"},
+		{name: "otel header value", data: map[string]string{"otel-exporter-endpoint": "https://otel-collector:4317", "otel-exporter-header-name": "X-Tenant", "otel-exporter-header-value": `tenant \"blue\"`}, get: func(p *ConfigParams) any { return p.MainOtelExporterHeaderValue }, want: `tenant \"blue\"`},
+		{name: "otel service name", data: map[string]string{"otel-exporter-endpoint": "https://otel-collector:4317", "otel-service-name": "nginx ingress controller"}, get: func(p *ConfigParams) any { return p.MainOtelServiceName }, want: "nginx ingress controller"},
+		// '#' is a comment only at the start of a token; a URL fragment is data.
+		{name: "default server return url fragment", data: map[string]string{"default-server-return": "302 https://example.com/#/home"}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "302 https://example.com/#/home"},
+		// A YAML block scalar (key: |) leaves a trailing newline, which NGINX
+		// reads as a token separator. These values loaded before validation was
+		// added, so they are trimmed rather than rejected.
+		{name: "real ip header trailing newline", data: map[string]string{"real-ip-header": "X-Forwarded-For\n"}, get: func(p *ConfigParams) any { return p.RealIPHeader }, want: "X-Forwarded-For"},
+		{name: "access log trailing newline", data: map[string]string{"access-log": "syslog:server=localhost:514\n"}, get: func(p *ConfigParams) any { return p.MainAccessLog }, want: "syslog:server=localhost:514"},
+		{name: "default server return trailing newline", data: map[string]string{"default-server-return": "302 https://example.com\n"}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "302 https://example.com"},
+		{name: "app protect cookie seed trailing newline", data: map[string]string{"app-protect-cookie-seed": "abcdefghijklmnopqrstuvwxyz012345\n"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCookieSeed }, want: "abcdefghijklmnopqrstuvwxyz012345"},
+		{name: "app protect cpu thresholds trailing newline", data: map[string]string{"app-protect-cpu-thresholds": "high=90 low=80\n"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCPUThresholds }, want: "high=90 low=80"},
+		{name: "app protect memory thresholds surrounding space", data: map[string]string{"app-protect-physical-memory-util-thresholds": " low=70 high=95 "}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectPhysicalMemoryThresholds }, want: "low=70 high=95"},
+		{name: "access log syslog tag with hash", data: map[string]string{"access-log": "syslog:server=localhost:514,tag=nginx#1 main"}, get: func(p *ConfigParams) any { return p.MainAccessLog }, want: "syslog:server=localhost:514,tag=nginx#1 main"},
+		// A YAML block scalar (key: |) leaves a trailing newline, which NGINX
+		// reads as a token separator. These values loaded before validation was
+		// added, so they are trimmed rather than rejected.
+		{name: "real ip header trailing newline", data: map[string]string{"real-ip-header": "X-Forwarded-For\n"}, get: func(p *ConfigParams) any { return p.RealIPHeader }, want: "X-Forwarded-For"},
+		{name: "access log trailing newline", data: map[string]string{"access-log": "syslog:server=localhost:514\n"}, get: func(p *ConfigParams) any { return p.MainAccessLog }, want: "syslog:server=localhost:514"},
+		{name: "default server return trailing newline", data: map[string]string{"default-server-return": "302 https://example.com\n"}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "302 https://example.com"},
+		{name: "app protect cookie seed trailing newline", data: map[string]string{"app-protect-cookie-seed": "abcdefghijklmnopqrstuvwxyz012345\n"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCookieSeed }, want: "abcdefghijklmnopqrstuvwxyz012345"},
+		{name: "app protect cpu thresholds trailing newline", data: map[string]string{"app-protect-cpu-thresholds": "high=90 low=80\n"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCPUThresholds }, want: "high=90 low=80"},
+		{name: "app protect memory thresholds surrounding space", data: map[string]string{"app-protect-physical-memory-util-thresholds": " low=70 high=95 "}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectPhysicalMemoryThresholds }, want: "low=70 high=95"},
+		// resolver accepts several space-separated addresses, and the list
+		// used to be joined with spaces, so these forms loaded before.
+		{name: "resolver addresses trailing comma", data: map[string]string{"resolver-addresses": "10.0.0.10,10.0.0.11,"}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string{"10.0.0.10", "10.0.0.11"}},
+		{name: "resolver addresses space separated", data: map[string]string{"resolver-addresses": "10.0.0.10 10.0.0.11"}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string{"10.0.0.10", "10.0.0.11"}},
+		{name: "resolver addresses trailing newline", data: map[string]string{"resolver-addresses": "10.0.0.10\n"}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string{"10.0.0.10"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, configOk := ParseConfigMap(context.Background(), &v1.ConfigMap{Data: test.data}, true, test.hasAppProtect, test.hasDos, false, false, true, makeEventLogger())
+			assert.True(t, configOk)
+			assert.Equal(t, test.want, test.get(cfg))
+		})
+	}
+}
+
+func TestParseConfigMapRawDirectiveInjectionLeavesDefaults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		data          map[string]string
+		hasAppProtect bool
+		hasDos        bool
+		get           func(*ConfigParams) any
+		want          any
+	}{
+		{name: "proxy connect timeout", data: map[string]string{"proxy-connect-timeout": "1s; return 200"}, get: func(p *ConfigParams) any { return p.ProxyConnectTimeout }, want: "60s"},
+		{name: "proxy read timeout", data: map[string]string{"proxy-read-timeout": "1s\nreturn 200"}, get: func(p *ConfigParams) any { return p.ProxyReadTimeout }, want: "60s"},
+		{name: "proxy send timeout", data: map[string]string{"proxy-send-timeout": "1s}"}, get: func(p *ConfigParams) any { return p.ProxySendTimeout }, want: "60s"},
+		{name: "worker shutdown timeout", data: map[string]string{"worker-shutdown-timeout": "1s; daemon on"}, get: func(p *ConfigParams) any { return p.MainWorkerShutdownTimeout }, want: ""},
+		{name: "keepalive timeout", data: map[string]string{"keepalive-timeout": "75s; access_log off"}, get: func(p *ConfigParams) any { return p.MainKeepaliveTimeout }, want: "75s"},
+		{name: "fail timeout", data: map[string]string{"fail-timeout": "10s; down"}, get: func(p *ConfigParams) any { return p.FailTimeout }, want: "10s"},
+		{name: "resolver timeout", data: map[string]string{"resolver-timeout": "30s; resolver 1.1.1.1"}, get: func(p *ConfigParams) any { return p.ResolverTimeout }, want: ""},
+		{name: "resolver valid", data: map[string]string{"resolver-valid": "5m; ipv6=off"}, get: func(p *ConfigParams) any { return p.ResolverValid }, want: ""},
+		{name: "client max body size", data: map[string]string{"client-max-body-size": "1m; return 413"}, get: func(p *ConfigParams) any { return p.ClientMaxBodySize }, want: "1m"},
+		{name: "proxy max temp file size", data: map[string]string{"proxy-max-temp-file-size": "0; return 200"}, get: func(p *ConfigParams) any { return p.ProxyMaxTempFileSize }, want: ""},
+		{name: "upstream zone size", data: map[string]string{"upstream-zone-size": "512k; zone evil"}, get: func(p *ConfigParams) any { return p.UpstreamZoneSize }, want: "512k"},
+		{name: "server names hash bucket size", data: map[string]string{"server-names-hash-bucket-size": "512; return 200"}, get: func(p *ConfigParams) any { return p.MainServerNamesHashBucketSize }, want: "256"},
+		{name: "server names hash max size", data: map[string]string{"server-names-hash-max-size": "4096\nreturn 200"}, get: func(p *ConfigParams) any { return p.MainServerNamesHashMaxSize }, want: "1024"},
+		{name: "map hash bucket size", data: map[string]string{"map-hash-bucket-size": "128}"}, get: func(p *ConfigParams) any { return p.MainMapHashBucketSize }, want: "256"},
+		{name: "map hash max size", data: map[string]string{"map-hash-max-size": "8192;"}, get: func(p *ConfigParams) any { return p.MainMapHashMaxSize }, want: "2048"},
+		{name: "worker connections", data: map[string]string{"worker-connections": "2048; events {}"}, get: func(p *ConfigParams) any { return p.MainWorkerConnections }, want: "1024"},
+		{name: "worker rlimit nofile", data: map[string]string{"worker-rlimit-nofile": "65535; daemon on"}, get: func(p *ConfigParams) any { return p.MainWorkerRlimitNofile }, want: ""},
+		{name: "proxy hide headers", data: map[string]string{"proxy-hide-headers": "X-Good,X-Bad; return 200"}, get: func(p *ConfigParams) any { return p.ProxyHideHeaders }, want: []string(nil)},
+		{name: "proxy pass headers", data: map[string]string{"proxy-pass-headers": "X-Good\nproxy_pass_header X-Evil"}, get: func(p *ConfigParams) any { return p.ProxyPassHeaders }, want: []string(nil)},
+		{name: "set real ip from", data: map[string]string{"set-real-ip-from": "10.0.0.0/8; set_real_ip_from 0.0.0.0/0"}, get: func(p *ConfigParams) any { return p.SetRealIPFrom }, want: []string(nil)},
+		{name: "resolver addresses", data: map[string]string{"resolver-addresses": "10.0.0.10; resolver 1.1.1.1"}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string(nil)},
+		{name: "resolver addresses empty", data: map[string]string{"resolver-addresses": ""}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string(nil)},
+		{name: "resolver addresses only separators", data: map[string]string{"resolver-addresses": " , "}, get: func(p *ConfigParams) any { return p.ResolverAddresses }, want: []string(nil)},
+		{name: "default server return comment after whitespace", data: map[string]string{"default-server-return": "302 https://example.com/ #/home"}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "404"},
+		{name: "error log level", data: map[string]string{"error-log-level": "info; access_log off"}, get: func(p *ConfigParams) any { return p.MainErrorLogLevel }, want: "notice"},
+		{name: "log format escaping", data: map[string]string{"log-format-escaping": "json; access_log off"}, get: func(p *ConfigParams) any { return p.MainLogFormatEscaping }, want: ""},
+		{name: "stream log format escaping", data: map[string]string{"stream-log-format-escaping": "none\nserver {}"}, get: func(p *ConfigParams) any { return p.MainStreamLogFormatEscaping }, want: ""},
+		{name: "log format quote breakout", data: map[string]string{"log-format": `$remote_addr'; access_log off; '`}, get: func(p *ConfigParams) any { return p.MainLogFormat }, want: []string(nil)},
+		{name: "stream log format quote breakout", data: map[string]string{"stream-log-format": `$remote_addr'; server {}; '`}, get: func(p *ConfigParams) any { return p.MainStreamLogFormat }, want: []string(nil)},
+		{name: "default server return", data: map[string]string{"default-server-return": "404; return 200"}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "404"},
+		{name: "default server return quote after braced variable", data: map[string]string{"default-server-return": `404 ${a}"; return 200; #"`}, get: func(p *ConfigParams) any { return p.DefaultServerReturn }, want: "404"},
+		{name: "worker cpu affinity", data: map[string]string{"worker-cpu-affinity": "0001; daemon on"}, get: func(p *ConfigParams) any { return p.MainWorkerCPUAffinity }, want: ""},
+		{name: "plus custom server tokens", data: map[string]string{"server-tokens": "off\";\nreturn 200;\n#"}, get: func(p *ConfigParams) any { return p.ServerTokens }, want: "on"},
+		// An unescaped quote cannot be represented in a plainly quoted argument.
+		// Before validation existed this emitted server_tokens "NGINX "Plus"";,
+		// which NGINX rejects, so it is a config-test failure turned into a
+		// rejection rather than a working value being taken away.
+		{name: "plus custom server tokens unescaped quote", data: map[string]string{"server-tokens": `NGINX "Plus"`}, get: func(p *ConfigParams) any { return p.ServerTokens }, want: "on"},
+		{name: "access log syslog", data: map[string]string{"access-log": "syslog:server=localhost:514; access_log off"}, get: func(p *ConfigParams) any { return p.MainAccessLog }, want: "/dev/stdout main"},
+		{name: "access log comment", data: map[string]string{"access-log": "syslog:server=localhost:514 # disable terminator"}, get: func(p *ConfigParams) any { return p.MainAccessLog }, want: "/dev/stdout main"},
+		{name: "app protect cookie seed", data: map[string]string{"app-protect-cookie-seed": "seed; app_protect_enable off"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCookieSeed }, want: ""},
+		{name: "app protect cookie seed too short", data: map[string]string{"app-protect-cookie-seed": "short"}, hasAppProtect: true, get: func(p *ConfigParams) any { return p.MainAppProtectCookieSeed }, want: ""},
+		{name: "app protect dos fqdn", data: map[string]string{"app-protect-dos-arb-fqdn": "arb.example.com; access_log off"}, hasDos: true, get: func(p *ConfigParams) any { return p.MainAppProtectDosArbFqdn }, want: ""},
+		{name: "app protect dos log format quote breakout", data: map[string]string{"app-protect-dos-log-format": `$remote_addr'; access_log off; '`}, hasDos: true, get: func(p *ConfigParams) any { return p.MainAppProtectDosLogFormat }, want: []string(nil)},
+		{name: "app protect dos log format escaping", data: map[string]string{"app-protect-dos-log-format-escaping": "json; access_log off"}, hasDos: true, get: func(p *ConfigParams) any { return p.MainAppProtectDosLogFormatEscaping }, want: ""},
+		{name: "otel header control character", data: map[string]string{"otel-exporter-endpoint": "https://otel-collector:4317", "otel-exporter-header-name": "X-Tenant", "otel-exporter-header-value": "tenant\naccess_log off"}, get: func(p *ConfigParams) any { return p.MainOtelExporterHeaderValue }, want: ""},
+		{name: "otel service name control character", data: map[string]string{"otel-exporter-endpoint": "https://otel-collector:4317", "otel-service-name": "nginx\naccess_log off"}, get: func(p *ConfigParams) any { return p.MainOtelServiceName }, want: ""},
+		{name: "otel endpoint directive breakout", data: map[string]string{"otel-exporter-endpoint": "https://otel-collector:4317/path; access_log off"}, get: func(p *ConfigParams) any { return p.MainOtelExporterEndpoint }, want: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, configOk := ParseConfigMap(context.Background(), &v1.ConfigMap{Data: test.data}, true, test.hasAppProtect, test.hasDos, false, false, true, makeEventLogger())
+			assert.False(t, configOk)
+			assert.Equal(t, test.want, test.get(cfg))
+		})
+	}
+}
+
+func TestParseMGMTConfigMapResolverValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		data          map[string]string
+		wantWarnings  bool
+		wantAddresses []string
+		wantValid     string
+	}{
+		{
+			name: "valid resolver grammar",
+			data: map[string]string{
+				"license-token-secret-name": "license-token",
+				"resolver-addresses":        "10.0.0.10:53, [2001:db8::1]:5353, dns.example.com",
+				"resolver-valid":            "5m",
+			},
+			wantAddresses: []string{"10.0.0.10:53", "[2001:db8::1]:5353", "dns.example.com"},
+			wantValid:     "5m",
+		},
+		{
+			name: "resolver addresses trailing comma",
+			data: map[string]string{
+				"license-token-secret-name": "license-token",
+				"resolver-addresses":        "10.0.0.10,10.0.0.11,",
+			},
+			wantAddresses: []string{"10.0.0.10", "10.0.0.11"},
+		},
+		{
+			name: "resolver addresses space separated",
+			data: map[string]string{
+				"license-token-secret-name": "license-token",
+				"resolver-addresses":        "10.0.0.10 10.0.0.11",
+			},
+			wantAddresses: []string{"10.0.0.10", "10.0.0.11"},
+		},
+		{
+			name: "resolver addresses only a comma",
+			data: map[string]string{
+				"license-token-secret-name": "license-token",
+				"resolver-addresses":        ",",
+			},
+			wantWarnings: true,
+		},
+		{
+			name: "resolver address injection",
+			data: map[string]string{
+				"license-token-secret-name": "license-token",
+				"resolver-addresses":        "10.0.0.10; resolver 1.1.1.1",
+			},
+			wantWarnings: true,
+		},
+		{
+			name: "resolver valid injection",
+			data: map[string]string{
+				"license-token-secret-name": "license-token",
+				"resolver-valid":            "5m; ipv6=off",
+			},
+			wantWarnings: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, warnings, err := ParseMGMTConfigMap(context.Background(), &v1.ConfigMap{Data: test.data}, makeEventLogger())
+			assert.NoError(t, err)
+			assert.Equal(t, test.wantWarnings, warnings)
+			assert.Equal(t, test.wantAddresses, cfg.ResolverAddresses)
+			assert.Equal(t, test.wantValid, cfg.ResolverValid)
+		})
+	}
+}
+
+// TestParseConfigMapDoesNotLeakSecrets asserts that a rejected value for a key
+// that carries a secret never reaches the controller log or a Kubernetes Event,
+// which are usually readable by far more people than the ConfigMap.
+func TestParseConfigMapDoesNotLeakSecrets(t *testing.T) {
+	t.Parallel()
+
+	const secret = "Sup3rS3cretValue0123456789"
+	tests := []struct {
+		name string
+		data map[string]string
+	}{
+		{
+			// A near miss of the real seed. Surrounding whitespace is trimmed
+			// and accepted, so use a character the grammar rejects.
+			name: "app-protect-cookie-seed",
+			data: map[string]string{"app-protect-cookie-seed": secret + "-"},
+		},
+		{
+			name: "otel-exporter-header-value",
+			data: map[string]string{
+				"otel-exporter-endpoint":     "https://otel.example.com:4317",
+				"otel-exporter-header-name":  "Authorization",
+				"otel-exporter-header-value": "Bearer " + secret + `"`,
+			},
+		},
+		{
+			// url.Parse errors repeat the whole URL, credentials included.
+			name: "otel-exporter-endpoint",
+			data: map[string]string{"otel-exporter-endpoint": "https://user:" + secret + "@otel.example.com:43 17"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(glog.New(&logs, nil)))
+			recorder := record.NewFakeRecorder(1024)
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "nginx-config", Namespace: "nginx-ingress"},
+				Data:       tc.data,
+			}
+
+			_, configOk := ParseConfigMap(ctx, cm, true, true, false, false, false, false, recorder)
+			if configOk {
+				t.Fatal("want the invalid value to be rejected")
+			}
+
+			close(recorder.Events)
+			var events []string
+			for e := range recorder.Events {
+				events = append(events, e)
+			}
+			if len(events) == 0 {
+				t.Fatal("want a warning Event for the rejected value")
+			}
+			for _, e := range events {
+				if strings.Contains(e, secret) {
+					t.Errorf("Event leaks the secret: %s", e)
+				}
+			}
+			if logs.Len() == 0 {
+				t.Fatal("want the rejection to be logged")
+			}
+			if strings.Contains(logs.String(), secret) {
+				t.Errorf("log leaks the secret: %s", logs.String())
 			}
 		})
 	}

@@ -7,28 +7,28 @@ import (
 )
 
 // This file holds the shared HTTP header name validator that NIC's
-// tenant-controlled surfaces route through, so the accepted grammar cannot
-// drift between them. It is not yet the single source of truth for every
-// surface; the remaining ones are listed below and are aligned separately.
+// tenant-controlled surfaces and ConfigMap surfaces route through, so the
+// accepted grammar cannot drift between them. It is not yet the single source
+// of truth for every surface; the remaining ones are listed below and are
+// aligned separately.
 //
 // NIC accepts header names from several surfaces that all end up in the same
 // NGINX directives. The tenant-controlled annotations —
 // nginx.org/proxy-hide-headers, nginx.org/proxy-pass-headers,
 // nginx.org/proxy-set-headers and nginx.org/add-header — validate through
-// ValidateHeaderName here: the annotation header-list validation in
-// internal/k8s and ValidateAddHeaderName in internal/configs/version1.
+// ValidateHeaderName here, via the annotation header-list validation in
+// internal/k8s.
 //
-// The ConfigMap keys — proxy-hide-headers, proxy-pass-headers, real-ip-header,
-// add-header and otel-exporter-header-name — are deliberately not routed here
-// yet. Changing a ConfigMap needs cluster-level Kubernetes permission, a
-// different threat model from the tenant surfaces, so centralizing their
-// header-name validation belongs with the ConfigMap hardening work rather than
-// with this tenant-facing change.
+// The ConfigMap keys — proxy-hide-headers, proxy-pass-headers, add-header and
+// otel-exporter-header-name — also route through ValidateHeaderName, via the
+// ConfigMap parsing in internal/configs. The real-ip-header key uses the
+// purpose-specific ValidateRealIPHeader instead, which enforces the narrower
+// set of values that directive accepts.
 //
 // Messages are returned verbatim from IsHTTPHeaderName, so every surface that
 // does route here reports an identical reason for an identical failure. The
 // sources still calling k8svalidation.IsHTTPHeaderName (or the k8s helper)
-// directly, to be aligned later, are those ConfigMap keys and the CRD side in
+// directly, to be aligned later, are on the CRD side in
 // pkg/apis/configuration/validation:
 //
 //   - virtualserver.go validateActionProxyHeader, for the requestHeaders.set

@@ -1,3 +1,6 @@
+import socket
+import ssl
+
 import grpc
 import pytest
 from settings import DEPLOYMENTS, TEST_DATA
@@ -7,14 +10,17 @@ from suite.utils.custom_assertions import (
     assert_event,
     assert_event_starts_with_text_and_contains_errors,
     assert_grpc_entries_exist,
+    assert_h2c_grpc_hello,
     assert_proxy_entries_do_not_exist,
     assert_vs_conf_not_exists,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_secret_from_yaml,
     delete_common_app,
     delete_items_from_yaml,
+    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -24,11 +30,27 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 from suite.utils.ssl_utils import get_certificate
-from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server, patch_virtual_server_from_yaml
+
+
+def assert_grpc_hello(virtual_server_setup) -> None:
+    """Call the Greeter service through the VirtualServer over TLS and check the reply."""
+    endpoint = virtual_server_setup.public_endpoint
+    cert = get_certificate(endpoint.public_ip, virtual_server_setup.vs_host, endpoint.port_ssl)
+    credentials = grpc.ssl_channel_credentials(root_certificates=cert.encode())
+    options = (("grpc.ssl_target_name_override", virtual_server_setup.vs_host),)
+
+    with grpc.secure_channel(f"{endpoint.public_ip}:{endpoint.port_ssl}", credentials, options) as channel:
+        try:
+            response = GreeterStub(channel).SayHello(HelloRequest(name=endpoint.public_ip))
+            assert f"Hello {endpoint.public_ip}" in response.message
+        except grpc.RpcError as e:
+            print(e.details())
+            pytest.fail("RPC error was not expected during call, exiting...")
 
 
 @pytest.fixture(scope="function")
-def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_namespace):
+def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_namespace, e2e_run_id):
     """
     Replace the ConfigMap and deploy the secret.
 
@@ -51,8 +73,8 @@ def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_nam
         create_secret_from_yaml(kube_apis.v1, test_namespace, src_sec_yaml)
         print("------------------------- Deploy App -----------------------------")
         app_name = request.param.get("app_type")
-        create_example_app(kube_apis, app_name, test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, app_name, test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     except Exception:
         print("Failed to complete setup, cleaning up..")
         delete_items_from_yaml(kube_apis, src_sec_yaml, test_namespace)
@@ -106,7 +128,7 @@ class TestVirtualServerGrpc:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
         print("\nStep 1: assert config")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -145,25 +167,79 @@ class TestVirtualServerGrpc:
     def test_connect_grpc_backend(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ) -> None:
-        cert = get_certificate(
-            virtual_server_setup.public_endpoint.public_ip,
-            virtual_server_setup.vs_host,
-            virtual_server_setup.public_endpoint.port_ssl,
-        )
-        target = f"{virtual_server_setup.public_endpoint.public_ip}:{virtual_server_setup.public_endpoint.port_ssl}"
-        credentials = grpc.ssl_channel_credentials(root_certificates=cert.encode())
-        options = (("grpc.ssl_target_name_override", virtual_server_setup.vs_host),)
+        assert_grpc_hello(virtual_server_setup)
 
-        with grpc.secure_channel(target, credentials, options) as channel:
-            stub = GreeterStub(channel)
-            response = ""
-            try:
-                response = stub.SayHello(HelloRequest(name=virtual_server_setup.public_endpoint.public_ip))
-                valid_message = "Hello {}".format(virtual_server_setup.public_endpoint.public_ip)
-                assert valid_message in response.message
-            except grpc.RpcError as e:
-                print(e.details())
-                pytest.fail("RPC error was not expected during call, exiting...")
+    @pytest.mark.flaky(max_runs=3)
+    @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
+    def test_http2_field_overrides_configmap(
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
+    ) -> None:
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+
+        def set_http2(value) -> str:
+            # a merge patch: None removes the field
+            body = {"metadata": {"name": virtual_server_setup.vs_name}, "spec": {"http2": value}}
+            patch_virtual_server(
+                kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace, body
+            )
+            wait_before_test()
+            return get_vs_nginx_template_conf(
+                kube_apis.v1,
+                virtual_server_setup.namespace,
+                virtual_server_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+
+        try:
+            print("spec.http2: false overrides the http2 ConfigMap key")
+            assert "http2 off;" in set_http2(False)
+            # a client offering h2 and http/1.1 over TLS must fall back to http/1.1
+            ctx = ssl.create_default_context()
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            ctx.set_alpn_protocols(["h2", "http/1.1"])
+            endpoint = virtual_server_setup.public_endpoint
+            with socket.create_connection((endpoint.public_ip, endpoint.port_ssl), timeout=10) as sock:
+                with ctx.wrap_socket(sock, server_hostname=virtual_server_setup.vs_host) as tls:
+                    assert tls.selected_alpn_protocol() == "http/1.1"
+
+            print("spec.http2: true without the http2 ConfigMap key")
+            replace_configmap_from_yaml(
+                kube_apis.v1,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+                ingress_controller_prerequisites.namespace,
+                f"{DEPLOYMENTS}/common/nginx-config.yaml",
+            )
+            assert "http2 on;" in set_http2(True)
+            assert_grpc_hello(virtual_server_setup)
+        finally:
+            set_http2(None)
+
+    @pytest.mark.flaky(max_runs=3)
+    @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
+    def test_grpc_without_tls(
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
+    ) -> None:
+        """With the http2 ConfigMap key on, a VirtualServer without TLS serves gRPC over h2c on the HTTP port."""
+        name, namespace = virtual_server_setup.vs_name, virtual_server_setup.namespace
+        try:
+            # a merge patch: None removes spec.tls
+            patch_virtual_server(
+                kube_apis.custom_objects, name, namespace, {"metadata": {"name": name}, "spec": {"tls": None}}
+            )
+            wait_before_test()
+            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+            config = get_vs_nginx_template_conf(
+                kube_apis.v1, namespace, name, ic_pod_name, ingress_controller_prerequisites.namespace
+            )
+            assert "ssl_certificate" not in config
+            assert "location @grpc_deadline_exceeded" in config
+            assert_h2c_grpc_hello(virtual_server_setup.public_endpoint, virtual_server_setup.vs_host)
+        finally:
+            self.patch_valid_vs(kube_apis, virtual_server_setup)
+            wait_before_test()
 
     @pytest.mark.flaky(max_runs=3)
     @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
@@ -191,7 +267,7 @@ class TestVirtualServerGrpc:
                 print(e.details())
                 pytest.fail("RPC error was not expected during call, exiting...")
         # Assert grpc_status is in the logs. The gRPC response in a successful call is 0.
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         log_contents = kube_apis.v1.read_namespaced_pod_log(ic_pod_name, ingress_controller_prerequisites.namespace)
         retry = 0
         while '"POST /helloworld.Greeter/SayHello HTTP/2.0" 200 0' not in log_contents and retry <= 60:
@@ -215,7 +291,7 @@ class TestVirtualServerGrpc:
             except grpc.RpcError as e:
                 print(e)
         # Assert the grpc_status is also in the logs.
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         wait_before_test()
         # Need to get full log because of a race condition on the last log entry.
         log_contents = kube_apis.v1.read_namespaced_pod_log(ic_pod_name, ingress_controller_prerequisites.namespace)
@@ -248,7 +324,7 @@ class TestVirtualServerGrpc:
     def test_config_after_enable_tls(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,
@@ -280,7 +356,7 @@ class TestVirtualServerGrpcHealthCheck:
     def test_config_after_enable_healthcheck(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,
@@ -322,7 +398,7 @@ class TestVirtualServerGrpcHealthCheck:
             virtual_server_setup.namespace,
         )
         wait_before_test(2)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
@@ -337,7 +413,7 @@ class TestVirtualServerGrpcHealthCheck:
     def test_grpc_healthcheck_send_hello(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,

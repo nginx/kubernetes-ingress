@@ -2042,6 +2042,11 @@ func (in *VirtualServerSpec) DeepCopyInto(out *VirtualServerSpec) {
 		*out = new(TLS)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.HTTP2 != nil {
+		in, out := &in.HTTP2, &out.HTTP2
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Policies != nil {
 		in, out := &in.Policies, &out.Policies
 		*out = make([]PolicyReference, len(*in))

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
-	"github.com/nginx/kubernetes-ingress/internal/validation"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -15,13 +14,6 @@ const (
 )
 
 var escapedStringsFmtRegexp = regexp.MustCompile("^" + escapedStringsFmt + "$")
-
-// ValidateAddHeaderName validates that name is a legal HTTP header name,
-// using the same rules as the nginx.org/add-header annotation.
-// Returns error messages (empty when valid).
-func ValidateAddHeaderName(name string) []string {
-	return validation.ValidateHeaderName(name)
-}
 
 // ValidateAddHeaderValue validates a header value for use in an NGINX
 // add_header directive. It rejects:

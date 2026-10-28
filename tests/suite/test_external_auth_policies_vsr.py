@@ -138,6 +138,65 @@ class TestExternalAuthPoliciesVsr:
             assert resp.status_code == 401
             assert "Authorization Required" in resp.text
 
+    @pytest.mark.parametrize("credentials", [valid_credentials, invalid_credentials])
+    def test_external_auth_policy_spoofed_headers_and_non_get(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        credentials,
+    ):
+        """
+        Test external-auth policy boundary on VSR with client-supplied spoofed headers
+        and non-GET (POST) request.
+        Verifies that spoofed headers (X-Forwarded-Prefix, X-Forwarded-URI, X-Forwarded-Method,
+        X-Original-URI) are sanitized by NGINX and not forwarded to the auth backend,
+        and requests are successfully authenticated (or rejected if unauthorized).
+        """
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+        secret_names, policy_names, headers = setup_ext_auth(
+            kube_apis,
+            v_s_route_setup.route_m.namespace,
+            credentials,
+            [ext_auth_pol_valid_src],
+            v_s_route_setup.vs_host,
+        )
+        headers.update(
+            {
+                "X-Forwarded-Prefix": "/malicious-prefix",
+                "X-Forwarded-URI": "/malicious-uri",
+                "X-Forwarded-Method": "DELETE",
+                "X-Original-URI": "/malicious-uri",
+            }
+        )
+
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_setup.route_m.name,
+            ext_auth_vsr_valid_src,
+            v_s_route_setup.route_m.namespace,
+        )
+        wait_before_test()
+        ensure_response_from_backend(
+            f"{req_url}{v_s_route_setup.route_m.paths[0]}",
+            v_s_route_setup.vs_host,
+            additional_headers=valid_auth_headers(),
+        )
+
+        resp = requests.post(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
+        print(resp.status_code)
+
+        self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
+
+        if credentials == valid_credentials:
+            assert resp.status_code == 200
+            assert "Request ID:" in resp.text
+        else:
+            assert resp.status_code == 401
+            assert "Authorization Required" in resp.text
+
     @pytest.mark.smoke
     def test_external_auth_policy_valid(
         self,

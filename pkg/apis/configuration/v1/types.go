@@ -53,6 +53,11 @@ type VirtualServerSpec struct {
 	TLS *TLS `json:"tls"`
 	// Enables or disables decompression of gzipped responses for clients. Allowed values “on”/“off”, “true”/“false” or “yes”/“no”. If the gunzip value is not set, it defaults to off.
 	Gunzip bool `json:"gunzip"`
+	// +kubebuilder:validation:Optional
+	// Turns HTTP/2 on or off for this VirtualServer, overriding the http2 ConfigMap key.
+	// Without TLS, HTTP/2 (h2c) on the default listeners (when listener is not set) also requires the http2 ConfigMap key.
+	// When off, HTTP/2 requests for this host get 421 Misdirected Request; HTTP/1.1 is unaffected.
+	HTTP2 *bool `json:"http2,omitempty"`
 	// A list of policies.
 	Policies []PolicyReference `json:"policies"`
 	// A list of upstreams.
@@ -187,7 +192,7 @@ type Upstream struct {
 	UseClusterIP bool `json:"use-cluster-ip"`
 	// Allows proxying requests with NTLM Authentication. In order for NTLM authentication to work, it is necessary to enable keepalive connections to upstream servers using the keepalive field. Note: this feature is supported only in NGINX Plus.
 	NTLM bool `json:"ntlm"`
-	// The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2 in the ConfigMap and configure TLS termination in the VirtualServer.
+	// The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2, using the VirtualServer http2 field or the http2 ConfigMap key.
 	Type string `json:"type"`
 	// The name of the backup service of type ExternalName. This will be used when the primary servers are unavailable. Note: The parameter cannot be used along with the random, hash or ip_hash load balancing methods.
 	Backup string `json:"backup"`

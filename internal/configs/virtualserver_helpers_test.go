@@ -1568,7 +1568,6 @@ func TestGenerateSSLConfig(t *testing.T) {
 	tests := []struct {
 		inputTLS         *conf_v1.TLS
 		inputSecretRefs  map[secrets.SecretRefKey]*secrets.SecretReference
-		inputCfgParams   *ConfigParams
 		wildcard         bool
 		expectedSSL      *version2.SSL
 		expectedWarnings Warnings
@@ -1577,7 +1576,6 @@ func TestGenerateSSLConfig(t *testing.T) {
 		{
 			inputTLS:         nil,
 			inputSecretRefs:  map[secrets.SecretRefKey]*secrets.SecretReference{},
-			inputCfgParams:   &ConfigParams{Context: context.Background()},
 			wildcard:         false,
 			expectedSSL:      nil,
 			expectedWarnings: Warnings{},
@@ -1588,7 +1586,6 @@ func TestGenerateSSLConfig(t *testing.T) {
 				Secret: "",
 			},
 			inputSecretRefs:  map[secrets.SecretRefKey]*secrets.SecretReference{},
-			inputCfgParams:   &ConfigParams{Context: context.Background()},
 			wildcard:         false,
 			expectedSSL:      nil,
 			expectedWarnings: Warnings{},
@@ -1599,10 +1596,8 @@ func TestGenerateSSLConfig(t *testing.T) {
 				Secret: "",
 			},
 			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
-			inputCfgParams:  &ConfigParams{Context: context.Background()},
 			wildcard:        true,
 			expectedSSL: &version2.SSL{
-				HTTP2:           false,
 				Certificate:     pemFileNameForWildcardTLSSecret,
 				CertificateKey:  pemFileNameForWildcardTLSSecret,
 				RejectHandshake: false,
@@ -1614,15 +1609,13 @@ func TestGenerateSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TLS{
 				Secret: "missing",
 			},
-			inputCfgParams: &ConfigParams{Context: context.Background()},
-			wildcard:       false,
+			wildcard: false,
 			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 				secrets.RefKey("default/missing", secrets.RoleTLS): {
 					Error: errors.New("missing doesn't exist"),
 				},
 			},
 			expectedSSL: &version2.SSL{
-				HTTP2:           false,
 				RejectHandshake: true,
 			},
 			expectedWarnings: Warnings{
@@ -1634,8 +1627,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TLS{
 				Secret: "mistyped",
 			},
-			inputCfgParams: &ConfigParams{Context: context.Background()},
-			wildcard:       false,
+			wildcard: false,
 			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 				secrets.RefKey("default/mistyped", secrets.RoleTLS): {
 					Secret: &api_v1.Secret{
@@ -1645,7 +1637,6 @@ func TestGenerateSSLConfig(t *testing.T) {
 				},
 			},
 			expectedSSL: &version2.SSL{
-				HTTP2:           false,
 				Certificate:     "mistyped.pem",
 				CertificateKey:  "mistyped.pem",
 				RejectHandshake: false,
@@ -1663,10 +1654,8 @@ func TestGenerateSSLConfig(t *testing.T) {
 					Path:   "secret.pem",
 				},
 			},
-			inputCfgParams: &ConfigParams{Context: context.Background()},
-			wildcard:       false,
+			wildcard: false,
 			expectedSSL: &version2.SSL{
-				HTTP2:           false,
 				Certificate:     "secret.pem",
 				CertificateKey:  "secret.pem",
 				RejectHandshake: false,
@@ -1682,7 +1671,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 		vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, test.wildcard, &fakeBV)
 
 		// it is ok to use nil as the owner
-		result := vsc.generateSSLConfig(nil, test.inputTLS, namespace, test.inputSecretRefs, test.inputCfgParams)
+		result := vsc.generateSSLConfig(nil, test.inputTLS, namespace, test.inputSecretRefs)
 		if !reflect.DeepEqual(result, test.expectedSSL) {
 			t.Errorf("generateSSLConfig() returned %v but expected %v for the case of %s", result, test.expectedSSL, test.msg)
 		}

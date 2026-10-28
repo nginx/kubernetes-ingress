@@ -859,6 +859,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
 		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
+		HTTP2:                   ncp.BaseCfgParams.HTTP2,
 	}, allWarnings
 }
 
@@ -997,13 +998,20 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
 	loc := version1.Location{
-		Path:                     externalAuth.URI.InternalPath,
-		Internal:                 true,
-		Upstream:                 upstream,
-		DisableWAF:               true,
-		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name, externalAuth.URI.Path),
-		AuthRequestOff:           true,
-		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
+		Path:           externalAuth.URI.InternalPath,
+		Internal:       true,
+		Upstream:       upstream,
+		DisableWAF:     true,
+		ProxyPass:      fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name, externalAuth.URI.Path),
+		AuthRequestOff: true,
+		ProxySetHeaders: []version2.Header{
+			{Name: "Content-Length", Value: "0"},
+			{Name: "X-Scheme", Value: "$scheme"},
+			{Name: "X-Forwarded-Prefix", Value: ""},
+			{Name: "X-Forwarded-URI", Value: "$request_uri"},
+			{Name: "X-Forwarded-Method", Value: "$request_method"},
+			{Name: "X-Original-URI", Value: "$request_uri"},
+		},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
 		ProxySendTimeout:         generateTimeWithDefault(cfg.ProxySendTimeout, cfg.ProxySendTimeout),
@@ -1441,6 +1449,11 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
 	}
 
+	// http2 is server-level and minions share the master's server, so the minions' gRPC check
+	// must use the master's value (nginx.org/http2 is removed from minions).
+	minionBaseCfgParams := *ncp.BaseCfgParams
+	minionBaseCfgParams.HTTP2 = masterServer.HTTP2
+
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true
 	hasGRPCLocations := false
@@ -1478,7 +1491,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			dosResource:               dummyDosResource,
 			isMinion:                  isMinion,
 			isPlus:                    ncp.isPlus,
-			BaseCfgParams:             ncp.BaseCfgParams,
+			BaseCfgParams:             &minionBaseCfgParams,
 			isResolverConfigured:      ncp.isResolverConfigured,
 			isWildcardEnabled:         ncp.isWildcardEnabled,
 			ingressControllerReplicas: ncp.ingressControllerReplicas,
@@ -1613,6 +1626,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
 		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
+		HTTP2:                   ncp.BaseCfgParams.HTTP2,
 	}, warnings
 }
 

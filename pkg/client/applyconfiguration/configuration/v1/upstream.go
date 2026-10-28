@@ -72,7 +72,7 @@ type UpstreamApplyConfiguration struct {
 	UseClusterIP *bool `json:"use-cluster-ip,omitempty"`
 	// Allows proxying requests with NTLM Authentication. In order for NTLM authentication to work, it is necessary to enable keepalive connections to upstream servers using the keepalive field. Note: this feature is supported only in NGINX Plus.
 	NTLM *bool `json:"ntlm,omitempty"`
-	// The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2 in the ConfigMap and configure TLS termination in the VirtualServer.
+	// The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2, using the VirtualServer http2 field or the http2 ConfigMap key.
 	Type *string `json:"type,omitempty"`
 	// The name of the backup service of type ExternalName. This will be used when the primary servers are unavailable. Note: The parameter cannot be used along with the random, hash or ip_hash load balancing methods.
 	Backup *string `json:"backup,omitempty"`

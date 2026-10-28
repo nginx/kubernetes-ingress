@@ -4,8 +4,8 @@ metadata:
   name: nginx-config
   namespace: nginx-ingress
 data:
-  proxy-connect-timeout: "25"
-  proxy-read-timeout: "32"
+  proxy-connect-timeout: "25s"
+  proxy-read-timeout: "32s"
   client-max-body-size: "1028"
   proxy-buffers: "8 4k"
   proxy-buffer-size: "8k"
@@ -14,6 +14,6 @@ data:
   real-ip-header: "proxy_protocol"
   location-snippets: "# location-snippet is here;"
   server-snippets: "# server-snippet is here;"
-  fail-timeout: "20"
-  proxy-send-timeout: "33"
+  fail-timeout: "20s"
+  proxy-send-timeout: "33s"
   upstream-zone-size: "100k"

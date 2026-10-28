@@ -131,6 +131,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "custom-resources",
 			namespace:   "custom-resources",
 		},
+		"externalDNSNginx": {
+			valuesFile:  "testdata/external-dns-nginx.yaml",
+			releaseName: "external-dns-nginx",
+			namespace:   "default",
+		},
+		"externalDNSUpstream": {
+			valuesFile:  "testdata/external-dns-upstream.yaml",
+			releaseName: "external-dns-upstream",
+			namespace:   "default",
+		},
 		"appProtectWAF": {
 			valuesFile:  "testdata/app-protect-waf.yaml",
 			releaseName: "appprotect-waf",
@@ -237,6 +247,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName:   "additional-services-common-labels",
 			namespace:     "default",
 			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
+		"topologyAwareRouting": {
+			valuesFile:  "testdata/topology-aware-routing.yaml",
+			releaseName: "topology-aware-routing",
+			namespace:   "default",
 		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",

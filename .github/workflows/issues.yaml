@@ -11,10 +11,10 @@ jobs:
   comment:
     name: Issue comment
     if: github.repository == 'nginx/kubernetes-ingress' && (!github.event.issue.pull_request)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
-      issues: write # for actions/github-script to create comments
+      issues: write # for actions/github-script to comment on and close issues
     steps:
       - name: text
         id: controller
@@ -45,7 +45,7 @@ jobs:
 
       - name: Send message
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        if: steps.membercheck.outputs.result == 'false'
+        if: steps.membercheck.outputs.result == 'false' && !contains(github.event.issue.body, '[x] I am an AI agent or bot opening this issue')
         with:
           retries: 3
           script: |
@@ -54,4 +54,27 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Hi @${{github.event.issue.user.login}} thanks for reporting! \n\n Be sure to check out the [docs](https://docs.nginx.com/nginx-ingress-controller) and the [Contributing Guidelines](https://github.com/nginx/kubernetes-ingress/blob/main/CONTRIBUTING.md) while you wait for a human to take a look at this :slightly_smiling_face:${{ steps.controller.outputs.text }}\n\n If your issue concerns any of the enterprise features please open a ticket with F5 directly (For NGINX Plus customers NGINX Ingress Controller (when used with NGINX Plus) is covered by the support contract.) \n\n Cheers!'
+            })
+
+      # The checkbox text comes from the templates in .github/ISSUE_TEMPLATE; keep them in sync.
+      - name: Close issues opened by AI agents or bots
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        if: steps.membercheck.outputs.result == 'false' && contains(github.event.issue.body, '[x] I am an AI agent or bot opening this issue')
+        with:
+          retries: 3
+          script: |
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: 'This issue was closed automatically because the box for AI agents and bots is ticked. Every issue needs a person who can answer follow-up questions, see [Using AI tools](https://github.com/nginx/kubernetes-ingress/blob/main/CONTRIBUTING.md#using-ai-tools).\n\nIf you are a person and ticked the box by mistake, untick it and leave a comment so a maintainer can reopen the issue.',
+            })
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number,
+              state: 'closed',
+              state_reason: 'not_planned',
             })

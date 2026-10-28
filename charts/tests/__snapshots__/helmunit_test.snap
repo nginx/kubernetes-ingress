@@ -505,6 +505,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -921,6 +922,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -1392,6 +1394,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -1859,6 +1862,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -2346,11 +2350,12 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       - name: waf-enforcer
-        image: private-registry.nginx.com/nap/waf-enforcer:5.15.0
+        image: private-registry.nginx.com/nap/waf-enforcer:5.16.0
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -2361,7 +2366,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: private-registry.nginx.com/nap/waf-config-mgr:5.15.0
+        image: private-registry.nginx.com/nap/waf-config-mgr:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -2912,6 +2917,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -3445,6 +3451,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -3930,11 +3937,12 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.15.0
+        image: my.private.reg/nap/waf-enforcer:5.16.0
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -3947,7 +3955,7 @@ spec:
           - name: app-protect-ipi-db
             mountPath: /var/IpRep
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.15.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -3964,7 +3972,7 @@ spec:
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
       - name: waf-ip-intelligence
-        image: my.private.reg/nap/waf-ip-intelligence:5.15.0
+        image: my.private.reg/nap/waf-ip-intelligence:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -4526,13 +4534,14 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
           - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.15.0
+        image: my.private.reg/nap/waf-enforcer:5.16.0
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -4543,7 +4552,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.15.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -5102,12 +5111,13 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.15.0
+        image: my.private.reg/nap/waf-enforcer:5.16.0
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -5118,7 +5128,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.15.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -5615,11 +5625,12 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.15.0
+        image: my.private.reg/nap/waf-enforcer:5.16.0
         imagePullPolicy: "IfNotPresent"
         resources:
             limits:
@@ -5639,7 +5650,7 @@ spec:
           - name: app-protect-ipi-db
             mountPath: /var/IpRep
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.15.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -5663,7 +5674,7 @@ spec:
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
       - name: waf-ip-intelligence
-        image: my.private.reg/nap/waf-ip-intelligence:5.15.0
+        image: my.private.reg/nap/waf-ip-intelligence:5.16.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -6150,6 +6161,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -6572,6 +6584,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -7012,6 +7025,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -7472,6 +7486,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -7908,6 +7923,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -8349,6 +8365,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -8789,6 +8806,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -9262,6 +9280,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -9290,6 +9309,926 @@ metadata:
     helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa-no-create
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/externalDNSNginx - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns-nginx-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-nginx-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-nginx-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-nginx-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+- apiGroups:
+    - externaldns.nginx.org
+  resources:
+    - dnsendpoints
+  verbs:
+    - list
+    - watch
+    - get
+    - update
+    - create
+    - delete
+- apiGroups:
+  - externaldns.nginx.org
+  resources:
+  - dnsendpoints/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-nginx-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: external-dns-nginx-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: external-dns-nginx-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-nginx-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - external-dns-nginx-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-nginx-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: external-dns-nginx-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: external-dns-nginx-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns-nginx-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns-nginx-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: external-dns-nginx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: external-dns-nginx
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      volumes: []
+      serviceAccountName: external-dns-nginx-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.7.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/external-dns-nginx-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=external-dns-nginx-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=external-dns-nginx-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=true
+          - -external-dns-group-version=externaldns.nginx.org/v1
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: external-dns-nginx-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-nginx
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/externalDNSUpstream - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns-upstream-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-upstream-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-dns-upstream-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-upstream-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+- apiGroups:
+    - externaldns.k8s.io
+  resources:
+    - dnsendpoints
+  verbs:
+    - list
+    - watch
+    - get
+    - update
+    - create
+    - delete
+- apiGroups:
+  - externaldns.k8s.io
+  resources:
+  - dnsendpoints/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-upstream-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: external-dns-upstream-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: external-dns-upstream-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-upstream-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - external-dns-upstream-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: external-dns-upstream-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: external-dns-upstream-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: external-dns-upstream-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns-upstream-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns-upstream-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: external-dns-upstream
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: external-dns-upstream
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      volumes: []
+      serviceAccountName: external-dns-upstream-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.7.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/external-dns-upstream-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=external-dns-upstream-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=external-dns-upstream-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=true
+          - -external-dns-group-version=externaldns.k8s.io/v1alpha1
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: external-dns-upstream-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: external-dns-upstream
     app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 ---
@@ -9704,6 +10643,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -10167,6 +11107,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -10626,6 +11567,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -11070,6 +12012,7 @@ spec:
           - -ready-status-port=8081
           - -enable-latency-metrics=true
           - -latency-metrics-buckets=5,10,25,50,100,250,500,1000
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -11536,6 +12479,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -11978,6 +12922,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -12419,6 +13364,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -12860,6 +13806,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -13329,6 +14276,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -13799,6 +14747,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -14241,6 +15190,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -14681,6 +15631,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -15184,6 +16135,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -15642,6 +16594,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -16109,6 +17062,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -16586,6 +17540,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -17044,6 +17999,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -17502,6 +18458,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -17970,6 +18927,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -18489,6 +19447,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -19009,6 +19968,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -19462,6 +20422,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -19906,6 +20867,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -20363,6 +21325,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -20821,6 +21784,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -21294,6 +22258,7 @@ spec:
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
@@ -21355,6 +22320,448 @@ metadata:
     helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-readonly
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/topologyAwareRouting - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: topology-aware-routing-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: topology-aware-routing-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: topology-aware-routing-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: topology-aware-routing-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: topology-aware-routing-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: topology-aware-routing-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: topology-aware-routing-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: topology-aware-routing-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - topology-aware-routing-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: topology-aware-routing-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: topology-aware-routing-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: topology-aware-routing-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: topology-aware-routing-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: topology-aware-routing-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: topology-aware-routing
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: topology-aware-routing
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      volumes: []
+      serviceAccountName: topology-aware-routing-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.7.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/topology-aware-routing-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=topology-aware-routing-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=topology-aware-routing-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -enable-topology-aware-routing=true
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: topology-aware-routing-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: topology-aware-routing
     app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 ---

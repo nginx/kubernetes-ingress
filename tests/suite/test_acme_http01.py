@@ -11,12 +11,15 @@ from settings import TEST_DATA
 from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress_from_yaml,
     create_secret_from_yaml,
     delete_common_app,
     delete_ingress,
     delete_secret,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_vs_nginx_template_conf,
@@ -71,12 +74,13 @@ class ACMESetup:
 
 def setup_backend_and_auth(request, kube_apis, namespace, with_policy) -> None:
     """Create the backend app, the htpasswd Secret and optionally the basic-auth Policy, with teardown."""
-    create_example_app(kube_apis, "simple", namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", namespace, e2e_run_id=e2e_run_id)
     create_secret_from_yaml(kube_apis.v1, namespace, htpasswd_secret_src)
     policy_name = (
         create_policy_from_yaml(kube_apis.custom_objects, basic_auth_policy_src, namespace) if with_policy else None
     )
-    wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -177,7 +181,7 @@ def print_acme_debug_info(kube_apis, ingress_controller_prerequisites, setup: AC
         res = subprocess.run(cmd, capture_output=True, text=True)
         print(f"$ {' '.join(cmd)}\n{res.stdout or res.stderr}")
     ic_namespace = ingress_controller_prerequisites.namespace
-    pod_name = get_first_pod_name(kube_apis.v1, ic_namespace)
+    pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
     try:
         if kind == "vs":
             conf = get_vs_nginx_template_conf(kube_apis.v1, setup.namespace, setup.name, pod_name, ic_namespace)

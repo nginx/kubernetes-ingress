@@ -92,7 +92,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.15.0"
+        tag: "5.16.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -116,7 +116,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.15.0"
+        tag: "5.16.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -162,7 +162,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-ip-intelligence
 
         ## The tag of the App Protect WAF v5 IP Intelligence image.
-        tag: "5.15.0"
+        tag: "5.16.0"
         ## The digest of the App Protect WAF v5 IP Intelligence image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -249,7 +249,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.6.3"
+    # tag: "5.7.0"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -497,6 +497,15 @@ controller:
   ## Enable external DNS for Virtual Server resources. Requires controller.enableCustomResources.
   enableExternalDNS: false
 
+  ## Selects the DNSEndpoint API group and version NGINX Ingress Controller writes to when
+  ## enableExternalDNS is true.
+  ## Use "externaldns.nginx.org/v1" (default) with external-dns <= v0.20.x started with
+  ## --crd-source-apiversion=externaldns.nginx.org/v1. Use "externaldns.k8s.io/v1alpha1" with
+  ## external-dns v0.21.0+, which only recognizes the upstream group. The upstream CRD is NOT
+  ## shipped by this chart; install it separately (e.g. via the external-dns Helm chart) when
+  ## selecting the upstream value.
+  externalDNSGroupVersion: "externaldns.nginx.org/v1"
+
   globalConfiguration:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false
@@ -736,6 +745,12 @@ controller:
   ## Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream response latency histogram, e.g. "5,10,25,50,100,250,500,1000".
   ## Requires controller.enableLatencyMetrics. When empty, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.
   latencyMetricsBuckets: ""
+
+  ## Honor EndpointSlice topology hints (set by Service spec.trafficDistribution or the service.kubernetes.io/topology-mode annotation),
+  ## preferring upstream endpoints on the same node or in the same zone as the Ingress Controller pod.
+  ## Each replica only routes to its own node or zone, so spread replicas across zones in proportion to client traffic.
+  ## The zone is read from the node's topology.kubernetes.io/zone label at startup; restart the Ingress Controller if it changes.
+  enableTopologyAwareRouting: false
 
   ## Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack.
   disableIPV6: false

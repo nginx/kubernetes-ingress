@@ -21,6 +21,20 @@ data:
         auth_basic "Protected Area";
         auth_basic_user_file /etc/nginx/auth/htpasswd;
 
+        # Reject spoofed forwarded headers from client
+        if ($http_x_forwarded_prefix = "/malicious-prefix") {
+            return 403 "spoofed prefix detected\n";
+        }
+        if ($http_x_forwarded_uri = "/malicious-uri") {
+            return 403 "spoofed uri detected\n";
+        }
+        if ($http_x_forwarded_method = "DELETE") {
+            return 403 "spoofed method detected\n";
+        }
+        if ($http_x_original_uri = "/malicious-uri") {
+            return 403 "spoofed original uri detected\n";
+        }
+
         expires -1;
 
         sub_filter_once off;

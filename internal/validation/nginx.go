@@ -304,7 +304,10 @@ func (s *directiveScanner) outsideQuote(char rune) error {
 		s.tokenBoundary = false
 		return nil
 	}
-	if char == '#' || strings.ContainsRune(";{}", char) {
+	// '#' starts a comment only at the start of a token, as in the
+	// `if (last_space)` branch of ngx_conf_read_token; mid-token it is data,
+	// e.g. the fragment in https://example.com/#/home.
+	if (char == '#' && s.tokenBoundary) || strings.ContainsRune(";{}", char) {
 		return errDirectiveDelimiter
 	}
 	s.tokenBoundary = false

@@ -9,6 +9,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -32,7 +33,7 @@ from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml
 class TestVSRRedirects:
     def test_config(self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup):
         wait_before_test(1)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -104,7 +105,7 @@ class TestVSRRedirects:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,

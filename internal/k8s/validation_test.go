@@ -2269,6 +2269,35 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/http2": "false",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			directiveAutoAdjust: false,
+			expectedErrors:      nil,
+			msg:                 "valid nginx.org/http2 annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/http2": "on",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			directiveAutoAdjust: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/http2: Invalid value: "on": must be a boolean`,
+			},
+			msg: "invalid nginx.org/http2 annotation",
+		},
+
+		{
+			annotations: map[string]string{
 				"nginx.org/hsts": "true",
 			},
 			specServices:         map[string]bool{},
@@ -5995,6 +6024,7 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 	tests := []struct {
 		name           string
 		value          string
+		isPlus         bool
 		expectedErrors []string
 	}{
 		// ── Valid inputs ──────────────────────────────────────────────
@@ -6053,20 +6083,62 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			value:          "X-Header: some value with spaces",
 			expectedErrors: nil,
 		},
+		{
+			name:           "valid header with single variable",
+			value:          "X-Real-IP: ${remote_addr}",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with multiple variables",
+			value:          "X-Real-IP: ${remote_addr}, X-URI: ${request_uri}",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with special variable http_",
+			value:          "X-Custom-User-Agent: ${http_user_agent}",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with special variable arg_",
+			value:          "X-Search: ${arg_q}",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with special variable cookie_",
+			value:          "X-Session: ${cookie_sessionid}",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with mixed text and variable",
+			value:          "X-Client: client-${remote_addr}-v1",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with Plus jwt_claim when isPlus true",
+			value:          "X-User: ${jwt_claim_sub}",
+			isPlus:         true,
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid header with Plus jwt_header when isPlus true",
+			value:          "X-Alg: ${jwt_header_alg}",
+			isPlus:         true,
+			expectedErrors: nil,
+		},
 
-		// ── Invalid: $ character ─────────────────────────────────────
+		// ── Invalid: $ character without curly braces ─────────────────
 		{
 			name:  "invalid dollar sign in value",
 			value: "X-Header: $upstream_addr",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": invalid character in header value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": variables must be enclosed in curly braces, for example ${host}`,
 			},
 		},
 		{
 			name:  "invalid dollar sign in value of second header",
 			value: "Header-1: ok,Header-2: $bad",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": invalid character in header value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": variables must be enclosed in curly braces, for example ${host}`,
 			},
 		},
 		{
@@ -6081,7 +6153,7 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			value: "$Header: $value",
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header": ` + headerNameErrMsg,
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": invalid character in header value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": variables must be enclosed in curly braces, for example ${host}`,
 			},
 		},
 
@@ -6170,8 +6242,8 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			name:  "dollar sign in values of multiple headers",
 			value: "Header-1: $val1,Header-2: $val2",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": invalid character in header value: $`,
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": invalid character in header value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": variables must be enclosed in curly braces, for example ${host}`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": variables must be enclosed in curly braces, for example ${host}`,
 			},
 		},
 
@@ -6232,14 +6304,59 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			name:  "invalid header with unescaped double quote",
 			value: `X-Bad: "unquoted value"`,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: \"unquoted value\"": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: \"unquoted value\"": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (e.g. 'Hello World! \n',  or '\"${request_uri}\" is unavailable. \n', regex used for validation is '([^"\\]|\\.)*')`,
 			},
 		},
 		{
 			name:  "invalid header with unescaped backslash at end",
 			value: `X-Bad: value\`,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: value\\": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Bad: value\\": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (e.g. 'Hello World! \n',  or '\"${request_uri}\" is unavailable. \n', regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+
+		// ── Invalid: variable syntax and Plus-only restrictions ───────
+		{
+			name:  "invalid variable with unclosed curly brace",
+			value: "X-Header: ${remote_addr",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: ${remote_addr": variables must be enclosed in curly braces, for example ${host}`,
+			},
+		},
+		{
+			name:  "invalid variable with trailing dollar",
+			value: "X-Header: value$",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: value$": must not end with $`,
+			},
+		},
+		{
+			name:  "invalid special variable format",
+			value: "X-Header: ${http_%}",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: ${http_%}": a valid special variable must consists of alphanumeric characters or '_'`,
+			},
+		},
+		{
+			name:   "invalid Plus jwt_claim when isPlus false",
+			value:  "X-User: ${jwt_claim_sub}",
+			isPlus: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Forbidden: "X-User: ${jwt_claim_sub}": is only supported in NGINX Plus`,
+			},
+		},
+		{
+			name:  "invalid header value with newline",
+			value: "X-Header: val\nue",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: val\nue": value must not contain newline or carriage-return characters`,
+			},
+		},
+		{
+			name:  "invalid header value with carriage return",
+			value: "X-Header: val\rue",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: val\rue": value must not contain newline or carriage-return characters`,
 			},
 		},
 	}
@@ -6250,6 +6367,7 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			ctx := &annotationValidationContext{
 				value:     tc.value,
 				fieldPath: field.NewPath("annotations").Child(configs.ProxySetHeadersAnnotation),
+				isPlus:    tc.isPlus,
 			}
 			allErrs := validateProxySetHeaderAnnotation(ctx)
 			assertion := assertErrors("validateProxySetHeaderAnnotation()", tc.name, allErrs, tc.expectedErrors)

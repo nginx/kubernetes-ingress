@@ -29,7 +29,7 @@ jobs:
     permissions:
       contents: read
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       source_branch: ${{ steps.vars.outputs.source_branch }}
     steps:
@@ -48,7 +48,7 @@ jobs:
       pull-requests: write
       id-token: write
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [vars]
     steps:
       - name: Checkout Repository
@@ -107,7 +107,7 @@ jobs:
 
       - name: Generate GitHub App token
         id: app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ env.APP_CLIENT_ID }}
           private-key: ${{ steps.app_key.outputs.private_key }}

@@ -269,8 +269,10 @@ var virtualServerStringFields = []virtualServerField{
 func TestVirtualServerCannotInjectConfiguration(t *testing.T) {
 	t.Parallel()
 
+	schema := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_virtualservers.yaml")
+
 	for _, isPlus := range []bool{false, true} {
-		var byValidation, admitted int
+		var bySchema, byValidation, admitted int
 		for _, field := range virtualServerStringFields {
 			// The baseline is this field carrying a value with no NGINX syntax,
 			// not the field left unset, because setting a field can add structure
@@ -286,8 +288,13 @@ func TestVirtualServerCannotInjectConfiguration(t *testing.T) {
 				}
 				continue
 			}
-			// The benign value must survive admission, or every payload is
-			// rejected for the shape of the fixture rather than its content.
+			// The benign value must survive both admission gates, or every payload
+			// is rejected for the shape of the fixture rather than its content.
+			if err := schema.admits(benign); err != nil {
+				t.Errorf("plus=%v field=%s: a benign value does not satisfy the CRD schema, so the fixture is wrong: %v",
+					isPlus, field.name, err)
+				continue
+			}
 			if err := validator.ValidateVirtualServer(benign); err != nil {
 				t.Errorf("plus=%v field=%s: the benign value %q is rejected at admission, so the fixture is wrong: %v",
 					isPlus, field.name, field.benignValue(), err)
@@ -304,6 +311,10 @@ func TestVirtualServerCannotInjectConfiguration(t *testing.T) {
 			for _, payload := range payloads {
 				vs := virtualServerWithField(field, payload)
 
+				if schema.admits(vs) != nil {
+					bySchema++
+					continue
+				}
 				if validation.NewVirtualServerValidator(validation.IsPlus(isPlus)).ValidateVirtualServer(vs) != nil {
 					byValidation++
 					continue
@@ -323,13 +334,17 @@ func TestVirtualServerCannotInjectConfiguration(t *testing.T) {
 			}
 		}
 
+		if bySchema == 0 {
+			t.Errorf("plus=%v: no payload was rejected by the CRD schema, so that gate is not tested here", isPlus)
+		}
 		if byValidation == 0 {
 			t.Errorf("plus=%v: no payload was rejected by Go validation", isPlus)
 		}
 		if admitted == 0 {
 			t.Errorf("plus=%v: every payload was rejected at admission, so the rendering was never exercised", isPlus)
 		}
-		t.Logf("plus=%v: %d rejected by Go validation, %d admitted and rendered as data", isPlus, byValidation, admitted)
+		t.Logf("plus=%v: %d rejected by the CRD schema, %d by the Go validation, %d admitted and rendered as data",
+			isPlus, bySchema, byValidation, admitted)
 	}
 }
 

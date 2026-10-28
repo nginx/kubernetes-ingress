@@ -25,6 +25,7 @@ from suite.utils.policy_resources_utils import (
 from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -141,6 +142,57 @@ class TestExternalAuthPoliciesIngress:
         )
 
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
+        print(f"Status: {resp.status_code}")
+
+        if credentials == valid_credentials:
+            assert resp.status_code == 200
+            assert "Request ID:" in resp.text
+        else:
+            assert resp.status_code == 401
+            assert "Authorization Required" in resp.text
+
+    @pytest.mark.parametrize("credentials", [valid_credentials, invalid_credentials])
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_valid_src],)], indirect=True)
+    @pytest.mark.parametrize(
+        "ext_auth_ingress,check404",
+        [
+            pytest.param(ext_auth_ing_standard_src, False, id="standard"),
+            pytest.param(ext_auth_ing_mergeable_src, True, id="mergeable"),
+        ],
+        indirect=["ext_auth_ingress"],
+    )
+    def test_external_auth_policy_spoofed_headers_and_non_get(
+        self,
+        crd_ingress_controller,
+        ext_auth_setup,
+        ext_auth_ingress,
+        check404,
+        credentials,
+    ):
+        """
+        Test external-auth policy boundary on Ingress with client-supplied spoofed headers
+        and non-GET (POST) request.
+        Verifies that spoofed headers (X-Forwarded-Prefix, X-Forwarded-URI, X-Forwarded-Method,
+        X-Original-URI) are sanitized by NGINX and not forwarded to the auth backend,
+        and requests are successfully authenticated (or rejected if unauthorized).
+        """
+        headers = build_ext_auth_headers(EXT_AUTH_HOST, credentials)
+        headers.update(
+            {
+                "X-Forwarded-Prefix": "/malicious-prefix",
+                "X-Forwarded-URI": "/malicious-uri",
+                "X-Forwarded-Method": "DELETE",
+                "X-Original-URI": "/malicious-uri",
+            }
+        )
+        ensure_response_from_backend(
+            ext_auth_ingress.request_url,
+            ext_auth_ingress.ingress_host,
+            additional_headers=valid_auth_headers(),
+            check404=check404,
+        )
+
+        resp = requests.post(ext_auth_ingress.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
 
         if credentials == valid_credentials:
@@ -314,6 +366,7 @@ class TestExternalAuthPoliciesIngress:
         test_namespace,
         ext_auth_setup,
         ext_auth_ingress,
+        e2e_run_id,
     ):
         """
         Test that the Ingress recovers after external auth backend endpoints
@@ -344,7 +397,7 @@ class TestExternalAuthPoliciesIngress:
         # Phase 3: scale back to 1 -- endpoints recover -> 200
         print("Scale external-auth deployment back to 1")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "external-auth", test_namespace, 1)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         # Poll until the full auth path (backend + auth subrequest) returns 200,
         # giving NGINX time to pick up the recovered endpoints and reload.
         resp3 = None

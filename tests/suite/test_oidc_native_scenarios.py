@@ -12,6 +12,7 @@ from suite.utils.custom_assertions import assert_crd_status, assert_vs_status, a
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_secret,
     delete_namespace,
     delete_secret,
@@ -204,7 +205,7 @@ def scenario_response(endpoint, host, path="/", https=True):
 
 
 def vs_conf(kube_apis, ingress_controller_prerequisites, namespace, vs_name):
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     return get_vs_nginx_template_conf(
         kube_apis.v1, namespace, vs_name, ic_pod_name, ingress_controller_prerequisites.namespace
     )

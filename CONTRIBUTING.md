@@ -68,6 +68,42 @@ fill in the template as provided.
 >
 > Remember to create a feature request / bug report issue first to start a discussion about the proposed change.
 
+### One change per pull request
+
+- Each pull request should solve one problem: the one described in its linked issue. If you spot something else along the
+  way, open a separate issue or pull request for it.
+- Keep refactors, file moves and renames out of pull requests that change behaviour, unless the change can't be made
+  without them.
+- One change can still touch many files. Regenerated code and CRDs, snapshots, both the NGINX and NGINX Plus templates,
+  Helm chart schema updates, and the tests and docs for the same feature all belong in the same pull request.
+- Smaller pull requests get reviewed faster. If yours is large, explain in the description why it can't be split.
+
+### Review rounds
+
+- Push fixes for review comments as new commits, so reviewers can see what changed since their last review. Only squash
+  when a maintainer asks you to.
+- Keep each fix narrow: address the comment and nothing else.
+- If a fix introduces a new problem, revert it and address the original comment again instead of patching on top. If
+  that happens a second time, we will ask you to reset the branch to its last good state or close the pull request, and
+  to move the unresolved problem into a new issue. This is not a rejection: it stops reviews from going in circles, and
+  we are happy to review the work again as a smaller pull request.
+
+### Using AI tools
+
+You are welcome to use AI tools, but you are the author and you are accountable for every line you submit.
+
+- Understand your change. You must be able to explain what it does and how it fits into the rest of the controller
+  without help from an AI tool. If you can't, don't submit it.
+- Prove that it works. Include a test that fails without your change, and describe in the pull request how you ran it.
+- Disclose it. Fill in the AI assistance section of the pull request template with the tool you used and what it did,
+  or write "None".
+- Write the pull request description and your replies to review comments yourself. Reviewers want to talk with you, not
+  with your tool.
+- Don't let agents act for you. Pull requests, issues and comments that an agent posts without your review may be closed
+  without review.
+- Maintainers may close a pull request when reviewing it would cost more than it brings to the project, for example when
+  it bundles unrelated changes or its author can't explain it.
+
 ### Issue lifecycle
 
 - When an issue or PR is created, it will be triaged by the core development team and assigned a label to indicate the

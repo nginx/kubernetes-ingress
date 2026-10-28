@@ -17,6 +17,7 @@ from suite.utils.policy_resources_utils import (
     read_policy,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_secret_from_yaml,
     delete_secret,
     get_first_pod_name,
@@ -445,7 +446,7 @@ class TestRateLimitingPoliciesVsr:
             src,
         )
 
-        ic_pods = get_pod_list(kube_apis.v1, ns)
+        ic_pods = get_pod_list(kube_apis.v1, ns, IC_SELECTOR)
         for i in range(len(ic_pods)):
             conf = get_vs_nginx_template_conf(
                 kube_apis.v1,
@@ -511,7 +512,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test()
 
         print("Step 4: check if pods are ready")
-        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         print("Step 5: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
@@ -592,7 +593,7 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test()
 
         print("Step 4: check if pods are ready")
-        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         print("Step 5: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
@@ -607,7 +608,7 @@ class TestRateLimitingPoliciesVsr:
         assert check_synced_zone_exists(zone_sync_url, pol_name.replace("-", "_", -1))
 
         print("Step 7: check sync in config")
-        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vsr_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,

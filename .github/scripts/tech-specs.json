@@ -2,9 +2,16 @@
   "nic_k8s": {
     "shortcode_row": {
       "k8s_versions": "1.30 - 1.37",
-      "nginx_version": "1.31.6 / R37.1.1.2"
+      "nginx_version": "1.31.7 / R37.2.0.1"
     },
     "rows": [
+      {
+        "nic_version": "5.6.3",
+        "k8s_versions": "1.30 - 1.37",
+        "helm_version": "2.7.3",
+        "operator_version": "3.7.3",
+        "nginx_version": "1.31.6 / R37.1.1.2"
+      },
       {
         "nic_version": "5.5.4",
         "k8s_versions": "1.29 - 1.36",
@@ -65,11 +72,17 @@
   },
   "nic_nap": {
     "shortcode_row": {
-      "nap_waf_prefix": "37.1",
-      "compiler_version": "5.715.0",
-      "waf_release_version": "5.15.0"
+      "nap_waf_prefix": "37.2",
+      "compiler_version": "5.777.0",
+      "waf_release_version": "5.16.0"
     },
     "rows": [
+      {
+        "nic_version": "5.6.3",
+        "nap_waf_version": "37.1+5.715.0",
+        "config_mgr_version": "5.15.0",
+        "enforcer_version": "5.15.0"
+      },
       {
         "nic_version": "5.5.4",
         "nap_waf_version": "37.0+5.690.0",

@@ -99,7 +99,7 @@ jobs:
         if: ${{ inputs.nginx_helm_repo || contains(inputs.oci_registries, 'docker.io') }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -107,7 +107,7 @@ jobs:
         if: contains(inputs.oci_registries, 'ghcr.io')
 
       - name: DockerHub Login
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
@@ -137,7 +137,7 @@ jobs:
         if: contains(inputs.oci_registries, 'docker-mgmt')
 
       - name: Login to Helm Staging Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -147,7 +147,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v4.3.0 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Package
         id: package
@@ -198,7 +198,7 @@ jobs:
 
       - name: Generate GitHub App token
         id: app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ env.APP_CLIENT_ID }}
           private-key: ${{ steps.app_key.outputs.private_key }}
