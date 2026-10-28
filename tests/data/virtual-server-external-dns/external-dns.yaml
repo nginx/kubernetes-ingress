@@ -135,7 +135,7 @@ spec:
             - --crd-source-kind=DNSEndpoint
             - --provider=inmemory
             - --policy=sync
-             - --dry-run
+            - --dry-run
           ports:
             - name: http
               protocol: TCP
