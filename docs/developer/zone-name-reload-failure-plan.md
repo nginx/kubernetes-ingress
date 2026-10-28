@@ -70,7 +70,7 @@ No credential, RBAC or secret path is touched.
    update the expected zone names to the new literal names. Add table-driven cases for each setting.
 4. Python tests (`test_rl_policies.py`, `test_rl_policies_vsr.py`, `test_rl_ingress.py`): match the hash with a regex in the
    existing zone-sync assertions.
-5. Python tests (same files, plus `test_cache_policies_vs.py` and `test_oidc_native.py`): add in-place edit tests.
+5. Python tests (`test_rl_policies.py`, `test_rl_ingress.py`, `test_cache_policies_vs.py`, `test_oidc_native.py`): add in-place edit tests.
 6. Python helper (`utils/policy_resources_utils.py`): add a helper that patches a Policy.
 
 No template, struct, CRD or codegen changes.
@@ -79,7 +79,8 @@ No template, struct, CRD or codegen changes.
 
 - Unit: for each setting, changing it renames the zone and changing a safe setting does not. Collision cases per resource kind.
   Expected names are literal strings.
-- Integration: edit the resource in place, assert it stays `Valid` and the new setting is in the generated config.
+- Integration: edit the resource in place and assert the new setting is in the generated config. For VirtualServer tests,
+  also assert the VirtualServer stays `Valid`.
   Run first against an image built from `main` (must fail), then against the branch image (must pass).
 - Negative: none applicable, since no input is added.
 
