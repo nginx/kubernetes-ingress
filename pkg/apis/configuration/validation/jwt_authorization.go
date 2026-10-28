@@ -172,7 +172,8 @@ func validateJWTClaim(claim v1.JWTClaim, fieldPath *field.Path) field.ErrorList 
 
 	valuesPath := fieldPath.Child("values")
 	if match == v1.JWTClaimMatchPresent {
-		if len(claim.Values) > 0 {
+		// nil check, not len: CEL's has(self.values) is also true for an explicit empty list.
+		if claim.Values != nil {
 			allErrs = append(allErrs, field.Forbidden(valuesPath, "values must not be set when match is Present"))
 		}
 		if claim.Negate && claim.ProxySetHeader != "" {
