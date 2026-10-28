@@ -222,7 +222,7 @@ The `verify-codegen` job in `ci.yml` regenerates and then diffs a **specific pat
 | Command | Path diffed |
 | --- | --- |
 | `go mod tidy` | `go.mod`, `go.sum` |
-| `make update-crds` | `config/crd/bases` |
+| `make update-crds` | `config/crd/bases`, `config/crd/upstream` |
 | `make update-codegen` | `pkg/**` |
 | `make telemetry-schema` | `internal/telemetry` |
 

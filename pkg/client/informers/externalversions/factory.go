@@ -12,6 +12,7 @@ import (
 	configuration "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/configuration"
 	dos "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/dos"
 	externaldns "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/externaldns"
+	externaldnsk8s "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/externaldnsk8s"
 	internalinterfaces "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -314,6 +315,7 @@ type SharedInformerFactory interface {
 	K8s() configuration.Interface
 	Appprotectdos() dos.Interface
 	Externaldns() externaldns.Interface
+	ExternaldnsK8s() externaldnsk8s.Interface
 }
 
 func (f *sharedInformerFactory) K8s() configuration.Interface {
@@ -326,4 +328,8 @@ func (f *sharedInformerFactory) Appprotectdos() dos.Interface {
 
 func (f *sharedInformerFactory) Externaldns() externaldns.Interface {
 	return externaldns.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) ExternaldnsK8s() externaldnsk8s.Interface {
+	return externaldnsk8s.New(f, f.namespace, f.tweakListOptions)
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/externaldns"
 	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
@@ -122,6 +123,7 @@ func main() {
 		api_v1.EventSource{Component: k8s.EventReporterName})
 	defer eventBroadcaster.Shutdown()
 	mustValidateIngressClass(ctx, kubeClient)
+	mustValidateExternalDNSCRD(ctx, kubeClient)
 
 	checkNamespaces(ctx, kubeClient)
 
@@ -344,6 +346,7 @@ func main() {
 		SnippetsEnabled:              *enableSnippets,
 		CertManagerEnabled:           *enableCertManager,
 		ExternalDNSEnabled:           *enableExternalDNS,
+		ExternalDNSGroupVersion:      *externalDNSGroupVersion,
 		IsIPV6Disabled:               *disableIPV6,
 		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
 		AllowEmptyIngressHost:        *allowEmptyIngressHost,
@@ -530,6 +533,25 @@ func mustValidateIngressClass(ctx context.Context, kubeClient kubernetes.Interfa
 
 	if ingressClassRes.Spec.Controller != k8s.IngressControllerName {
 		nl.Fatalf(l, "IngressClass with name %v has an invalid Spec.Controller %v; expected %v", ingressClassRes.Name, ingressClassRes.Spec.Controller, k8s.IngressControllerName)
+	}
+}
+
+// mustValidateExternalDNSCRD calls internally os.Exit and terminates the
+// program if -enable-external-dns is set and the DNSEndpoint CRD for the
+// configured -external-dns-group-version is not installed.
+//
+// Without this check a missing CRD fails silently: the DNSEndpoint informer
+// never syncs and the ExternalDNS control loop stalls without creating or
+// updating any DNSEndpoint, while external-dns keeps reading whatever it read
+// last. See docs/crd/externaldns.nginx.org_dnsendpoints.md for where each
+// group's CRD comes from.
+func mustValidateExternalDNSCRD(ctx context.Context, kubeClient kubernetes.Interface) {
+	if !*enableExternalDNS {
+		return
+	}
+	l := nl.LoggerFromContext(ctx)
+	if err := externaldns.CheckDNSEndpointCRD(kubeClient.Discovery(), *externalDNSGroupVersion); err != nil {
+		nl.Fatalf(l, "Cannot enable external-dns: %v", err)
 	}
 }
 

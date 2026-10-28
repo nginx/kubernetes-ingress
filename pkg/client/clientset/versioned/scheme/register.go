@@ -6,6 +6,7 @@ import (
 	k8sv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	appprotectdosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	externaldnsk8sv1alpha1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldnsk8s/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,6 +21,7 @@ var localSchemeBuilder = runtime.SchemeBuilder{
 	k8sv1.AddToScheme,
 	appprotectdosv1beta1.AddToScheme,
 	externaldnsv1.AddToScheme,
+	externaldnsk8sv1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

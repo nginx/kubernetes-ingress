@@ -27,7 +27,7 @@ jobs:
   variables:
     name: Set variables for workflow
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       tag: ${{ steps.kic.outputs.tag }}
       short_tag: ${{ steps.kic.outputs.short }}
@@ -190,7 +190,7 @@ jobs:
   certify-openshift-images:
     name: Certify OpenShift UBI images
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write

@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/nginx/kubernetes-ingress/internal/externaldns"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
@@ -246,6 +247,12 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 
 	enableExternalDNS = flag.Bool("enable-external-dns", false,
 		"Enable external-dns controller for VirtualServer resources. Requires -enable-custom-resources")
+
+	externalDNSGroupVersion = flag.String("external-dns-group-version", externaldns.GroupVersionNginx,
+		fmt.Sprintf("The DNSEndpoint API group and version NGINX Ingress Controller writes to when -enable-external-dns is set. "+
+			"Use %q for the NGINX Ingress Controller CRD (external-dns <= v0.20.x, started with --crd-source-apiversion=externaldns.nginx.org/v1), "+
+			"or %q for the upstream CRD that external-dns v0.21.0+ recognizes.",
+			externaldns.GroupVersionNginx, externaldns.GroupVersionUpstream))
 
 	disableIPV6 = flag.Bool("disable-ipv6", false,
 		`Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack`)
@@ -519,6 +526,11 @@ func mustValidateFlags(ctx context.Context) {
 
 	if *enableExternalDNS && !*enableCustomResources {
 		nl.Fatal(l, "enable-external-dns flag requires -enable-custom-resources")
+	}
+
+	if !externaldns.IsSupportedGroupVersion(*externalDNSGroupVersion) {
+		nl.Fatalf(l, "invalid -external-dns-group-version %q; supported values: %v",
+			*externalDNSGroupVersion, externaldns.SupportedGroupVersions())
 	}
 
 	if *ingressLink != "" && *externalService != "" {

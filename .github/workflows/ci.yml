@@ -35,7 +35,7 @@ jobs:
   checks:
     name: Checks and variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -125,7 +125,7 @@ jobs:
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -193,7 +193,7 @@ jobs:
 
   verify-codegen:
     name: Verify generated code
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -218,7 +218,7 @@ jobs:
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
 
       - name: Check if CRDs changed
-        run: make update-crds && git diff --name-only --exit-code config/crd/bases
+        run: make update-crds && git diff --name-only --exit-code config/crd/bases config/crd/upstream
 
       - name: Check if Codegen changed
         run: |
@@ -237,7 +237,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -308,7 +308,7 @@ jobs:
 
   staticcheck:
     name: Static Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -342,7 +342,7 @@ jobs:
 
   govulncheck:
     name: Vulnerability Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -428,7 +428,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Package Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     permissions:
       contents: read
@@ -464,7 +464,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -502,7 +502,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
@@ -564,7 +564,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -683,7 +683,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [build-artifacts, checks]
     permissions:
       contents: read
@@ -726,7 +726,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -734,7 +734,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -880,7 +880,7 @@ jobs:
       )
   final-results:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: Final CI Results
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
     steps:

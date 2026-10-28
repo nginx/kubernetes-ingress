@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -226,6 +227,7 @@ func mapToPrettyString(m map[string]bool) string {
 	for k := range m {
 		out = append(out, k)
 	}
+	sort.Strings(out)
 
 	return strings.Join(out, ", ")
 }

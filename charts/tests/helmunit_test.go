@@ -131,6 +131,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "custom-resources",
 			namespace:   "custom-resources",
 		},
+		"externalDNSNginx": {
+			valuesFile:  "testdata/external-dns-nginx.yaml",
+			releaseName: "external-dns-nginx",
+			namespace:   "default",
+		},
+		"externalDNSUpstream": {
+			valuesFile:  "testdata/external-dns-upstream.yaml",
+			releaseName: "external-dns-upstream",
+			namespace:   "default",
+		},
 		"appProtectWAF": {
 			valuesFile:  "testdata/app-protect-waf.yaml",
 			releaseName: "appprotect-waf",

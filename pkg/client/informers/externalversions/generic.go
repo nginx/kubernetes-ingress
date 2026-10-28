@@ -8,6 +8,7 @@ import (
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	v1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	v1alpha1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldnsk8s/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -41,6 +42,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=appprotectdos.f5.com, Version=v1beta1
 	case v1beta1.SchemeGroupVersion.WithResource("dosprotectedresources"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Appprotectdos().V1beta1().DosProtectedResources().Informer()}, nil
+
+		// Group=externaldns.k8s.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("dnsendpoints"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.ExternaldnsK8s().V1alpha1().DNSEndpoints().Informer()}, nil
 
 		// Group=externaldns.nginx.org, Version=v1
 	case v1.SchemeGroupVersion.WithResource("dnsendpoints"):

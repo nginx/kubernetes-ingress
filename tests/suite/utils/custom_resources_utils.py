@@ -62,7 +62,7 @@ def delete_crd(api_extensions_v1: ApiextensionsV1Api, name) -> None:
 
 
 def read_custom_resource(
-    custom_objects: CustomObjectsApi, namespace, plural, name, api_group="k8s.nginx.org"
+    custom_objects: CustomObjectsApi, namespace, plural, name, api_group="k8s.nginx.org", api_version="v1"
 ) -> object:
     """
     Get CRD information (kubectl describe output)
@@ -75,7 +75,7 @@ def read_custom_resource(
     """
     print(f"Getting info for {name} in namespace {namespace}")
     try:
-        response = custom_objects.get_namespaced_custom_object(api_group, "v1", namespace, plural, name)
+        response = custom_objects.get_namespaced_custom_object(api_group, api_version, namespace, plural, name)
         return response
 
     except ApiException as ex:
@@ -109,17 +109,23 @@ def wait_for_resource_status(custom_objects, namespace, resource_type, name, tim
     return read_custom_resource(custom_objects, namespace, resource_type, name)
 
 
-def is_dnsendpoint_present(custom_objects: CustomObjectsApi, name, namespace) -> bool:
+def is_dnsendpoint_present(
+    custom_objects: CustomObjectsApi, name, namespace, api_group="externaldns.k8s.io", api_version="v1alpha1"
+) -> bool:
     """
     Check if a namespace has a dnsendpoint.
 
     :param v1: CoreV1Api
     :param name:
     :param namespace:
+    :param api_group: DNSEndpoint API group, "externaldns.nginx.org" for the Ingress Controller group
+    :param api_version: DNSEndpoint API version, "v1" for the Ingress Controller group
     :return: bool
     """
     try:
-        read_custom_resource(custom_objects, namespace, "dnsendpoints", name, api_group="externaldns.nginx.org")
+        read_custom_resource(
+            custom_objects, namespace, "dnsendpoints", name, api_group=api_group, api_version=api_version
+        )
     except ApiException as ex:
         if ex.status == 404:
             print(f"No dnsendpoint '{name}' found.")
