@@ -185,7 +185,7 @@ We'd love to hear from you! Here's how to get involved:
 
 We value community input so please join our community call on the first Tuesday of each month. At these calls, we discuss submissions made by community members, answer your questions and hear your feedback. We would love to see you there!
 
-See all of our scheduled calls along with other events [here](https://community.nginx.org/upcoming-events).
+See all of our scheduled calls along with other events [on our calendar](https://community.nginx.org/upcoming-events).
 
 #### Meeting Details
 
