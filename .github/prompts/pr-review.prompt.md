@@ -10,8 +10,9 @@ Load and follow the **`nic-code-review`** skill at [`.github/skills/nic-code-rev
 
 1. Determine the base and head:
    - Check if the PR is part of a stack using `gh` CLI, `gh api`, or `gh stack` (`gh extension install github/gh-stack`).
+   - If part of a stack and not specified, show the stack chain and ask whether to review **this PR only** (`origin/<baseRefName>...<headRefName>`) or the **full stack** (`origin/main...<stack-tip>`).
    - Base: `origin/<baseRefName>` from the PR/stack, falling back to `origin/main` (or `origin/release-*` if the current branch name starts with `release-`).
-   - Head: the current working branch.
+   - Head: the target PR's head (or stack tip for a full-stack review), falling back to the current working branch.
 2. Get the diff. Prefer the `get_changed_files` tool (or `gh pr diff` / `git diff <base>...HEAD` when stacked).
 3. Classify the change using the **Change type classification** table in the skill and load any referenced sub-skills.
 4. Walk the applicable **dimension checklists** in the skill (Security -> Correctness -> Architecture -> Tests -> layer-specific).
