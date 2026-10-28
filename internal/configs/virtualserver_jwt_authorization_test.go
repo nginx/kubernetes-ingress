@@ -822,6 +822,57 @@ func assertOneClaimPerVariable(t *testing.T, cfg version2.VirtualServerConfig) m
 	return byVar
 }
 
+// Claims that differ only in case share one NGINX variable. Whichever policy comes first owns it,
+// and the claim sets are not de-duplicated case-insensitively, so only one may be emitted.
+func TestVirtualServerJWTAuthorization_ClaimsDifferingInCaseEmitOneClaimSet(t *testing.T) {
+	t.Parallel()
+
+	authz := jwtPolicy("authz", authzForClaims(claimEq("role", "admin")))
+	rate := rateLimitJWTPolicy("rate", "Role")
+	variable := "$jwt_default_cafe_vs_role"
+
+	tests := []struct {
+		name         string
+		specPolicies []string
+		routes       map[string][]string
+		rejected     []string
+		reported     []string
+		wantClaim    string
+	}{
+		{"authorization then rate limit on the spec", []string{"authz", "rate"}, nil, nil, []string{"rate"}, "role"},
+		{"authorization on the spec, rate limit on a route", []string{"authz"}, map[string][]string{"/tea": {"rate"}}, nil, []string{"rate"}, "role"},
+		{"authorization then rate limit on one route", nil, map[string][]string{"/tea": {"authz", "rate"}}, nil, []string{"rate"}, "role"},
+		{"rate limit then authorization on the spec", []string{"rate", "authz"}, nil, []string{"authz"}, nil, ""},
+		{"rate limit on the spec, authorization on a route", []string{"rate"}, map[string][]string{"/tea": {"authz"}}, []string{"authz"}, nil, "Role"},
+		{"rate limit then authorization on one route", nil, map[string][]string{"/tea": {"rate", "authz"}}, []string{"authz"}, nil, ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg, warnings := generateJWTTestConfig(t, jwtVS(tc.specPolicies, tc.routes, authz, rate))
+
+			assertCollisionWarnings(t, warningsText(warnings), tc.rejected, tc.reported)
+
+			var extracted []string
+			for _, cs := range cfg.AuthJWTClaimSets {
+				if strings.EqualFold(cs.Variable, variable) {
+					extracted = append(extracted, cs.Claim)
+				}
+			}
+			// When the rejected policy shares a call with the rate limit, the whole context fails
+			// closed with a 500, so nothing is extracted. Otherwise exactly the first claim is.
+			want := []string{tc.wantClaim}
+			if tc.wantClaim == "" {
+				want = nil
+			}
+			if diff := cmp.Diff(want, extracted); diff != "" {
+				t.Errorf("claims extracted for %s (-want +got):\n%s", variable, diff)
+			}
+		})
+	}
+}
+
 // The authorization claim must be extracted whatever the policy order, since de-duplication keeps
 // the first claim set per variable.
 func TestVirtualServerJWTAuthorization_AuthorizationClaimWinsExtractionWhateverTheOrder(t *testing.T) {
