@@ -211,6 +211,11 @@ func TestValidateJWTAuthorization_FailsOnInvalidInput(t *testing.T) {
 			wantErr: "values",
 		},
 		{
+			name:    "explicit empty values forbidden with present",
+			jwt:     jwtWithClaims(v1.JWTClaim{Name: "email", Match: jwtMatch(v1.JWTClaimMatchPresent), Values: []string{}}),
+			wantErr: "values",
+		},
+		{
 			name:    "empty value",
 			jwt:     jwtWithClaims(v1.JWTClaim{Name: "aud", Values: []string{""}}),
 			wantErr: "values[0]",
