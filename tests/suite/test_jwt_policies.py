@@ -9,8 +9,9 @@ from suite.utils.jwt_authorization_utils import (
     headers_app_type,
     read_token,
     vs_manifest,
+    wait_for_jwt_policy,
 )
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
     create_virtual_server,
@@ -550,7 +551,7 @@ class TestJWTAuthorizationPolicies:
         vs = vs_manifest(std_vs_src, spec_policy, route_policy)
         delete_virtual_server(kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace)
         create_virtual_server(kube_apis.custom_objects, vs, virtual_server_setup.namespace)
-        wait_before_test()
+        wait_for_jwt_policy(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
 
     def restore_vs(self, kube_apis, virtual_server_setup):
         delete_and_create_vs_from_yaml(
@@ -750,8 +751,7 @@ class TestJWTAuthorizationPolicies:
         """
         namespace = virtual_server_setup.namespace
         with AuthzScenario(kube_apis, namespace, ["policy-claims"]) as scenario:
-            plain_name = create_policy_from_yaml(kube_apis.custom_objects, jwt_pol_valid_src, namespace)
-            wait_before_test()
+            plain_name = apply_and_wait_for_valid_policy(kube_apis, namespace, jwt_pol_valid_src)
             spec_pol = scenario.policy_names[0]
             self.apply_vs(kube_apis, virtual_server_setup, spec_policy=spec_pol, route_policy=plain_name)
             url_1, url_2 = virtual_server_setup.backend_1_url, virtual_server_setup.backend_2_url

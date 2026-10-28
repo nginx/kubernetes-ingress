@@ -2,7 +2,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
-from suite.utils.jwt_authorization_utils import AuthzScenario, get_with_token
+from suite.utils.jwt_authorization_utils import AuthzScenario, get_with_token, wait_for_jwt_policy
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
 from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_virtual_server_from_yaml
@@ -577,6 +577,10 @@ class TestJWTAuthorizationPoliciesVsr:
         url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}{path}"
         return get_with_token(url, v_s_route_setup.vs_host, token_name)
 
+    def wait_for_policy(self, v_s_route_setup, path):
+        url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}{path}"
+        wait_for_jwt_policy(url, v_s_route_setup.vs_host)
+
     def test_subroute_policy_claims(self, kube_apis, crd_ingress_controller, v_s_route_app_setup, v_s_route_setup):
         """
         The subroute with the policy returns 401 without a valid token, 403 when the claims fail and 200
@@ -587,9 +591,9 @@ class TestJWTAuthorizationPoliciesVsr:
             patch_v_s_route_from_yaml(
                 kube_apis.custom_objects, v_s_route_setup.route_m.name, jwt_vsr_authz_src, namespace
             )
-            wait_before_test()
             guarded = v_s_route_setup.route_m.paths[0]
             open_path = v_s_route_setup.route_m.paths[1]
+            self.wait_for_policy(v_s_route_setup, guarded)
             try:
                 no_token = self.request(v_s_route_setup, guarded, None)
                 passes = self.request(v_s_route_setup, guarded, "basic")
@@ -616,8 +620,9 @@ class TestJWTAuthorizationPoliciesVsr:
             patch_v_s_route_from_yaml(
                 kube_apis.custom_objects, v_s_route_setup.route_m.name, jwt_vsr_authz_two_src, namespace
             )
-            wait_before_test()
             first, second = v_s_route_setup.route_m.paths[0], v_s_route_setup.route_m.paths[1]
+            self.wait_for_policy(v_s_route_setup, first)
+            self.wait_for_policy(v_s_route_setup, second)
             try:
                 resp_first = self.request(v_s_route_setup, first, "guest")
                 resp_second = self.request(v_s_route_setup, second, "guest")
@@ -638,8 +643,8 @@ class TestJWTAuthorizationPoliciesVsr:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, v_s_route_setup.vs_name, jwt_vs_authz_spec_src, namespace
             )
-            wait_before_test()
             path = v_s_route_setup.route_m.paths[0]
+            self.wait_for_policy(v_s_route_setup, path)
             try:
                 passes = self.request(v_s_route_setup, path, "basic")
                 fails = self.request(v_s_route_setup, path, "guest")
