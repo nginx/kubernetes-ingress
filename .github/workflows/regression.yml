@@ -26,7 +26,7 @@ jobs:
   checks:
     name: Checks and variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -80,7 +80,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -122,7 +122,7 @@ jobs:
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks]
     strategy:
       fail-fast: false
@@ -177,7 +177,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -240,7 +240,7 @@ jobs:
   setup-regression-matrix:
     name: Setup Matrix for Smoke Tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks]
     permissions:
       contents: read
@@ -267,7 +267,7 @@ jobs:
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, setup-regression-matrix]
     strategy:
       fail-fast: false
@@ -321,14 +321,14 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
