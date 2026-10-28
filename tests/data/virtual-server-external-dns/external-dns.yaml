@@ -10,6 +10,7 @@ metadata:
   name: external-dns
   namespace: external-dns
   labels:
+    app: external-dns
     app.kubernetes.io/name: external-dns
     app.kubernetes.io/instance: external-dns
 automountServiceAccountToken: true
@@ -21,6 +22,7 @@ kind: ClusterRole
 metadata:
   name: external-dns
   labels:
+    app: external-dns
     app.kubernetes.io/name: external-dns
     app.kubernetes.io/instance: external-dns
 rules:
@@ -53,6 +55,7 @@ kind: ClusterRoleBinding
 metadata:
   name: external-dns-viewer
   labels:
+    app: external-dns
     app.kubernetes.io/name: external-dns
     app.kubernetes.io/instance: external-dns
 roleRef:
@@ -72,6 +75,7 @@ metadata:
   name: external-dns
   namespace: external-dns
   labels:
+    app: external-dns
     app.kubernetes.io/name: external-dns
     app.kubernetes.io/instance: external-dns
 spec:
@@ -93,6 +97,7 @@ metadata:
   name: external-dns
   namespace: external-dns
   labels:
+    app: external-dns
     app.kubernetes.io/name: external-dns
     app.kubernetes.io/instance: external-dns
 spec:
@@ -106,6 +111,7 @@ spec:
   template:
     metadata:
       labels:
+        app: external-dns
         app.kubernetes.io/name: external-dns
         app.kubernetes.io/instance: external-dns
     spec:
