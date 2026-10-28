@@ -1079,6 +1079,15 @@ func TestGenerateAuthJwtClaimSetVariable(t *testing.T) {
 			},
 			expected: "$jwt_default_webapp_vs_a_b_c",
 		},
+		{
+			claim: "iss",
+			ownerDetails: policyOwnerDetails{
+				parentNamespace: "my.ns",
+				parentName:      "cafe.example-vs",
+				parentType:      "vs",
+			},
+			expected: "$jwt_my_ns_cafe_example_vs_vs_iss",
+		},
 	}
 
 	for _, test := range tests {

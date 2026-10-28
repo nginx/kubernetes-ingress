@@ -467,9 +467,21 @@ func TestGenerateJWTAuthorization_VariableNamesAreValidForNamesWithDots(t *testi
 		"my.ns", "my.policy-name", jwtOwner("my.ns", "cafe.example-vs"))
 
 	valid := regexp.MustCompile(`^\$[A-Za-z0-9_]+$`)
+	validSource := regexp.MustCompile(`^(\$[A-Za-z0-9_]+)+$`) // require maps concatenate several variables
 	for _, m := range gen.Maps {
 		if !valid.MatchString(m.Variable) {
 			t.Errorf("map variable %q is not a valid NGINX variable name", m.Variable)
+		}
+		if !validSource.MatchString(m.Source) {
+			t.Errorf("map source %q is not a valid NGINX variable reference", m.Source)
+		}
+	}
+	if len(gen.ClaimSets) == 0 {
+		t.Fatal("no claim sets generated")
+	}
+	for _, cs := range gen.ClaimSets {
+		if !valid.MatchString(cs.Variable) {
+			t.Errorf("claim set variable %q is not a valid NGINX variable name", cs.Variable)
 		}
 	}
 }
@@ -989,6 +1001,89 @@ func TestJWTPolicyProxyHeaders(t *testing.T) {
 			t.Parallel()
 			if diff := cmp.Diff(tc.want, jwtPolicyProxyHeaders(tc.route, tc.spec)); diff != "" {
 				t.Errorf("jwtPolicyProxyHeaders() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// evalHeaderMap applies a sanitizing header map to a claim value the way NGINX does: the first
+// matching regex wins, else the default. A result of "" is empty and any other result is a variable.
+func evalHeaderMap(t *testing.T, m version2.Map, claimValue string) string {
+	t.Helper()
+
+	result, found := "", false
+	for _, p := range m.Parameters {
+		if !strings.HasPrefix(p.Value, `"~`) {
+			continue
+		}
+		pattern := strings.TrimPrefix(internalValidation.UnescapeNGINXToken(strings.Trim(p.Value, `"`)), "~")
+		re, err := regexp2.Compile(pattern)
+		if err != nil {
+			t.Fatalf("map %s: key %s does not compile: %v", m.Variable, p.Value, err)
+		}
+		matched, err := re.MatchString(claimValue)
+		if err != nil {
+			t.Fatalf("map %s: key %s: %v", m.Variable, p.Value, err)
+		}
+		if matched {
+			result, found = p.Result, true
+			break
+		}
+	}
+	if !found {
+		for _, p := range m.Parameters {
+			if p.Value == "default" {
+				result = p.Result
+			}
+		}
+	}
+
+	if result == `""` {
+		return ""
+	}
+	if result != m.Source {
+		t.Fatalf("map %s resolved to %q, want an empty string or the claim variable %s", m.Variable, result, m.Source)
+	}
+	return claimValue
+}
+
+func TestGenerateJWTAuthorization_ProxyHeaderMapDropsCRAndLF(t *testing.T) {
+	t.Parallel()
+
+	gen := generateJWTAuthorization(singleClaimPolicy(conf_v1.JWTClaim{Name: "iss", Values: []string{"a"}, ProxySetHeader: "X-Iss"}),
+		"default", "p", jwtOwner("default", "cafe"))
+
+	if len(gen.ProxySetHeaders) != 1 {
+		t.Fatalf("ProxySetHeaders = %v, want one", gen.ProxySetHeaders)
+	}
+	var hdr *version2.Map
+	for i := range gen.Maps {
+		if gen.Maps[i].Variable == gen.ProxySetHeaders[0].Value {
+			hdr = &gen.Maps[i]
+		}
+	}
+	if hdr == nil {
+		t.Fatalf("no map for header variable %s", gen.ProxySetHeaders[0].Value)
+	}
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"clean value is forwarded", "https://idp.example.com", "https://idp.example.com"},
+		{"CR is dropped", "v\rX-Foo: bar", ""},
+		{"LF is dropped", "v\nX-Foo: bar", ""},
+		{"CRLF is dropped", "v\r\nX-Foo: bar", ""},
+		{"trailing LF is dropped", "v\n", ""},
+		{"leading CR is dropped", "\rv", ""},
+		{"a literal backslash-n is forwarded", `v\nbar`, `v\nbar`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := evalHeaderMap(t, *hdr, tc.value); got != tc.want {
+				t.Errorf("header for %q = %q, want %q", tc.value, got, tc.want)
 			}
 		})
 	}

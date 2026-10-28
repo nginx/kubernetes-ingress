@@ -208,9 +208,10 @@ func (p *policiesCfg) addRateLimitConfig(
 	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
 	l := nl.LoggerFromContext(p.Context)
 
-	if conflict := rateLimitJWTClaimConflict(rateLimit, ownerDetails, jwtClaims); conflict != "" {
+	claimConflict := rateLimitJWTClaimConflict(rateLimit, ownerDetails, jwtClaims)
+	if claimConflict != "" {
 		// The rate limit is kept, but it keys on the authorization claim.
-		res.addWarningf("RateLimit policy %s keys on a claim that collides with a JWT authorization claim and will read that claim instead: %s", polKey, conflict)
+		res.addWarningf("RateLimit policy %s keys on a claim that collides with a JWT authorization claim and will read that claim instead: %s", polKey, claimConflict)
 	}
 
 	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType))
@@ -223,7 +224,9 @@ func (p *policiesCfg) addRateLimitConfig(
 			nl.Warn(l, warningText)
 		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
-		if rateLimit.Condition.JWT != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+		if rateLimit.Condition.JWT != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" && claimConflict == "" {
+			// On a conflict the variable already resolves to the authorization's claim set. A second
+			// set differing only in case would be emitted as a duplicate variable.
 			p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
 		}
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
@@ -1861,17 +1864,13 @@ func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, owner policyOwne
 }
 
 func generateAuthJwtClaimSetVariable(claim string, ownerDetails policyOwnerDetails) string {
-	return strings.ReplaceAll(
-		fmt.Sprintf(
-			"$jwt_%v_%v_%v_%v",
-			ownerDetails.parentNamespace,
-			ownerDetails.parentName,
-			ownerDetails.parentType,
-			strings.Join(strings.Split(claim, "."), "_"),
-		),
-		"-",
-		"_",
-	)
+	return "$" + jwtVariableSafe(fmt.Sprintf(
+		"jwt_%v_%v_%v_%v",
+		ownerDetails.parentNamespace,
+		ownerDetails.parentName,
+		ownerDetails.parentType,
+		claim,
+	))
 }
 
 func generateAuthJwtClaimSetClaim(claim string) string {
