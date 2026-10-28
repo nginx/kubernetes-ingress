@@ -5,8 +5,9 @@ import pytest
 import requests
 import yaml
 from settings import TEST_DATA
+from suite.utils.custom_assertions import assert_valid_vs
 from suite.utils.jwt_authorization_utils import get_with_token, vs_manifest
-from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
+from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
     create_secret_from_yaml,
@@ -546,13 +547,12 @@ class TestJWTAuthorizationJwksUnavailable:
             ingress_controller_prerequisites.namespace,
             jwt_cm_src,
         )
-        pol_name = create_policy_from_yaml(kube_apis.custom_objects, jwt_authz_unavailable_src, test_namespace)
-        wait_before_test()
+        pol_name = apply_and_wait_for_valid_policy(kube_apis, test_namespace, jwt_authz_unavailable_src)
 
         vs = vs_manifest(std_vs_src, spec_policy=pol_name)
         delete_virtual_server(kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace)
         create_virtual_server(kube_apis.custom_objects, vs, virtual_server_setup.namespace)
-        wait_before_test()
+        assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name)
 
         try:
             statuses = [
