@@ -36,7 +36,7 @@ We value community input and would love to see you at the next community call. A
 | **2026-09-21**           |
 | **2026-10-05**           |
 | **2026-10-19**           |
-| **2026-11-02**           |
+| **2026-11-03**           |
 | **2026-11-16**           |
 | **2026-11-30**           |
 | **2026-12-14**           |
