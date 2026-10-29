@@ -27,6 +27,8 @@ type JWTAuthApplyConfiguration struct {
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// Claim-based authorization rules, evaluated after the JWT signature and expiry have been validated. Requests that fail the rules are rejected with authorization.errorCode.
+	Authorization *JWTAuthorizationApplyConfiguration `json:"authorization,omitempty"`
 }
 
 // JWTAuthApplyConfiguration constructs a declarative configuration of the JWTAuth type for use with
@@ -112,5 +114,13 @@ func (b *JWTAuthApplyConfiguration) WithTrustedCertSecret(value string) *JWTAuth
 // If called multiple times, the SSLVerifyDepth field is set to the value of the last call.
 func (b *JWTAuthApplyConfiguration) WithSSLVerifyDepth(value int) *JWTAuthApplyConfiguration {
 	b.SSLVerifyDepth = &value
+	return b
+}
+
+// WithAuthorization sets the Authorization field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Authorization field is set to the value of the last call.
+func (b *JWTAuthApplyConfiguration) WithAuthorization(value *JWTAuthorizationApplyConfiguration) *JWTAuthApplyConfiguration {
+	b.Authorization = value
 	return b
 }

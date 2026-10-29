@@ -118,6 +118,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.IngressMTLSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTAuth"):
 		return &applyconfigurationconfigurationv1.JWTAuthApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("JWTAuthorization"):
+		return &applyconfigurationconfigurationv1.JWTAuthorizationApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("JWTAuthorizationRule"):
+		return &applyconfigurationconfigurationv1.JWTAuthorizationRuleApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("JWTClaim"):
+		return &applyconfigurationconfigurationv1.JWTClaimApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTCondition"):
 		return &applyconfigurationconfigurationv1.JWTConditionApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Listener"):

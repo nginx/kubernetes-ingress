@@ -96,6 +96,17 @@ The `.spec` object supports the following fields:
 | `ingressMTLS.verifyClient` | `string` | Verification for the client. Possible values are "on", "off", "optional", "optional_no_ca". The default is "on". |
 | `ingressMTLS.verifyDepth` | `integer` | Sets the verification depth in the client certificates chain. The default is 1. |
 | `jwt` | `object` | The JWT policy configures NGINX Plus to authenticate client requests using JSON Web Tokens. |
+| `jwt.authorization` | `object` | Claim-based authorization rules, evaluated after the JWT signature and expiry have been validated. Requests that fail the rules are rejected with authorization.errorCode. |
+| `jwt.authorization.errorCode` | `integer` | The HTTP status code returned when claim validation fails. Authentication failures always return 401. The default is 403. Allowed values: `401`, `403`. |
+| `jwt.authorization.require` | `string` | Whether any rule or all rules must pass. The default is All. Allowed values: `"Any"`, `"All"`. |
+| `jwt.authorization.rules` | `array` | The authorization rules. |
+| `jwt.authorization.rules[].claims` | `array` | The claim checks in the rule. The same claim name may appear more than once with a different match or negate. |
+| `jwt.authorization.rules[].claims[].match` | `string` | How the claim is compared to values. The default is Exact. Exact and Regex are case-sensitive. Contains splits the claim on space and comma, so it works on array claims and space-delimited claims such as scope. Allowed values: `"Exact"`, `"Contains"`, `"Regex"`, `"Present"`. |
+| `jwt.authorization.rules[].claims[].name` | `string` | The claim name. Nested claims are separated by ".", for example realm_access.roles. |
+| `jwt.authorization.rules[].claims[].negate` | `boolean` | Inverts the check. A negated value check still fails when the claim is missing. match: Present with negate: true requires the claim to be absent. |
+| `jwt.authorization.rules[].claims[].proxySetHeader` | `string` | The name of a request header that forwards the claim value to the upstream. |
+| `jwt.authorization.rules[].claims[].values` | `array[string]` | The expected values. The check passes if the claim matches any value. Required unless match is Present. For match: Regex, values are PCRE patterns; named captures and lookbehind are not supported. |
+| `jwt.authorization.rules[].require` | `string` | Whether any claim or all claims in the rule must pass. The default is Any. Allowed values: `"Any"`, `"All"`. |
 | `jwt.jwksURI` | `string` | The remote URI where the request will be sent to retrieve JSON Web Key set |
 | `jwt.keyCache` | `string` | Enables in-memory caching of JWKS (JSON Web Key Sets) that are obtained from the jwksURI and sets a valid time for expiration. |
 | `jwt.realm` | `string` | The realm of the JWT. |
