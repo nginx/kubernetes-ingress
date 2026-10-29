@@ -180,6 +180,9 @@ The `.spec` object supports the following fields:
 | `upstreams[].client-max-body-size` | `string` | Sets the maximum allowed size of the client request body. The default is set in the client-max-body-size ConfigMap key. |
 | `upstreams[].connect-timeout` | `string` | The timeout for establishing a connection with an upstream server. The default is specified in the proxy-connect-timeout ConfigMap key. |
 | `upstreams[].fail-timeout` | `string` | The time during which the specified number of unsuccessful attempts to communicate with an upstream server should happen to consider the server unavailable. The default is set in the fail-timeout ConfigMap key. |
+| `upstreams[].hash-subset` | `object` | HashSubset configures deterministic routing to a subset of the service endpoints. The hash key selects a subset and NGINX randomly selects a healthy endpoint within that subset. |
+| `upstreams[].hash-subset.key` | `string` | Key is the NGINX variable, text, or combination used to select a subset. |
+| `upstreams[].hash-subset.size` | `integer` | Size is the number of endpoints in each subset. |
 | `upstreams[].healthCheck` | `object` | The health check configuration for the Upstream. Note: this feature is supported only in NGINX Plus. |
 | `upstreams[].healthCheck.connect-timeout` | `string` | The timeout for establishing a connection with an upstream server. By default, the connect-timeout of the upstream is used. |
 | `upstreams[].healthCheck.enable` | `boolean` | Enables a health check for an upstream server. The default is false. |
