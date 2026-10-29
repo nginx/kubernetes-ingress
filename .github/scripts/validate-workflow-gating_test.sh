@@ -21,6 +21,8 @@ fail=0
 
 GATE_SQ="github.repository == 'nginx/kubernetes-ingress'"
 GATE_DQ='github.repository == "nginx/kubernetes-ingress"'
+GATE_INT_SQ="github.repository == 'nginx/kubernetes-ingress-internal'"
+GATE_DUAL="($GATE_SQ || $GATE_INT_SQ)"
 
 # assert_if <pass|fail> <description> <condition>
 assert_if() {
@@ -57,6 +59,9 @@ assert_group() {
 # --- validate_if_condition: valid gates ---------------------------------------
 assert_if pass "bare gate, single quotes" "$GATE_SQ"
 assert_if pass "bare gate, double quotes" "$GATE_DQ"
+assert_if pass "bare internal gate" "$GATE_INT_SQ"
+assert_if pass "bare dual-repo gate" "$GATE_DUAL"
+assert_if pass "dual-repo gate with compound &&" "$GATE_DUAL && (needs.checks.outputs.forked_workflow == 'false')"
 assert_if pass "gate with simple parenthesised tail" "$GATE_SQ && (!cancelled())"
 assert_if pass "gate with nested single group" "$GATE_SQ && (inputs.force && (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')))"
 assert_if pass "leading/trailing/extra whitespace normalized" "   $GATE_SQ    &&   (!cancelled())   "
@@ -71,6 +76,9 @@ assert_if fail "gate not first" "foo && $GATE_SQ"
 assert_if fail "mismatched quotes" "github.repository == 'nginx/kubernetes-ingress\""
 assert_if fail "wrong repository" "github.repository == 'nginx/other-repo'"
 assert_if fail "top-level || bypass" "$GATE_SQ && (a) || (b)"
+assert_if fail "dual-repo gate followed by top-level ||" "$GATE_DUAL || (b)"
+assert_if fail "dual-repo gate with && and top-level || bypass" "$GATE_DUAL && (a) || (b)"
+assert_if fail "unparenthesised dual-repo gate with &&" "$GATE_SQ || $GATE_INT_SQ && (a)"
 assert_if fail "two separate groups" "$GATE_SQ && (a) && (b)"
 assert_if fail "unparenthesised tail" "$GATE_SQ && a"
 assert_if fail "unparenthesised tail with ||" "$GATE_SQ && a || b"

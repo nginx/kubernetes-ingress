@@ -3,18 +3,20 @@ set -euo pipefail
 
 # This is called from the lint-format.yml workflow file.
 #
-# Purpose of this is to make sure that every job in workflow files that don't start with
-# "mirror-" have a gate that only runs them on the main repository (nginx/kubernetes-ingress).
+# Purpose of this is to make sure that every job in workflow files has a gate
+# that only runs it on the public repository (nginx/kubernetes-ingress), the
+# internal repository (nginx/kubernetes-ingress-internal), or both.
 #
-# Workflow files starting with "mirror-" will be used in mirror repositories where slightly
-# different workflows are needed due to access requirements and different jobs. Separating
-# them into different files allows us to keep various branches up to date where we don't need
-# to deal with merge conflicts in the workflow files.
+# Workflow files are shared between the two repositories under the in-repo twin
+# CI model, where each job is gated on `github.repository` rather than split
+# across separate workflow files.
 #
-# A job's `if:` condition is "correctly gated" when it has one of these shapes:
+# A job's `if:` condition is "correctly gated" when it starts with one of these
+# repository gates, optionally followed by `&& ( <extra conditions> )`:
 #
 #     github.repository == 'nginx/kubernetes-ingress'
-#     github.repository == 'nginx/kubernetes-ingress' && ( <extra conditions> )
+#     github.repository == 'nginx/kubernetes-ingress-internal'
+#     (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
 #
 # The gate must come first, and any extra conditions must be wrapped in a single
 # balanced parenthesis group. GitHub Actions gives `&&` higher precedence than
@@ -56,18 +58,21 @@ validate_if_condition() {
   fi
 
   # <gate>  or  <gate> && ( ... ). The alternation forces the quotes to match
-  # (there is no mixed '..." branch). Capture group 2 is the optional tail and
-  # group 3 is the tail's inner parenthesised content.
-  local gate_re='^github\.repository == ('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress"|'\''nginx/kubernetes-ingress-internal'\''|"nginx/kubernetes-ingress-internal")( && \((.+)\))?$'
+  # (there is no mixed '..." branch). Capture group 6 is the optional tail and
+  # group 7 is the tail's inner parenthesised content.
+  local pub_gate='github\.repository == ('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress")'
+  local int_gate='github\.repository == ('\''nginx/kubernetes-ingress-internal'\''|"nginx/kubernetes-ingress-internal")'
+  local dual_gate='\('"${pub_gate}"' \|\| '"${int_gate}"'\)'
+  local gate_re='^('"${pub_gate}"'|'"${int_gate}"'|'"${dual_gate}"')( && \((.+)\))?$'
   if [[ ! "$cond" =~ $gate_re ]]; then
     echo "  - Job '$job_name' is not correctly gated: '$cond'"
-    echo "    Expected: github.repository == 'nginx/kubernetes-ingress'  [ && ( ... ) ]"
+    echo "    Expected: github.repository == 'nginx/kubernetes-ingress' (or -internal, or dual-repo gate) [ && ( ... ) ]"
     return 1
   fi
 
   # If there is a parenthesised tail, it must be one balanced group so that a
   # top-level '||' cannot bypass the gate (rejects e.g. "gate && (a) || (b)").
-  if [ -n "${BASH_REMATCH[2]}" ] && ! is_single_group "(${BASH_REMATCH[3]})"; then
+  if [ -n "${BASH_REMATCH[6]}" ] && ! is_single_group "(${BASH_REMATCH[7]})"; then
     echo "  - Job '$job_name' extra conditions must be a single ( ... ) group: '$cond'"
     return 1
   fi
