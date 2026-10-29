@@ -5053,6 +5053,174 @@ func vsLocationBlock(t *testing.T, conf string, header string) string {
 }
 
 const (
+	clZonePerClient      = "pol_cl_default_per-client_vs_default_cafe_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+	clZoneDownloadsTotal = "pol_cl_default_downloads-total_vs_default_cafe_11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7"
+	clZoneTeaRoutes      = "pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+)
+
+var virtualServerCfgWithConnectionLimit = VirtualServerConfig{
+	LimitConnZones: []LimitConnZone{
+		{Key: "${binary_remote_addr}", ZoneName: clZonePerClient, ZoneSize: "10m"},
+		{Key: "total", ZoneName: clZoneDownloadsTotal, ZoneSize: "10m"},
+		{Key: "${binary_remote_addr}", ZoneName: clZoneTeaRoutes, ZoneSize: "10m"},
+	},
+	Server: Server{
+		ServerName:       "cafe.example.com",
+		StatusZone:       "cafe.example.com",
+		LimitConnOptions: LimitConnOptions{LogLevel: "error", RejectCode: 503},
+		LimitConns:       []LimitConn{{ZoneName: clZonePerClient, Connections: 10}},
+		Locations: []Location{
+			{
+				Path:      "/coffee",
+				ProxyPass: "http://vs_default_cafe_coffee",
+			},
+			{
+				Path:             "/downloads",
+				ProxyPass:        "http://vs_default_cafe_files",
+				LimitConnOptions: LimitConnOptions{LogLevel: "error", RejectCode: 503},
+				LimitConns: []LimitConn{
+					{ZoneName: clZonePerClient, Connections: 10},
+					{ZoneName: clZoneDownloadsTotal, Connections: 200},
+				},
+			},
+			{
+				Path:             "/tea",
+				ProxyPass:        "http://vs_default_cafe_vsr_tea_tea-routes_tea",
+				LimitConnOptions: LimitConnOptions{LogLevel: "error", RejectCode: 503},
+				LimitConns:       []LimitConn{{ZoneName: clZoneTeaRoutes, Connections: 10}},
+			},
+			{
+				Path:             "/dry-run",
+				ProxyPass:        "http://vs_default_cafe_coffee",
+				LimitConnOptions: LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+				LimitConns:       []LimitConn{{ZoneName: clZonePerClient, Connections: 10}},
+			},
+			{
+				Path:             "/options-only",
+				ProxyPass:        "http://vs_default_cafe_coffee",
+				LimitConnOptions: LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+			},
+		},
+	},
+}
+
+func TestExecuteVirtualServerTemplate_RendersConnectionLimitForNGINX(t *testing.T) {
+	t.Parallel()
+
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithConnectionLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(got))
+
+	assertVSConnectionLimitRendering(t, string(got))
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersConnectionLimitForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithConnectionLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(got))
+
+	assertVSConnectionLimitRendering(t, string(got))
+	snaps.MatchSnapshot(t, string(got))
+}
+
+// assertVSConnectionLimitRendering checks that every block with limit_conn sets all three
+// options explicitly, and that blocks without limit_conn render none of them.
+func assertVSConnectionLimitRendering(t *testing.T, conf string) {
+	t.Helper()
+
+	for _, want := range []string{
+		"limit_conn_zone ${binary_remote_addr} zone=" + clZonePerClient + ":10m;",
+		"limit_conn_zone total zone=" + clZoneDownloadsTotal + ":10m;",
+		"limit_conn_zone ${binary_remote_addr} zone=" + clZoneTeaRoutes + ":10m;",
+	} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	firstLocation := strings.Index(conf, "location \"")
+	if firstLocation == -1 {
+		t.Fatal("no location in generated config")
+	}
+
+	blocks := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{
+			name: "server",
+			text: conf[:firstLocation],
+			want: []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZonePerClient + " 10;",
+			},
+		},
+		{
+			name: "/downloads",
+			text: vsLocationBlock(t, conf, `location "/downloads" {`),
+			want: []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZonePerClient + " 10;",
+				"limit_conn " + clZoneDownloadsTotal + " 200;",
+			},
+		},
+		{
+			name: "/tea",
+			text: vsLocationBlock(t, conf, `location "/tea" {`),
+			want: []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZoneTeaRoutes + " 10;",
+			},
+		},
+		{
+			name: "/dry-run",
+			text: vsLocationBlock(t, conf, `location "/dry-run" {`),
+			want: []string{
+				"limit_conn_dry_run on;",
+				"limit_conn_log_level warn;",
+				"limit_conn_status 429;",
+				"limit_conn " + clZonePerClient + " 10;",
+			},
+		},
+		{
+			name: "/coffee",
+			text: vsLocationBlock(t, conf, `location "/coffee" {`),
+		},
+		{
+			name: "/options-only",
+			text: vsLocationBlock(t, conf, `location "/options-only" {`),
+		},
+	}
+
+	for _, b := range blocks {
+		if b.want == nil && strings.Contains(b.text, "limit_conn") {
+			t.Errorf("%s must not contain limit_conn directives, got:\n%s", b.name, b.text)
+		}
+		for _, want := range b.want {
+			if !strings.Contains(b.text, want) {
+				t.Errorf("want %q in %s, got:\n%s", want, b.name, b.text)
+			}
+		}
+	}
+}
+
+const (
 	acmeChallengeTestPath     = "/.well-known/acme-challenge/tok"
 	acmeChallengeRedirectExpr = `if ($uri ~ "^/\.well-known/acme-challenge/")`
 	// acmeChallengeTestLocArg is the challenge location argument as rendered: VirtualServer
@@ -5303,6 +5471,38 @@ func TestVirtualServerForNginxPlusACMEChallengeWithJWTAndOIDC(t *testing.T) {
 	assertCount(t, conf, `auth_jwt "server api";`, 1)
 	assertCount(t, conf, "auth_oidc oidc_default_my_provider_default_cafe;", 1)
 	snaps.MatchSnapshot(t, conf)
+}
+
+func testVirtualServerACMEChallengeWithConnectionLimit(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
+	t.Helper()
+
+	cfg := acmeChallengeTestCfg(base, acmeChallengeTestLocation())
+	cfg.LimitConnZones = []LimitConnZone{{Key: "total", ZoneName: clZoneDownloadsTotal, ZoneSize: "10m"}}
+	cfg.Server.LimitConnOptions = LimitConnOptions{LogLevel: "error", RejectCode: 503}
+	cfg.Server.LimitConns = []LimitConn{{ZoneName: clZoneDownloadsTotal, Connections: 200}}
+
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	challenge := locationBlock(t, conf, acmeChallengeTestLocArg)
+	assertCount(t, challenge, "limit_conn_dry_run on;", 1)
+	assertCount(t, challenge, "limit_conn", 1)
+	assertCount(t, locationBlock(t, conf, `"/coffee"`), "limit_conn", 0)
+	assertCount(t, conf, "limit_conn "+clZoneDownloadsTotal+" 200;", 1)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxACMEChallengeWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeWithConnectionLimit(t, newTmplExecutorNGINX(t), virtualServerCfg)
+}
+
+func TestVirtualServerForNginxPlusACMEChallengeWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeWithConnectionLimit(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
 }
 
 func testVirtualServerRedirectNoChallengeUnchanged(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {

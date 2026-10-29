@@ -1,0 +1,8 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: connection-limit-invalid
+spec:
+  connectionLimit:
+    connections: 1
+    zoneSize: 1k

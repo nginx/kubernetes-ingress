@@ -41,6 +41,13 @@ type rateLimit struct {
 	AuthJWTClaimSets []version2.AuthJWTClaimSet
 }
 
+// connectionLimit holds the ConnectionLimit configuration of one context.
+type connectionLimit struct {
+	Zones   []version2.LimitConnZone
+	Conns   []version2.LimitConn
+	Options version2.LimitConnOptions
+}
+
 // jwtAuth hold the configuration for the JWTAuth & JWKSAuth Policies
 type jwtAuth struct {
 	Auth        *version2.JWTAuth
@@ -66,6 +73,7 @@ type policiesCfg struct {
 	Context         context.Context
 	Deny            []string
 	RateLimit       rateLimit
+	ConnectionLimit connectionLimit
 	JWTAuth         jwtAuth
 	ExternalAuth    *version2.ExternalAuth
 	BasicAuth       *version2.BasicAuth
@@ -90,6 +98,9 @@ type policyOwnerDetails struct {
 	parentNamespace string
 	parentName      string
 	parentType      string
+	// ownerType is "vsr" for a VirtualServerRoute subroute with its own policies and "ing" for a
+	// mergeable minion. It is empty when the references belong to the parent itself.
+	ownerType string
 }
 
 type policyOptions struct {
@@ -241,6 +252,62 @@ func (p *policiesCfg) addRateLimitConfig(
 		if curOptions.RejectCode != p.RateLimit.Options.RejectCode {
 			res.addWarningf("RateLimit policy %s with limit request option rejectCode='%v' is overridden to rejectCode='%v' by the first policy reference in this context", polKey, curOptions.RejectCode, p.RateLimit.Options.RejectCode)
 		}
+	}
+	return res
+}
+
+// connectionLimitZoneName returns a zone name unique to the Policy, the parent whose configuration
+// file defines the zone, the referencing object, and the key.
+func connectionLimitZoneName(policy *conf_v1.Policy, owner policyOwnerDetails, key string) string {
+	name := fmt.Sprintf("pol_cl_%s_%s_%s_%s_%s", policy.Namespace, policy.Name, owner.parentType, owner.parentNamespace, owner.parentName)
+	if owner.ownerType != "" {
+		name = fmt.Sprintf("%s_%s_%s_%s", name, owner.ownerType, owner.ownerNamespace, owner.ownerName)
+	}
+	sum := sha256.Sum256([]byte(key))
+	return name + "_" + hex.EncodeToString(sum[:])
+}
+
+func (p *policiesCfg) addConnectionLimitConfig(policy *conf_v1.Policy, ownerDetails policyOwnerDetails, podReplicas int) *validationResults {
+	res := newValidationResults()
+	// The CRD schema defaults key, zoneSize, rejectCode, and logLevel, so they are never empty here.
+	cl := policy.Spec.ConnectionLimit
+	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
+	zoneName := connectionLimitZoneName(policy, ownerDetails, cl.Key)
+
+	connections := cl.Connections
+	if cl.Scale && podReplicas > 0 {
+		connections = cl.Connections / podReplicas
+		if connections < 1 {
+			connections = 1
+			res.addWarningf("ConnectionLimit policy %s: scaling %d connections across %d replicas gives less than one connection per replica; using 1",
+				polKey, cl.Connections, podReplicas)
+		}
+	}
+
+	p.ConnectionLimit.Zones = append(p.ConnectionLimit.Zones, version2.LimitConnZone{Key: cl.Key, ZoneName: zoneName, ZoneSize: cl.ZoneSize})
+	p.ConnectionLimit.Conns = append(p.ConnectionLimit.Conns, version2.LimitConn{ZoneName: zoneName, Connections: connections})
+
+	options := version2.LimitConnOptions{DryRun: cl.DryRun, LogLevel: cl.LogLevel}
+	if cl.RejectCode != nil {
+		options.RejectCode = *cl.RejectCode
+	}
+
+	if len(p.ConnectionLimit.Conns) == 1 {
+		p.ConnectionLimit.Options = options
+		return res
+	}
+	first := p.ConnectionLimit.Options
+	if options.DryRun != first.DryRun {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option dryRun='%v' is overridden to dryRun='%v' by the first policy reference in this context",
+			polKey, options.DryRun, first.DryRun)
+	}
+	if options.LogLevel != first.LogLevel {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option logLevel='%v' is overridden to logLevel='%v' by the first policy reference in this context",
+			polKey, options.LogLevel, first.LogLevel)
+	}
+	if options.RejectCode != first.RejectCode {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option rejectCode='%v' is overridden to rejectCode='%v' by the first policy reference in this context",
+			polKey, options.RejectCode, first.RejectCode)
 	}
 	return res
 }
@@ -1526,6 +1593,8 @@ func generatePolicies(
 					pathContext,
 					path,
 				)
+			case pol.Spec.ConnectionLimit != nil:
+				res = config.addConnectionLimitConfig(pol, ownerDetails, policyOpts.replicas)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.ExternalAuth != nil:

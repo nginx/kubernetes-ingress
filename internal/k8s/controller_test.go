@@ -7851,3 +7851,105 @@ func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
 		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
 	}
 }
+
+func TestFindResourcesUsingPolicyScaling(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	for _, policy := range []*conf_v1.Policy{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10, Scale: true}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "unscaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-rl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M", Scale: true}},
+		},
+	} {
+		if err := store.Add(policy); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	configuration := createTestConfiguration()
+	for name, policies := range map[string][]string{
+		"vs-scaled-cl":   {"scaled-cl"},
+		"vs-unscaled-cl": {"unscaled-cl"},
+		"vs-scaled-rl":   {"scaled-rl"},
+		"vs-scaled-both": {"scaled-cl", "scaled-rl"},
+	} {
+		vs := createTestVirtualServer(name, name+".example.com")
+		for _, policy := range policies {
+			vs.Spec.Policies = append(vs.Spec.Policies, conf_v1.PolicyReference{Name: policy})
+		}
+		configuration.AddOrUpdateVirtualServer(vs)
+	}
+
+	lbc := &LoadBalancerController{
+		configuration:       configuration,
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": {policyLister: store}}),
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	var got []string
+	for _, r := range lbc.findResourcesUsingPolicyScaling() {
+		got = append(got, r.GetKeyWithKind())
+	}
+	sort.Strings(got)
+	want := []string{"VirtualServer/default/vs-scaled-both", "VirtualServer/default/vs-scaled-cl", "VirtualServer/default/vs-scaled-rl"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("findResourcesUsingPolicyScaling() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateNumberOfIngressControllerReplicasReportsScaleWarnings(t *testing.T) {
+	t.Parallel()
+
+	lbc, confClient := newVSRStatusTestLBC(t)
+	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	lbc.getNamespacedInformer("default").policyLister = policies
+	err := policies.Add(&conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
+			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	vs := createTestVirtualServer("cafe", "cafe.example.com")
+	vs.Spec.Policies = []conf_v1.PolicyReference{{Name: "cl"}}
+	addVSStatusTest(t, lbc, confClient, vs, nil, nil)
+
+	for _, tc := range []struct {
+		replicas    int
+		wantState   string
+		wantWarning bool
+	}{
+		{replicas: 3, wantState: conf_v1.StateWarning, wantWarning: true},
+		{replicas: 2, wantState: conf_v1.StateValid},
+	} {
+		var slice discovery_v1.EndpointSlice
+		for range tc.replicas {
+			slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
+		}
+		lbc.updateNumberOfIngressControllerReplicas(slice)
+
+		got, err := confClient.K8sV1().VirtualServers("default").Get(context.Background(), "cafe", meta_v1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		hasWarning := strings.Contains(got.Status.Message, "scaling 2 connections across 3 replicas")
+		if got.Status.State != tc.wantState || hasWarning != tc.wantWarning {
+			t.Errorf("replicas=%d: got state %q, message %q; want state %q, warning %v", tc.replicas, got.Status.State, got.Status.Message, tc.wantState, tc.wantWarning)
+		}
+		// The status updater compares the new status with the informer copy.
+		if err := lbc.getNamespacedInformer("default").virtualServerLister.Update(got); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

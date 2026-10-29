@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import re
+import socket
 import time
 import uuid
 from unittest import mock
@@ -1237,6 +1238,42 @@ def wait_before_test(delay=RECONFIGURATION_DELAY) -> None:
     :return:
     """
     time.sleep(delay)
+
+
+def hold_requests_open(ip, port, host, path, count) -> list:
+    """
+    Opens count requests that NGINX keeps in progress until the returned sockets are closed.
+    Each request announces a body and sends none, so NGINX counts it and then waits for the body.
+
+    :param ip: the IP address of NGINX
+    :param port: the HTTP port of NGINX
+    :param host: the Host header
+    :param path: the request path
+    :param count: the number of requests
+    :return: the open sockets
+    """
+    sockets = []
+    try:
+        for _ in range(count):
+            sock = socket.create_connection((ip, port), timeout=10)
+            sockets.append(sock)
+            sock.sendall(f"POST {path} HTTP/1.1\r\nHost: {host}\r\nContent-Length: 1024\r\n\r\n".encode())
+    except Exception:
+        close_sockets(sockets)
+        raise
+    wait_before_test(1)
+    return sockets
+
+
+def close_sockets(sockets) -> None:
+    """
+    Closes the sockets returned by hold_requests_open and waits for NGINX to release the requests.
+
+    :param sockets: the sockets to close
+    """
+    for sock in sockets:
+        sock.close()
+    wait_before_test(1)
 
 
 def wait_for_event_increment(kube_apis, namespace, event_count, offset) -> bool:

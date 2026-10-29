@@ -510,11 +510,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var statusMatches []version2.StatusMatch
 	var healthChecks []version2.HealthCheck
 	var limitReqZones []version2.LimitReqZone
+	var limitConnZones []version2.LimitConnZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
 	var cacheZones []version2.CacheZone
 	var oidcProviders []version2.OIDCProvider
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
+	limitConnZones = append(limitConnZones, policiesCfg.ConnectionLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 	if policiesCfg.OIDCProvider != nil {
 		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
@@ -839,6 +841,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+		limitConnZones = append(limitConnZones, routePoliciesCfg.ConnectionLimit.Zones...)
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 		if routePoliciesCfg.OIDCProvider != nil {
 			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
@@ -967,6 +970,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					parentNamespace: vsEx.VirtualServer.Namespace,
 					parentName:      vsEx.VirtualServer.Name,
 					parentType:      "vs",
+					ownerType:       "vsr",
 				}
 				policyRefs = r.Policies
 				context = subRouteContext
@@ -1073,6 +1077,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+			limitConnZones = append(limitConnZones, routePoliciesCfg.ConnectionLimit.Zones...)
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 			if routePoliciesCfg.OIDCProvider != nil {
 				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
@@ -1241,6 +1246,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		Maps:             removeDuplicateMaps(maps),
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
+		LimitConnZones:   removeDuplicateLimitConnZones(limitConnZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
 		OIDCProviders:    dedupedOIDCProviders,
 		CacheZones:       cacheZones,
@@ -1276,6 +1282,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			Deny:                      policiesCfg.Deny,
 			LimitReqOptions:           policiesCfg.RateLimit.Options,
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
+			LimitConnOptions:          policiesCfg.ConnectionLimit.Options,
+			LimitConns:                policiesCfg.ConnectionLimit.Conns,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
 			ExternalAuth:              policiesCfg.ExternalAuth,
 			BasicAuth:                 policiesCfg.BasicAuth,
@@ -1546,6 +1554,20 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	return result
 }
 
+func removeDuplicateLimitConnZones(zones []version2.LimitConnZone) []version2.LimitConnZone {
+	encountered := make(map[string]bool)
+	var result []version2.LimitConnZone
+
+	for _, z := range zones {
+		if !encountered[z.ZoneName] {
+			encountered[z.ZoneName] = true
+			result = append(result, z)
+		}
+	}
+
+	return result
+}
+
 func removeDuplicateOIDCProviders(providers []version2.OIDCProvider) []version2.OIDCProvider {
 	if len(providers) == 0 {
 		return nil
@@ -1637,6 +1659,8 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Deny = cfg.Deny
 	location.LimitReqOptions = cfg.RateLimit.Options
 	location.LimitReqs = cfg.RateLimit.Reqs
+	location.LimitConnOptions = cfg.ConnectionLimit.Options
+	location.LimitConns = cfg.ConnectionLimit.Conns
 	location.JWTAuth = cfg.JWTAuth.Auth
 	location.ExternalAuth = cfg.ExternalAuth
 	location.BasicAuth = cfg.BasicAuth

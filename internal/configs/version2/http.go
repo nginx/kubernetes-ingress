@@ -20,6 +20,7 @@ type VirtualServerConfig struct {
 	KeyValZones             []KeyValZone
 	KeyVals                 []KeyVal
 	LimitReqZones           []LimitReqZone
+	LimitConnZones          []LimitConnZone
 	Maps                    []Map
 	AuthJWTClaimSets        []AuthJWTClaimSet
 	OIDCProviders           []OIDCProvider
@@ -98,6 +99,8 @@ type Server struct {
 	Deny                      []string
 	LimitReqOptions           LimitReqOptions
 	LimitReqs                 []LimitReq
+	LimitConnOptions          LimitConnOptions
+	LimitConns                []LimitConn
 	JWTAuth                   *JWTAuth
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
@@ -249,6 +252,8 @@ type Location struct {
 	Deny                       []string
 	LimitReqOptions            LimitReqOptions
 	LimitReqs                  []LimitReq
+	LimitConnOptions           LimitConnOptions
+	LimitConns                 []LimitConn
 	JWTAuth                    *JWTAuth
 	OIDCProviderName           string
 	AuthRequestOff             bool
@@ -516,6 +521,26 @@ type LimitReqOptions struct {
 
 func (rl LimitReqOptions) String() string {
 	return fmt.Sprintf("{DryRun %v, LogLevel %q, RejectCode %d}", rl.DryRun, rl.LogLevel, rl.RejectCode)
+}
+
+// LimitConnZone defines a connection limit shared memory zone.
+type LimitConnZone struct {
+	Key      string
+	ZoneName string
+	ZoneSize string
+}
+
+// LimitConn defines a connection limit.
+type LimitConn struct {
+	ZoneName    string
+	Connections int
+}
+
+// LimitConnOptions defines the connection limit options that apply to a whole block.
+type LimitConnOptions struct {
+	DryRun     bool
+	LogLevel   string
+	RejectCode int
 }
 
 // JWTAuth holds JWT authentication configuration.
