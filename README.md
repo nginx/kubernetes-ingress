@@ -170,7 +170,7 @@ docker buildx imagetools inspect nginx/nginx-ingress:edge --format '{{ json (ind
 
 We'd love to hear from you! Here's how to get involved:
 
-- **[Upcoming Events](https://community.nginx.org/upcoming-events/month)**
+- **[Upcoming Events](https://community.nginx.org/upcoming-events)**
 - **[Community Forum](https://community.nginx.org)** — Questions and discussion about NGINX Ingress Controller
 - **[Issues](https://github.com/nginx/kubernetes-ingress/issues)** — Report bugs or request features
 - **[Discussions](https://github.com/nginx/kubernetes-ingress/discussions)** — Talk about NGINX Ingress Controller, share ideas, and connect with other users
