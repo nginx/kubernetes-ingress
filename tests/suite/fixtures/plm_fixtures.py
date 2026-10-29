@@ -7,7 +7,7 @@ import subprocess
 import pytest
 from kubernetes.client import CoreV1Api, CustomObjectsApi
 from kubernetes.client.rest import ApiException
-from settings import NGX_REG, PLM_CHART_VERSION
+from settings import NGX_REG, PLM_VERSION
 from suite.utils.custom_resources_utils import delete_crd
 from suite.utils.resources_utils import (
     cleanup_rbac,
@@ -153,32 +153,42 @@ def plm_setup(request, kube_apis, cli_arguments) -> PLMSetup:
         request.config.getoption("--docker-registry-user"),
         request.config.getoption("--docker-registry-token"),
     )
+    images = {
+        "policyController.image": "waf-policy-controller",
+        "compiler.image": "waf-compiler",
+        "seaweedfsOperatorConfig.seaweedfs.image": "waf-seaweedfs",
+        "seaweedfs-operator.image": "waf-seaweedfs-operator",
+    }
     values = {
         "imagePullSecrets[0].name": REG_SECRET,
         "seaweedfs-operator.image.pullSecrets": REG_SECRET,
-        "policyController.image.repository": f"{NGX_REG}/nap/waf-policy-controller",
-        "compiler.image.repository": f"{NGX_REG}/nap/waf-compiler",
-        "seaweedfsOperatorConfig.seaweedfs.image.repository": f"{NGX_REG}/nap/waf-seaweedfs",
-        "seaweedfs-operator.image.repository": f"{NGX_REG}/nap/waf-seaweedfs-operator",
         "seaweedfsOperatorConfig.seaweedfs.certificates.enabled": "false",
     }
+    for key, image in images.items():
+        values[f"{key}.repository"] = f"{NGX_REG}/nap/{image}"
+        values[f"{key}.tag"] = PLM_VERSION
     set_args = [arg for key, value in values.items() for arg in ("--set", f"{key}={value}")]
-    helm(
-        cli_arguments,
-        "install",
-        PLM_RELEASE,
-        PLM_CHART,
-        "--repo",
-        PLM_CHART_REPO,
-        "--version",
-        PLM_CHART_VERSION,
-        "--namespace",
-        PLM_NAMESPACE,
-        *set_args,
-        "--wait",
-        "--timeout",
-        "10m",
-    )
+    try:
+        helm(
+            cli_arguments,
+            "install",
+            PLM_RELEASE,
+            PLM_CHART,
+            "--repo",
+            PLM_CHART_REPO,
+            "--version",
+            PLM_VERSION,
+            "--namespace",
+            PLM_NAMESPACE,
+            *set_args,
+            "--wait",
+            "--timeout",
+            "10m",
+        )
+    except subprocess.CalledProcessError:
+        # helm only names the Deployments that aren't ready; pods and events show why.
+        subprocess.run(["kubectl", "get", "pods,events", "--namespace", PLM_NAMESPACE, "-o", "wide"])
+        raise
     # helm --wait does not cover the SeaweedFS pods, which the operator creates.
     wait_until_all_pods_are_ready(kube_apis.v1, PLM_NAMESPACE, None)
 
