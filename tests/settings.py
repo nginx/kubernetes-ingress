@@ -35,3 +35,5 @@ NS_COUNT = 0
 NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
 # WAF component version to pull from above registry
 WAF_V5_VERSION = "5.16.0"
+# F5 WAF Policy Controller (PLM) chart version. Keep it in step with WAF_V5_VERSION so the PLM compiler matches the enforcer.
+PLM_CHART_VERSION = "5.16.0"

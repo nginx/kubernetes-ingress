@@ -41,6 +41,14 @@
       "platforms": "linux/amd64"
     },
     {
+      "label": "AP_WAF_PLM 1/1",
+      "image": "debian-plus-nap-v5",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "appprotect_waf_plm",
+      "platforms": "linux/amd64"
+    },
+    {
       "label": "AP_DOS 1/3",
       "image": "debian-plus-nap",
       "type": "plus",
