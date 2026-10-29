@@ -65,12 +65,10 @@ NGINX with native Kubernetes integration.
 ```bash
 helm repo add nginx-ingress https://helm.nginx.com/stable
 helm repo update
-helm install nginx-ingress nginx-ingress/nginx-ingress --namespace nginx-ingress --create-namespace
+helm install <RELEASE_NAME> oci://ghcr.io/nginx/charts/nginx-ingress --version 2.8.0
 ```
 
 ### Install with Manifests
-
-> **Note**: Replace `v5.7.0` in the commands below with the [latest release tag](https://github.com/nginx/kubernetes-ingress/releases/latest).
 
 ```shell
 # Install the Custom Resource Definitions (required for the default configuration)
