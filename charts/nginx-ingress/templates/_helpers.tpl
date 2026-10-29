@@ -468,22 +468,36 @@ volumes:
 {{- end -}}
 
 {{/*
+Renders an `emptyDir` volume source from the given EmptyDirVolumeSource map.
+An empty or unset value renders `emptyDir: {}`.
+*/}}
+{{- define "nginx-ingress.emptyDir" -}}
+{{- if . -}}
+emptyDir:
+  {{- toYaml . | nindent 2 }}
+{{- else -}}
+emptyDir: {}
+{{- end -}}
+{{- end -}}
+
+{{/*
 List of volumes for controller.
 */}}
 {{- define "nginx-ingress.volumeEntries" -}}
 {{- if eq (include "nginx-ingress.readOnlyRootFilesystem" .) "true" }}
+{{- $volumes := .Values.controller.readOnlyRootFilesystemVolumes | default dict }}
 - name: nginx-etc
-  emptyDir: {}
+  {{- include "nginx-ingress.emptyDir" (get $volumes "etc") | nindent 2 }}
 - name: nginx-lib
-  emptyDir: {}
+  {{- include "nginx-ingress.emptyDir" (get $volumes "lib") | nindent 2 }}
 - name: nginx-state
-  emptyDir: {}
+  {{- include "nginx-ingress.emptyDir" (get $volumes "state") | nindent 2 }}
 - name: nginx-log
-  emptyDir: {}
+  {{- include "nginx-ingress.emptyDir" (get $volumes "log") | nindent 2 }}
 {{- /* For StatefulSet, nginx-cache volume is always provided via volumeClaimTemplates */ -}}
 {{- if ne .Values.controller.kind "statefulset" }}
 - name: nginx-cache
-  emptyDir: {}
+  {{- include "nginx-ingress.emptyDir" (get $volumes "cache") | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}

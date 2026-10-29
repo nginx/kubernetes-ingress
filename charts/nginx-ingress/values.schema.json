@@ -2267,6 +2267,45 @@
             false
           ]
         },
+        "readOnlyRootFilesystemVolumes": {
+          "type": "object",
+          "default": {
+            "etc": {},
+            "cache": {},
+            "lib": {},
+            "log": {},
+            "state": {}
+          },
+          "title": "The emptyDir volumes used with readOnlyRootFilesystem",
+          "additionalProperties": false,
+          "properties": {
+            "etc": {
+              "default": {},
+              "title": "The emptyDir spec for the nginx-etc volume",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.1/_definitions.json#/definitions/io.k8s.api.core.v1.EmptyDirVolumeSource"
+            },
+            "cache": {
+              "default": {},
+              "title": "The emptyDir spec for the nginx-cache volume",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.1/_definitions.json#/definitions/io.k8s.api.core.v1.EmptyDirVolumeSource"
+            },
+            "lib": {
+              "default": {},
+              "title": "The emptyDir spec for the nginx-lib volume",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.1/_definitions.json#/definitions/io.k8s.api.core.v1.EmptyDirVolumeSource"
+            },
+            "log": {
+              "default": {},
+              "title": "The emptyDir spec for the nginx-log volume",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.1/_definitions.json#/definitions/io.k8s.api.core.v1.EmptyDirVolumeSource"
+            },
+            "state": {
+              "default": {},
+              "title": "The emptyDir spec for the nginx-state volume",
+              "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.35.1/_definitions.json#/definitions/io.k8s.api.core.v1.EmptyDirVolumeSource"
+            }
+          }
+        },
         "enableSSLDynamicReload": {
           "type": "boolean",
           "default": true,
@@ -3205,6 +3244,13 @@
         "defaultHTTPListenerPort": 80,
         "defaultHTTPSListenerPort": 443,
         "readOnlyRootFilesystem": false,
+        "readOnlyRootFilesystemVolumes": {
+          "etc": {},
+          "cache": {},
+          "lib": {},
+          "log": {},
+          "state": {}
+        },
         "enableSSLDynamicReload": true,
         "telemetryReporting": {
           "enable": true

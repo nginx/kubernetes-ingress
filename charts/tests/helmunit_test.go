@@ -46,6 +46,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "deployment-hpa-no-create",
 			namespace:   "default",
 		},
+		"deployment-readonly-volumes": {
+			valuesFile:  "testdata/deployment-readonly-volumes.yaml",
+			releaseName: "deployment-readonly-volumes",
+			namespace:   "default",
+		},
 		"daemonset": {
 			valuesFile:  "testdata/daemonset.yaml",
 			releaseName: "daemonset",
@@ -348,6 +353,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "startupstatus-invalid",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"missing properties 'port', 'path'"},
+		},
+		"readOnlyVolumesInvalidKey": {
+			valuesFile:        "testdata/readonly-volumes-invalid-key.yaml",
+			releaseName:       "readonly-volumes-invalid-key",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"additional properties 'etcc' not allowed"},
 		},
 		"globalConfigInvalidFormat": {
 			valuesFile:        "testdata/global-config-invalid-format.yaml",

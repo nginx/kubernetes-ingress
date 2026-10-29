@@ -771,6 +771,21 @@ controller:
   ## This value will not be used if `controller.securityContext` is set
   readOnlyRootFilesystem: false
 
+  ## Configures the `emptyDir` volumes that are mounted when `readOnlyRootFilesystem`
+  ## (or `securityContext.readOnlyRootFilesystem`) is enabled. Each key corresponds to a
+  ## volume name without the `nginx-` prefix, and its value is rendered as that volume's
+  ## `emptyDir` spec (for example `sizeLimit: 100Mi` or `medium: Memory`). An empty value
+  ## renders `emptyDir: {}`.
+  ## If a volume exceeds its `sizeLimit`, the kubelet evicts the pod.
+  ## `cache` has no effect when `controller.kind` is `statefulset`; use `controller.statefulset.nginxCachePVC` instead.
+  ## Ref: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
+  readOnlyRootFilesystemVolumes:
+    etc: {}
+    cache: {}
+    lib: {}
+    log: {}
+    state: {}
+
   ## Enable dynamic reloading of certificates
   enableSSLDynamicReload: true
 

@@ -1,0 +1,5 @@
+controller:
+  readOnlyRootFilesystem: true
+  readOnlyRootFilesystemVolumes:
+    etcc:
+      sizeLimit: 10Mi
