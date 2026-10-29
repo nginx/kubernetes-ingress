@@ -27,7 +27,7 @@ def assert_update_events_emitted(virtual_server_setup, new_list, previous_list, 
 
 def assert_not_applied_events_emitted(virtual_server_setup, new_list, previous_list, expected_amount):
     item_name = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
-    text_invalid = f"Configuration for {item_name} was added or updated ; but was not applied"
+    text_invalid = f"Configuration for {item_name} was added or updated but was not applied"
     new_event = new_list[len(new_list) - 1]
     assert len(new_list) - len(previous_list) == expected_amount
     assert text_invalid in new_event.message
@@ -247,7 +247,7 @@ class TestVirtualServerConfigMapNoTls:
         vs_key = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
         assert wait_for_event(
             kube_apis.v1,
-            f"Configuration for {vs_key} was added or updated ; but was not applied",
+            f"Configuration for {vs_key} was added or updated but was not applied",
             virtual_server_setup.namespace,
         ), "VirtualServer did not report the failed reload"
         step_2_events = get_events(kube_apis.v1, virtual_server_setup.namespace)

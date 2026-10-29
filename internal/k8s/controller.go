@@ -2185,16 +2185,16 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 	if messages, ok := warnings[ingConfig.Ingress]; ok {
 		eventType = api_v1.EventTypeWarning
 		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
-		eventWarningMessage = fmt.Sprintf("%s; with warning(s): %v", eventWarningMessage, formatWarningMessages(messages))
+		eventWarningMessage = appendEventDetail(eventWarningMessage, fmt.Sprintf("with warning(s): %v", formatWarningMessages(messages)))
 	}
 
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
 		eventTitle = nl.EventReasonAddedOrUpdatedWithError
-		eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, operationErr)
+		eventWarningMessage = appendEventDetail(eventWarningMessage, fmt.Sprintf("but was not applied: %v", operationErr))
 	}
 
-	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&ingConfig.Ingress.ObjectMeta), eventWarningMessage)
+	msg := strings.TrimSpace(fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&ingConfig.Ingress.ObjectMeta), eventWarningMessage))
 	lbc.recorder.Event(ingConfig.Ingress, eventType, eventTitle, msg)
 
 	if lbc.reportStatusEnabled() {
@@ -2240,18 +2240,18 @@ func (lbc *LoadBalancerController) updateVirtualServerOwnStatusAndEvents(vsConfi
 	if messages, ok := warnings[vsConfig.VirtualServer]; ok {
 		eventType = api_v1.EventTypeWarning
 		eventTitle = nl.EventReasonAddedOrUpdatedWithWarning
-		eventWarningMessage = fmt.Sprintf("%s; with warning(s): %v", eventWarningMessage, formatWarningMessages(messages))
+		eventWarningMessage = appendEventDetail(eventWarningMessage, fmt.Sprintf("with warning(s): %v", formatWarningMessages(messages)))
 		state = conf_v1.StateWarning
 	}
 
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
 		eventTitle = nl.EventReasonAddedOrUpdatedWithError
-		eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, operationErr)
+		eventWarningMessage = appendEventDetail(eventWarningMessage, fmt.Sprintf("but was not applied: %v", operationErr))
 		state = conf_v1.StateInvalid
 	}
 
-	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage)
+	msg := strings.TrimSpace(fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage))
 	if statusOnly {
 		msg = strings.TrimSpace(fmt.Sprintf("Configuration for %v is unchanged, status updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage))
 	}
@@ -5248,6 +5248,14 @@ func (lbc *LoadBalancerController) isHealthCheckEnabled(ing *networking.Ingress)
 
 func formatWarningMessages(w []string) string {
 	return strings.Join(w, "; ")
+}
+
+// appendEventDetail adds detail to msg, separated by "; " only when msg already has content.
+func appendEventDetail(msg, detail string) string {
+	if msg == "" {
+		return detail
+	}
+	return msg + "; " + detail
 }
 
 // IsNginxReady returns ready status of NGINX

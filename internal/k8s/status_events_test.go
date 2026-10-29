@@ -147,3 +147,88 @@ func TestVirtualServerRouteEventMessages(t *testing.T) {
 		})
 	}
 }
+
+// TestResourceEventMessages covers regular Ingress, VirtualServer and TransportServer events, which share one format.
+func TestResourceEventMessages(t *testing.T) {
+	t.Parallel()
+
+	meta := meta_v1.ObjectMeta{Namespace: "default", Name: "res"}
+	kinds := map[string]func(lbc *LoadBalancerController, configWarnings, warnings []string, err error){
+		"Ingress": func(lbc *LoadBalancerController, configWarnings, warnings []string, err error) {
+			ing := &networking.Ingress{ObjectMeta: meta}
+			w := configs.Warnings{}
+			if warnings != nil {
+				w[ing] = warnings
+			}
+			lbc.updateRegularIngressStatusAndEvents(&IngressConfiguration{Ingress: ing, Warnings: configWarnings}, w, err)
+		},
+		"VirtualServer": func(lbc *LoadBalancerController, configWarnings, warnings []string, err error) {
+			vs := &conf_v1.VirtualServer{ObjectMeta: meta}
+			w := configs.Warnings{}
+			if warnings != nil {
+				w[vs] = warnings
+			}
+			lbc.updateVirtualServerOwnStatusAndEvents(&VirtualServerConfiguration{VirtualServer: vs, Warnings: configWarnings}, w, err, false)
+		},
+		"TransportServer": func(lbc *LoadBalancerController, configWarnings, warnings []string, err error) {
+			ts := &conf_v1.TransportServer{ObjectMeta: meta}
+			w := configs.Warnings{}
+			if warnings != nil {
+				w[ts] = warnings
+			}
+			lbc.updateTransportServerStatusAndEvents(&TransportServerConfiguration{TransportServer: ts, Warnings: configWarnings}, w, err)
+		},
+	}
+
+	errApply := errors.New("reload failed")
+	const prefix = "Configuration for default/res was added or updated"
+
+	tests := []struct {
+		name           string
+		configWarnings []string
+		warnings       []string
+		err            error
+		want           string
+	}{
+		{
+			name: "no warnings no error",
+			want: "Normal AddedOrUpdated " + prefix,
+		},
+		{
+			name:           "config warnings only",
+			configWarnings: []string{"w1"},
+			want:           "Warning AddedOrUpdatedWithWarning " + prefix + " with warning(s): w1",
+		},
+		{
+			name:     "generated warnings only",
+			warnings: []string{"w2"},
+			want:     "Warning AddedOrUpdatedWithWarning " + prefix + " with warning(s): w2",
+		},
+		{
+			name: "error only",
+			err:  errApply,
+			want: "Warning AddedOrUpdatedWithError " + prefix + " but was not applied: reload failed",
+		},
+		{
+			name:           "config warnings and error",
+			configWarnings: []string{"w1"},
+			err:            errApply,
+			want:           "Warning AddedOrUpdatedWithError " + prefix + " with warning(s): w1; but was not applied: reload failed",
+		},
+	}
+
+	for kind, update := range kinds {
+		for _, tc := range tests {
+			t.Run(kind+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				lbc, recorder := newEventTestLBC()
+				update(lbc, tc.configWarnings, tc.warnings, tc.err)
+
+				if got := <-recorder.Events; got != tc.want {
+					t.Errorf("event:\n got: %q\nwant: %q", got, tc.want)
+				}
+			})
+		}
+	}
+}
