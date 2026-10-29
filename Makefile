@@ -17,7 +17,7 @@ NGINX_PLUS_VERSION            ?= R37.2
 NAP_WAF_VERSION               ?= 37.2+5.777
 NAP_WAF_COMMON_VERSION        ?= 11.869
 NAP_WAF_PLUGIN_VERSION        ?= 6.32
-NAP_WAF_IPI_VERSION           ?= 1.68
+NAP_WAF_IPI_VERSION           ?= 1.71
 
 AGENT_V2_VERSION              ?= 2
 AGENT_V3_VERSION              ?= 3
