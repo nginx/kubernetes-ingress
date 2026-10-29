@@ -25,6 +25,21 @@ K8S_CLUSTER_VERSION         ?= v1.37.0
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
+# Extra arguments for `minikube start`, e.g. --memory=4g --cpus=4
+MINIKUBE_ARGS               ?=
+# Go e2e parallel PoC (tests/e2e). Cluster access comes from .e2e/kubeconfig, see e2e-poc-cluster.
+E2E_DIR                     = $(ROOT_DIR)/.e2e
+E2E_KUBECONFIG              = $(E2E_DIR)/kubeconfig.local
+# Where minikube's published ports are reachable: the Docker Desktop host from inside a container, else localhost
+E2E_HOST                    ?= $(if $(wildcard /.dockerenv),host.docker.internal,127.0.0.1)
+E2E_MINIKUBE_ARGS           ?= --memory=4g --cpus=4 --ports=30080:30080,30443:30443
+E2E_IMAGE_REPO              ?= nginx/nginx-ingress
+E2E_IMAGE_TAG               ?= edge
+PROCS                       ?= 4
+COPIES                      ?= 4
+REPEAT                      ?= 0
+# Extra ginkgo flags, e.g. GINKGO_ARGS="--focus-file=virtual_server_tls_test.go"
+GINKGO_ARGS                 ?=
 ifeq (${REGISTRY},)
 BUILD_IMAGE                 := $(strip $(PREFIX)):$(strip $(TAG))
 else
@@ -192,7 +207,7 @@ run-tests-in-minikube: secrets ## Run tests in Minikube
 
 .PHONY: create-mini-cluster
 create-mini-cluster: $(MINIKUBE_KUBE_CONFIG_FOLDER) ## Create a Minikube K8S cluster
-	@minikube start --kubernetes-version=$(K8S_CLUSTER_VERSION) \
+	@minikube start $(MINIKUBE_ARGS) --kubernetes-version=$(K8S_CLUSTER_VERSION) \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config minikube update-context \
 	&& KUBECONFIG=$(MINIKUBE_KUBE_CONFIG_FOLDER)/config kubectl config set-cluster minikube --server=https://minikube:8443
 
@@ -206,6 +221,51 @@ delete-mini-cluster: ## Delete a Minikube K8S cluster
 .PHONY: mini-image-load
 mini-image-load: ## Load the image into the Minikube K8S cluster
 	@minikube image load $(BUILD_IMAGE)
+
+
+.PHONY: e2e-poc-cluster
+e2e-poc-cluster: ## Run on the host: recreate minikube with the e2e PoC NodePorts published and export .e2e/kubeconfig
+	@$(MAKE) delete-mini-cluster
+	@$(MAKE) create-mini-cluster MINIKUBE_ARGS="$(E2E_MINIKUBE_ARGS)"
+	@$(MAKE) e2e-poc-kubeconfig
+	@docker port minikube | grep -E '^30(080|443)/' || { echo "NodePorts 30080/30443 are not published by minikube"; exit 1; }
+
+
+.PHONY: e2e-poc-kubeconfig
+e2e-poc-kubeconfig: ## Run on the host after every `minikube start`: export .e2e/kubeconfig
+	@mkdir -p $(E2E_DIR)
+	@kubectl config view --context minikube --minify --flatten > $(E2E_DIR)/kubeconfig
+
+
+$(E2E_DIR)/kubeconfig:
+	@echo "Missing $@. On the host run: make -C tests e2e-poc-cluster (first time) or make -C tests e2e-poc-kubeconfig"; exit 1
+
+
+# Same cluster, addressed via E2E_HOST. The API server cert does not cover E2E_HOST, so verify it as "minikube".
+$(E2E_KUBECONFIG): $(E2E_DIR)/kubeconfig
+	@cp $< $@
+	@cluster=$$(kubectl --kubeconfig $@ config view -o jsonpath='{.clusters[0].name}'); \
+	server=$$(kubectl --kubeconfig $@ config view -o jsonpath='{.clusters[0].cluster.server}'); \
+	kubectl --kubeconfig $@ config set-cluster $$cluster --server=$${server/127.0.0.1/$(E2E_HOST)} --tls-server-name=minikube >/dev/null
+
+
+.PHONY: e2e-poc-deploy
+e2e-poc-deploy: $(E2E_KUBECONFIG) ## Install/upgrade the shared Ingress Controller used by the e2e PoC
+	@kubectl --kubeconfig $(E2E_KUBECONFIG) get --raw /readyz >/dev/null || { \
+		echo "Cannot reach the cluster at $(E2E_HOST). Is minikube running? On the host run: make -C tests e2e-poc-kubeconfig"; exit 1; }
+	helm upgrade --install nic $(ROOT_DIR)/charts/nginx-ingress --kubeconfig $(E2E_KUBECONFIG) \
+		--namespace nginx-ingress --create-namespace --wait --timeout 5m \
+		--set controller.image.repository=$(E2E_IMAGE_REPO) --set controller.image.tag=$(E2E_IMAGE_TAG) \
+		--set controller.service.type=NodePort \
+		--set controller.service.httpPort.nodePort=30080 --set controller.service.httpsPort.nodePort=30443 \
+		--set prometheus.create=true
+
+
+.PHONY: e2e-poc
+e2e-poc: e2e-poc-deploy secrets ## Run the Go e2e parallel PoC, e.g. make e2e-poc PROCS=4 COPIES=4 REPEAT=0
+	cd $(ROOT_DIR) && KUBECONFIG=$(E2E_KUBECONFIG) E2E_HOST=$(E2E_HOST) E2E_COPIES=$(COPIES) E2E_ARTIFACTS=$(E2E_DIR)/artifacts \
+		go tool ginkgo -tags e2e --procs=$(PROCS) --repeat=$(REPEAT) \
+		--output-dir=$(E2E_DIR) --json-report=report-procs$(PROCS).json $(GINKGO_ARGS) ./tests/e2e/poc
 
 
 .PHONY: test-lint

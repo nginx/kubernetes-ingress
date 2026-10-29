@@ -411,3 +411,6 @@ internal/k8s/secrets/embeds-empty-ca.key
 
 
 # END CERTGEN SECTION. YOU MAY EDIT BELOW
+
+# Local e2e PoC kubeconfig (contains client keys) and results
+.e2e/
