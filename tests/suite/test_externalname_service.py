@@ -110,7 +110,6 @@ def external_name_setup(
 
 
 @pytest.mark.ingresses
-@pytest.mark.skip_for_nginx_oss
 class TestExternalNameService:
     def test_resolver(self, external_name_setup):
         wait_before_test()
@@ -120,7 +119,7 @@ class TestExternalNameService:
         assert resp.status_code == 200
 
     def test_ic_template_config_upstream_zone(
-        self, kube_apis, ingress_controller_prerequisites, ingress_controller, external_name_setup
+        self, kube_apis, ingress_controller_prerequisites, ingress_controller, external_name_setup, cli_arguments
     ):
         result_conf = get_ingress_nginx_template_conf(
             kube_apis.v1,
@@ -129,10 +128,11 @@ class TestExternalNameService:
             external_name_setup.ingress_pod_name,
             ingress_controller_prerequisites.namespace,
         )
+        zone_size = "256k" if cli_arguments["ic-type"] == "nginx-ingress" else "512k"
         line = (
             f"zone {external_name_setup.namespace}-"
             f"{external_name_setup.ingress_name}-"
-            f"{external_name_setup.ingress_host}-{external_name_setup.service}-80 512k;"
+            f"{external_name_setup.ingress_host}-{external_name_setup.service}-80 {zone_size};"
         )
         assert line in result_conf
 

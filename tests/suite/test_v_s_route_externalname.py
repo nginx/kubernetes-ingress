@@ -131,7 +131,6 @@ def vsr_externalname_setup(
 
 @pytest.mark.vsr
 @pytest.mark.vsr_external_name
-@pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller, vsr_externalname_setup",
     [
@@ -153,7 +152,7 @@ class TestVSRWithExternalNameService:
         )
 
     def test_template_config(
-        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, vsr_externalname_setup
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, vsr_externalname_setup, cli_arguments
     ):
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_config = get_vs_nginx_template_conf(
@@ -164,9 +163,11 @@ class TestVSRWithExternalNameService:
             ingress_controller_prerequisites.namespace,
         )
 
+        zone_size = "256k" if cli_arguments["ic-type"] == "nginx-ingress" else "512k"
         line = (
             f"zone vs_{vsr_externalname_setup.namespace}_{vsr_externalname_setup.vs_name}"
-            f"_vsr_{vsr_externalname_setup.route.namespace}_{vsr_externalname_setup.route.name}_ext-backend 512k;"
+            f"_vsr_{vsr_externalname_setup.route.namespace}_{vsr_externalname_setup.route.name}_ext-backend"
+            f" {zone_size};"
         )
         assert line in initial_config
         assert "random two least_conn;" in initial_config

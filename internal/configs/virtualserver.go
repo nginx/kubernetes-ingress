@@ -388,15 +388,16 @@ func (vsc *virtualServerConfigurator) generateEndpointsForUpstream(
 	if endpoints != nil && len(endpoints) == 0 {
 		vsc.addWarningf(owner, "No endpoints found for service %v", upstream.Service)
 	}
-	if !vsc.isPlus && len(endpoints) == 0 {
-		return []string{nginx502Server}
-	}
 
 	_, isExternalNameSvc := virtualServerEx.ExternalNameSvcs[externalNameSvcKey]
 	if isExternalNameSvc && !vsc.isResolverConfigured {
 		msgFmt := "Type ExternalName service %v in upstream %v will be ignored. To use ExternaName services, a resolver must be configured in the ConfigMap"
 		vsc.addWarningf(owner, msgFmt, upstream.Service, upstream.Name)
 		endpoints = []string{}
+	}
+
+	if !vsc.isPlus && len(endpoints) == 0 {
+		return []string{nginx502Server}
 	}
 
 	return endpoints
@@ -1431,9 +1432,10 @@ func generateUpstreams(
 	endpoints := vsc.generateEndpointsForUpstream(owner, ownerNamespace, u, vsEx)
 	backup := vsc.generateBackupEndpointsForUpstream(vsEx.VirtualServer, ownerNamespace, u, vsEx)
 
-	// isExternalNameSvc is always false for OSS
+	// Servers of ExternalName services are resolved by NGINX at runtime, which requires a resolver
 	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(ownerNamespace, u.Service)]
-	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
+	resolve := isExternalNameSvc && vsc.isResolverConfigured
+	ups := vsc.generateUpstream(owner, upstreamName, u, resolve, endpoints, backup)
 	upstreams = append(upstreams, ups)
 	u.TLS.Enable = isTLSEnabled(u)
 	u.ProxyHTTPVersion = vsc.resolveUpstreamProxyHTTPVersion(owner, ownerNamespace, u, vsEx)
@@ -1718,7 +1720,7 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 	owner runtime.Object,
 	upstreamName string,
 	upstream conf_v1.Upstream,
-	isExternalNameSvc bool,
+	resolve bool,
 	endpoints []string,
 	backupEndpoints []string,
 ) version2.Upstream {
@@ -1746,6 +1748,10 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 
 	lbMethod := generateLBMethod(upstream.LBMethod, vsc.cfgParams.LBMethod)
 
+	if resolve && !vsc.isPlus && vsc.cfgParams.UpstreamZoneSize == "0" {
+		vsc.addWarningf(owner, "upstream %v resolves servers at runtime, which requires a shared memory zone: upstream-zone-size \"0\" is ignored and the default size 256k is used", upstream.Name)
+	}
+
 	upstreamLabels := getUpstreamResourceLabels(owner)
 	upstreamLabels.Service = upstream.Service
 
@@ -1753,7 +1759,7 @@ func (vsc *virtualServerConfigurator) generateUpstream(
 		Name:             upstreamName,
 		UpstreamLabels:   upstreamLabels,
 		Servers:          upsServers,
-		Resolve:          isExternalNameSvc,
+		Resolve:          resolve,
 		LBMethod:         lbMethod,
 		SessionCookie:    generateSessionCookie(upstream.SessionCookie),
 		Keepalive:        generateIntFromPointer(upstream.Keepalive, vsc.cfgParams.Keepalive),

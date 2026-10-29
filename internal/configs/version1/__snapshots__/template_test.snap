@@ -76,6 +76,8 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -103,6 +105,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -741,6 +745,8 @@ http {
         ''      $default_connection_header;
     }
     ssl_ciphers "HIGH:!aNULL:!MD5";
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -768,6 +774,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -1009,6 +1017,8 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -1036,6 +1046,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -1277,6 +1289,8 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -1304,6 +1318,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -1555,6 +1571,8 @@ http {
         default $scheme;
         "~^[ \t]*([^, \t]+)" $1;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -1582,6 +1600,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -8585,6 +8605,59 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressWithResolvedUpstreamServersForNGINX - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server example.com:80 max_fails=1 fail_timeout=10s max_conns=0 resolve;
+}
+
+upstream test-no-zone {
+    server 127.0.0.1:8181 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+    location "/tea" {
+        set $service "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressWithServerLevelAddHeaders/nginx - 1]
 # configuration for default/cafe-ingress
 upstream test {
@@ -10095,6 +10168,8 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -10122,6 +10197,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -10208,6 +10285,8 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -10235,6 +10314,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     
@@ -11250,6 +11331,8 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
@@ -11277,6 +11360,8 @@ stream {
 
     access_log  /dev/stdout  stream-main;
     # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
 
     map_hash_max_size ;
     

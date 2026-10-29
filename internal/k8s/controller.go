@@ -3643,7 +3643,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			nl.Warnf(l, "Error getting service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
 		} else {
 			podEndps, external, err = lbc.getEndpointsForIngressBackend(ing.Spec.DefaultBackend, svc)
-			if err == nil && external && lbc.isNginxPlus {
+			if err == nil && external {
 				ingEx.ExternalNameSvcs[svc.Name] = true
 			}
 		}
@@ -3715,7 +3715,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				nl.Debugf(l, "Error getting service %v: %v", &path.Backend.Service.Name, err)
 			} else {
 				podEndps, external, err = lbc.getEndpointsForIngressBackend(&path.Backend, svc)
-				if err == nil && external && lbc.isNginxPlus {
+				if err == nil && external {
 					ingEx.ExternalNameSvcs[svc.Name] = true
 				}
 			}
@@ -3900,7 +3900,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 				var external bool
 				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
-				if err == nil && external && lbc.isNginxPlus {
+				if err == nil && external {
 					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 				}
 			}
@@ -4141,7 +4141,7 @@ func (lbc *LoadBalancerController) resolveVSRUpstreamEndpoints(
 				var external bool
 				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
 
-				if err == nil && external && lbc.isNginxPlus {
+				if err == nil && external {
 					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
 				}
 			}
@@ -4979,9 +4979,6 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networ
 	}
 	if err != nil {
 		if svc.Spec.Type == api_v1.ServiceTypeExternalName {
-			if !lbc.isNginxPlus {
-				return nil, false, fmt.Errorf("type ExternalName Services feature is only available in NGINX Plus")
-			}
 			result = lbc.getExternalEndpointsForIngressBackend(backend, svc)
 			return result, true, nil
 		}

@@ -4,12 +4,14 @@
 upstream {{$upstream.Name}} {
 	{{- if ne $upstream.UpstreamZoneSize "0"}}
 	zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};
+	{{- else if $upstream.HasResolvedServers}}
+	zone {{$upstream.Name}} 256k;
 	{{- end}}
 	{{- if $upstream.LBMethod}}
 	{{$upstream.LBMethod}};
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
-	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};
+	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}}{{if $server.Resolve}} resolve{{end}};
 	{{- end}}
 	{{- if $upstream.Keepalive}}
 	keepalive {{$upstream.Keepalive}};

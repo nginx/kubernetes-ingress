@@ -74,7 +74,6 @@ def ts_externalname_setup(
 
 
 @pytest.mark.ts
-@pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
     "crd_ingress_controller, transport_server_setup",
     [

@@ -211,7 +211,8 @@ func generateStreamUpstreams(transportServerEx *TransportServerEx, upstreamNamer
 		}
 
 		ups := generateStreamUpstream(u, upstreamNamer, endpoints, backupEndpoints, isPlus)
-		ups.Resolve = isExternalNameSvc
+		// Servers of ExternalName services are resolved by NGINX at runtime, which requires a resolver
+		ups.Resolve = isExternalNameSvc && isResolverConfigured
 		ups.UpstreamLabels.Service = u.Service
 		ups.UpstreamLabels.ResourceType = "transportserver"
 		ups.UpstreamLabels.ResourceName = transportServerEx.TransportServer.Name

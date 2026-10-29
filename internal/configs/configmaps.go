@@ -564,21 +564,14 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 	}
 
 	if resolverAddresses, exists := cfgm.Data["resolver-addresses"]; exists {
-		if nginxPlus {
-			parsedResolverAddresses, err := ParseResolverAddresses(resolverAddresses)
-			if err != nil {
-				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-addresses': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverAddresses, err)
-				nl.Error(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			} else {
-				cfgParams.ResolverAddresses = parsedResolverAddresses
-			}
-		} else {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-addresses")
-			nl.Warn(l, errorText)
+		parsedResolverAddresses, err := ParseResolverAddresses(resolverAddresses)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-addresses': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverAddresses, err)
+			nl.Error(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configOk = false
+		} else {
+			cfgParams.ResolverAddresses = parsedResolverAddresses
 		}
 	}
 
@@ -588,52 +581,31 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 			configOk = false
 		} else {
-			if nginxPlus {
-				cfgParams.ResolverIPV6 = resolverIpv6
-			} else {
-				errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-ipv6")
-				nl.Warn(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			}
+			cfgParams.ResolverIPV6 = resolverIpv6
 		}
 	}
 
 	if resolverValid, exists := cfgm.Data["resolver-valid"]; exists {
-		if nginxPlus {
-			parsedResolverValid, err := ParseTime(resolverValid)
-			if err != nil {
-				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-valid': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverValid, err)
-				nl.Error(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			} else {
-				cfgParams.ResolverValid = parsedResolverValid
-			}
-		} else {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-valid")
-			nl.Warn(l, errorText)
+		parsedResolverValid, err := ParseTime(resolverValid)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-valid': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverValid, err)
+			nl.Error(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configOk = false
+		} else {
+			cfgParams.ResolverValid = parsedResolverValid
 		}
 	}
 
 	if resolverTimeout, exists := cfgm.Data["resolver-timeout"]; exists {
-		if nginxPlus {
-			parsedResolverTimeout, err := ParseTime(resolverTimeout)
-			if err != nil {
-				errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-timeout': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverTimeout, err)
-				nl.Error(l, errorText)
-				eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
-				configOk = false
-			} else {
-				cfgParams.ResolverTimeout = parsedResolverTimeout
-			}
-		} else {
-			errorText := fmt.Sprintf("ConfigMap %s/%s key %s requires NGINX Plus", cfgm.Namespace, cfgm.Name, "resolver-timeout")
-			nl.Warn(l, errorText)
+		parsedResolverTimeout, err := ParseTime(resolverTimeout)
+		if err != nil {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: invalid value for 'resolver-timeout': %q: %v, ignoring", cfgm.GetNamespace(), cfgm.GetName(), resolverTimeout, err)
+			nl.Error(l, errorText)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
 			configOk = false
+		} else {
+			cfgParams.ResolverTimeout = parsedResolverTimeout
 		}
 	}
 
