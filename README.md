@@ -181,7 +181,7 @@ We'd love to hear from you! Here's how to get involved:
 - **[Contributing Guide](CONTRIBUTING.md)** — Learn how to contribute
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** — Our commitment to a welcoming community **PLEASE READ BEFORE SUBMITTING**
 - **[Security Policy](SECURITY.md)** — How to report security issues
-- **Community Calls** — Every other Monday at 16:00 GMT ([convert to your timezone](https://dateful.com/convert/gmt?t=16))
+- **Community Calls** — First Tuesday of each month at 16:00 Irish time ([convert to your timezone](https://dateful.com/convert/ireland?t=16))
 
 ### Join The Next Community Call
 
