@@ -304,6 +304,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "ConnectionLimitPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{connectionLimitPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -459,6 +466,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				externalAuthPolicy,
 				hstsPolicy,
 				oidcNativePolicy,
+				connectionLimitPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -481,15 +489,16 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	}
 
 	nicResourceCounts := telemetry.NICResourceCounts{
-		RateLimitPolicies:    0,
-		WAFPolicies:          2,
-		OIDCPolicies:         1,
-		EgressMTLSPolicies:   2,
-		CachePolicies:        1,
-		CORSPolicies:         1,
-		ExternalAuthPolicies: 1,
-		HSTSPolicies:         1,
-		OIDCNativePolicies:   1,
+		RateLimitPolicies:       0,
+		WAFPolicies:             2,
+		OIDCPolicies:            1,
+		EgressMTLSPolicies:      2,
+		CachePolicies:           1,
+		CORSPolicies:            1,
+		ExternalAuthPolicies:    1,
+		HSTSPolicies:            1,
+		OIDCNativePolicies:      1,
+		ConnectionLimitPolicies: 1,
 	}
 
 	td := telemetry.Data{
@@ -3019,6 +3028,23 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			OIDCNative: &conf_v1.OIDCNative{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	connectionLimitPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "connection-limit-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ConnectionLimit: &conf_v1.ConnectionLimit{
+				Connections: 10,
+			},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}

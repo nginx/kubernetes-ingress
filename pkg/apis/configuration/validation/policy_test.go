@@ -591,6 +591,22 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 		{
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
+					RateLimit: &v1.RateLimit{
+						Key:      "${uri}",
+						ZoneSize: "10M",
+						Rate:     "10r/s",
+					},
+					ConnectionLimit: &v1.ConnectionLimit{
+						Connections: 10,
+					},
+				},
+			},
+			cfg: PolicyValidationConfig{},
+			msg: "connectionLimit and rateLimit in spec",
+		},
+		{
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
 					JWTAuth: &v1.JWTAuth{
 						Realm:  "My Product API",
 						Secret: "my-jwk",
@@ -727,6 +743,12 @@ func TestValidatePolicy_PassesOnDirectiveSafePolicyValues(t *testing.T) {
 			}}},
 		},
 		{
+			name: "connection limit key with variables and separators",
+			policy: &v1.Policy{Spec: v1.PolicySpec{ConnectionLimit: &v1.ConnectionLimit{
+				Connections: 10, Key: "tenant-${http_x_tenant}:${uri}",
+			}}},
+		},
+		{
 			name: "rate limit variable condition with quoted regex syntax",
 			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
 				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
@@ -814,6 +836,13 @@ func TestValidatePolicy_RejectsDirectiveBreakoutPolicyValues(t *testing.T) {
 				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}; return 200",
 			}}},
 			fieldPath: "spec.rateLimit.key",
+		},
+		{
+			name: "connection limit key directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{ConnectionLimit: &v1.ConnectionLimit{
+				Connections: 10, Key: "${request_uri};return 200",
+			}}},
+			fieldPath: "spec.connectionLimit.key",
 		},
 		{
 			name: "rate limit JWT claim directive",
@@ -1566,6 +1595,132 @@ func TestValidateRateLimitLogLevel_FailsOnInvalidInput(t *testing.T) {
 		if len(allErrs) == 0 {
 			t.Errorf("validateRateLimitLogLevel(%q) didn't return error for invalid input", test)
 		}
+	}
+}
+
+func TestValidateConnectionLimit_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cl       v1.ConnectionLimit
+		pageSize int
+	}{
+		{name: "connections only", cl: v1.ConnectionLimit{Connections: 10}},
+		{name: "minimum connections", cl: v1.ConnectionLimit{Connections: 1}},
+		{name: "maximum connections", cl: v1.ConnectionLimit{Connections: 65535}},
+		{name: "all fields", cl: v1.ConnectionLimit{
+			Connections: 10, Key: "total", ZoneSize: "1m", RejectCode: new(429), LogLevel: "warn", DryRun: true, Scale: true,
+		}},
+		{name: "key binary_remote_addr", cl: v1.ConnectionLimit{Connections: 10, Key: "${binary_remote_addr}"}},
+		{name: "key request_uri", cl: v1.ConnectionLimit{Connections: 10, Key: "${request_uri}"}},
+		{name: "key uri", cl: v1.ConnectionLimit{Connections: 10, Key: "${uri}"}},
+		{name: "key args", cl: v1.ConnectionLimit{Connections: 10, Key: "${args}"}},
+		{name: "key request_method", cl: v1.ConnectionLimit{Connections: 10, Key: "${request_method}"}},
+		{name: "key argument", cl: v1.ConnectionLimit{Connections: 10, Key: "${arg_user}"}},
+		{name: "key header", cl: v1.ConnectionLimit{Connections: 10, Key: "${http_x_api_key}"}},
+		{name: "key cookie", cl: v1.ConnectionLimit{Connections: 10, Key: "${cookie_session}"}},
+		{name: "key adjacent variables", cl: v1.ConnectionLimit{Connections: 10, Key: "${binary_remote_addr}:${uri}"}},
+		{name: "key text and variable", cl: v1.ConnectionLimit{Connections: 10, Key: "tenant-${http_x_tenant}"}},
+		{name: "zone size in bytes at the minimum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "32768"}},
+		{name: "zone size in k at the minimum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "32k"}},
+		{name: "zone size in K", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "32K"}},
+		{name: "zone size in m", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "1m"}},
+		{name: "zone size in M", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "10M"}},
+		{name: "zone size at the byte maximum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "9223372036854775807"}},
+		{name: "zone size at the m maximum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "8796093022207m"}},
+		{name: "zone size minimum with 16 KiB pages", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "128k"}, pageSize: 16384},
+		{name: "zone size minimum with 64 KiB pages", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "512k"}, pageSize: 65536},
+		{name: "reject code minimum", cl: v1.ConnectionLimit{Connections: 10, RejectCode: new(400)}},
+		{name: "reject code maximum", cl: v1.ConnectionLimit{Connections: 10, RejectCode: new(599)}},
+		{name: "log level info", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "info"}},
+		{name: "log level notice", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "notice"}},
+		{name: "log level warn", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "warn"}},
+		{name: "log level error", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "error"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			pageSize := test.pageSize
+			if pageSize == 0 {
+				pageSize = 4096
+			}
+			policy := &v1.Policy{Spec: v1.PolicySpec{ConnectionLimit: &test.cl}}
+			if err := ValidatePolicy(policy, PolicyValidationConfig{PageSize: pageSize}); err != nil {
+				t.Errorf("ValidatePolicy() returned error for valid input: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateConnectionLimit_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cl       v1.ConnectionLimit
+		pageSize int
+		field    string
+	}{
+		{name: "zero connections", cl: v1.ConnectionLimit{Connections: 0}, field: "connections"},
+		{name: "negative connections", cl: v1.ConnectionLimit{Connections: -1}, field: "connections"},
+		{name: "too many connections", cl: v1.ConnectionLimit{Connections: 65536}, field: "connections"},
+		{name: "key with a space", cl: v1.ConnectionLimit{Connections: 10, Key: "total x"}, field: "key"},
+		{name: "key with a tab", cl: v1.ConnectionLimit{Connections: 10, Key: "total\tx"}, field: "key"},
+		{name: "key with a line feed", cl: v1.ConnectionLimit{Connections: 10, Key: "total\nx"}, field: "key"},
+		{name: "key with double quotes", cl: v1.ConnectionLimit{Connections: 10, Key: `"total"`}, field: "key"},
+		{name: "key with single quotes", cl: v1.ConnectionLimit{Connections: 10, Key: `'total'`}, field: "key"},
+		{name: "key with a backslash", cl: v1.ConnectionLimit{Connections: 10, Key: `a\b`}, field: "key"},
+		{name: "key with a hash", cl: v1.ConnectionLimit{Connections: 10, Key: "a#b"}, field: "key"},
+		{name: "key with a semicolon", cl: v1.ConnectionLimit{Connections: 10, Key: "a;b"}, field: "key"},
+		{name: "key with a backtick", cl: v1.ConnectionLimit{Connections: 10, Key: "a`b"}, field: "key"},
+		{name: "key with braces", cl: v1.ConnectionLimit{Connections: 10, Key: "{a}"}, field: "key"},
+		{name: "key with a closing brace", cl: v1.ConnectionLimit{Connections: 10, Key: "a}"}, field: "key"},
+		{name: "key with a bare dollar", cl: v1.ConnectionLimit{Connections: 10, Key: "$"}, field: "key"},
+		{name: "key ending with a dollar", cl: v1.ConnectionLimit{Connections: 10, Key: "a$"}, field: "key"},
+		{name: "key with an unbraced variable", cl: v1.ConnectionLimit{Connections: 10, Key: "$uri"}, field: "key"},
+		{name: "key with an empty variable", cl: v1.ConnectionLimit{Connections: 10, Key: "${}"}, field: "key"},
+		{name: "key with a variable starting with a digit", cl: v1.ConnectionLimit{Connections: 10, Key: "${1a}"}, field: "key"},
+		{name: "key with host", cl: v1.ConnectionLimit{Connections: 10, Key: "${host}"}, field: "key"},
+		{name: "key with remote_addr", cl: v1.ConnectionLimit{Connections: 10, Key: "${remote_addr}"}, field: "key"},
+		{name: "key with a response header", cl: v1.ConnectionLimit{Connections: 10, Key: "${sent_http_x}"}, field: "key"},
+		{name: "key with an empty header name", cl: v1.ConnectionLimit{Connections: 10, Key: "${http_}"}, field: "key"},
+		{name: "zone size in bytes below the minimum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "32767"}, field: "zoneSize"},
+		{name: "zone size in k below the minimum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "31k"}, field: "zoneSize"},
+		{name: "zone size below the minimum with 16 KiB pages", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "127k"}, pageSize: 16384, field: "zoneSize"},
+		{name: "zone size below the minimum with 64 KiB pages", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "511k"}, pageSize: 65536, field: "zoneSize"},
+		{name: "zone size in bytes above the maximum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "9223372036854775808"}, field: "zoneSize"},
+		{name: "zone size in k above the maximum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "9007199254740992k"}, field: "zoneSize"},
+		{name: "zone size in m above the maximum", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "8796093022208m"}, field: "zoneSize"},
+		{name: "zone size in g", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "1g"}, field: "zoneSize"},
+		{name: "zone size with an inner space", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "10 m"}, field: "zoneSize"},
+		{name: "zone size with a leading space", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: " 10m"}, field: "zoneSize"},
+		{name: "zone size with a two-letter unit", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "10mb"}, field: "zoneSize"},
+		{name: "negative zone size", cl: v1.ConnectionLimit{Connections: 10, ZoneSize: "-1"}, field: "zoneSize"},
+		{name: "reject code below the range", cl: v1.ConnectionLimit{Connections: 10, RejectCode: new(399)}, field: "rejectCode"},
+		{name: "reject code above the range", cl: v1.ConnectionLimit{Connections: 10, RejectCode: new(600)}, field: "rejectCode"},
+		{name: "log level debug", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "debug"}, field: "logLevel"},
+		{name: "log level in upper case", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "ERROR"}, field: "logLevel"},
+		{name: "log level warning", cl: v1.ConnectionLimit{Connections: 10, LogLevel: "warning"}, field: "logLevel"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			pageSize := test.pageSize
+			if pageSize == 0 {
+				pageSize = 4096
+			}
+			policy := &v1.Policy{Spec: v1.PolicySpec{ConnectionLimit: &test.cl}}
+			err := ValidatePolicy(policy, PolicyValidationConfig{PageSize: pageSize})
+			if err == nil {
+				t.Fatal("ValidatePolicy() returned no error for invalid input")
+			}
+			if want := "spec.connectionLimit." + test.field; !strings.Contains(err.Error(), want) {
+				t.Errorf("ValidatePolicy() error %q does not identify %s", err, want)
+			}
+		})
 	}
 }
 

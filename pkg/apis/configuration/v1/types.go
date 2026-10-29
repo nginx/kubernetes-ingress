@@ -809,6 +809,8 @@ type PolicySpec struct {
 	AccessControl *AccessControl `json:"accessControl"`
 	// The rate limit policy controls the rate of processing requests per a defined key.
 	RateLimit *RateLimit `json:"rateLimit"`
+	// The connection limit policy limits the number of requests in progress at the same time per a defined key.
+	ConnectionLimit *ConnectionLimit `json:"connectionLimit"`
 	// The JWT policy configures NGINX Plus to authenticate client requests using JSON Web Tokens.
 	JWTAuth *JWTAuth `json:"jwt"`
 	// The basic auth policy configures NGINX to authenticate client requests using HTTP Basic authentication credentials.
@@ -917,6 +919,47 @@ type VariableCondition struct {
 	// +kubebuilder:validation:Pattern=`^([^\s"'])*$`
 	// the value of the variable to match against.
 	Match string `json:"match"`
+}
+
+// ConnectionLimit defines a connection limit policy.
+type ConnectionLimit struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	// The maximum number of requests in progress at the same time for each value of the key.
+	Connections int `json:"connections"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="${binary_remote_addr}"
+	// +kubebuilder:validation:Pattern=`^(?:[^\s"'\\#;{}$\x60]|\$\{[A-Za-z_][A-Za-z0-9_]*\})+$`
+	// The key that decides which requests share a counter: literal text and variables written as ${name}.
+	// Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method},
+	// ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. The default is ${binary_remote_addr}.
+	Key string `json:"key,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="10m"
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kKmM]?$`
+	// The size of the shared memory zone, in bytes or with a k, K, m, or M suffix. It must be at least
+	// eight memory pages, for example 32k with 4 KiB pages. The default is 10m.
+	ZoneSize string `json:"zoneSize,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=503
+	// +kubebuilder:validation:Minimum=400
+	// +kubebuilder:validation:Maximum=599
+	// The status code returned for rejected requests. The default is 503.
+	RejectCode *int `json:"rejectCode,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="error"
+	// +kubebuilder:validation:Enum=info;notice;warn;error
+	// The level at which rejected requests are logged. The default is error.
+	LogLevel string `json:"logLevel,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// Enables dry-run mode: requests over the limit are logged but not rejected.
+	DryRun bool `json:"dryRun,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// Divides connections by the number of NGINX Ingress Controller replicas.
+	Scale bool `json:"scale,omitempty"`
 }
 
 // JWTAuth holds JWT authentication configuration.

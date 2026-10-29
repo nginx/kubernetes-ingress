@@ -94,6 +94,19 @@ var policyStringFields = []policyField{
 		s.RateLimit.Condition = &conf_v1.RateLimitCondition{Variables: &[]conf_v1.VariableCondition{{Name: "$request_method", Match: v}}}
 	}, "GET", nil},
 
+	{"connectionLimit.key", func(s *conf_v1.PolicySpec, v string) {
+		s.ConnectionLimit = baseConnectionLimit()
+		s.ConnectionLimit.Key = v
+	}, "${binary_remote_addr}", []string{`${binary_remote_addr}";ip_hash;#"`, "total;ip_hash;"}},
+	{"connectionLimit.zoneSize", func(s *conf_v1.PolicySpec, v string) {
+		s.ConnectionLimit = baseConnectionLimit()
+		s.ConnectionLimit.ZoneSize = v
+	}, "10m", nil},
+	{"connectionLimit.logLevel", func(s *conf_v1.PolicySpec, v string) {
+		s.ConnectionLimit = baseConnectionLimit()
+		s.ConnectionLimit.LogLevel = v
+	}, "error", nil},
+
 	{"jwt.realm", func(s *conf_v1.PolicySpec, v string) {
 		s.JWTAuth = &conf_v1.JWTAuth{Realm: v, Secret: "jwk-secret"}
 	}, "", nil},
@@ -330,6 +343,10 @@ var policyStringFields = []policyField{
 
 func baseRateLimit() *conf_v1.RateLimit {
 	return &conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M"}
+}
+
+func baseConnectionLimit() *conf_v1.ConnectionLimit {
+	return &conf_v1.ConnectionLimit{Connections: 10}
 }
 
 func baseCache() *conf_v1.Cache {
