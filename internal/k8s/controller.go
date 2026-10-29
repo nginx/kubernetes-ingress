@@ -2138,8 +2138,7 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 		if operationErr != nil {
 			minionEventType = api_v1.EventTypeWarning
 			minionEventTitle = nl.EventReasonAddedOrUpdatedWithError
-			minionEventWarningMessage = fmt.Sprintf("%s%s; but was not applied: %v", minionEventWarningMessage, minionEventWarningSuffix, operationErr)
-			minionEventWarningSuffix = "; "
+			minionEventWarningMessage = fmt.Sprintf("%s%sbut was not applied: %v", minionEventWarningMessage, minionEventWarningSuffix, operationErr)
 		}
 
 		minionEventWarningPrefixed := ""
@@ -2294,7 +2293,11 @@ func (lbc *LoadBalancerController) updateAttachedVirtualServerRoutesStatusAndEve
 		if operationErr != nil {
 			vsrEventType = api_v1.EventTypeWarning
 			vsrEventTitle = nl.EventReasonAddedOrUpdatedWithError
-			vsrEventWarningMessage = fmt.Sprintf(" %s; but was not applied:%v", vsrEventWarningMessage, operationErr)
+			sep := " "
+			if vsrEventWarningMessage != "" {
+				sep = "; "
+			}
+			vsrEventWarningMessage = fmt.Sprintf("%s%sbut was not applied: %v", vsrEventWarningMessage, sep, operationErr)
 			vsrState = conf_v1.StateInvalid
 		}
 
