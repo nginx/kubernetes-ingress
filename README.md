@@ -2,10 +2,8 @@
 
 ![logo](docs/img/logo.png)
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/nginx/kubernetes-ingress?logo=go&logoColor=white)](https://github.com/nginx/kubernetes-ingress/blob/main/go.mod)
-[![Stars](https://img.shields.io/github/stars/nginx/kubernetes-ingress?style=flat&logo=github)](https://github.com/nginx/kubernetes-ingress/stargazers)
-[![Forks](https://img.shields.io/github/forks/nginx/kubernetes-ingress?style=flat&logo=github)](https://github.com/nginx/kubernetes-ingress/forks)
 [![Latest Release](https://img.shields.io/github/v/release/nginx/kubernetes-ingress?logo=github&sort=semver)](https://github.com/nginx/kubernetes-ingress/releases/latest)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/nginx/kubernetes-ingress?logo=go&logoColor=white)](https://github.com/nginx/kubernetes-ingress/blob/main/go.mod)
 [![Contributors](https://img.shields.io/github/contributors/nginx/kubernetes-ingress?logo=github)](https://github.com/nginx/kubernetes-ingress/graphs/contributors)
 [![Docker Pulls](https://img.shields.io/docker/pulls/nginx/nginx-ingress?logo=docker&logoColor=white)](https://hub.docker.com/r/nginx/nginx-ingress)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/nginx-ingress)](https://artifacthub.io/packages/container/nginx-ingress/kubernetes-ingress)
@@ -21,8 +19,6 @@
 
 [![K8s](https://img.shields.io/badge/Website-kubernetes.nginx.org-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.nginx.org/)
 [![Community Forum](https://img.shields.io/badge/Community_Forum-Join_us!-009639?logo=nginx&logoColor=white)](https://community.nginx.org)
-[![Forum Topics](https://img.shields.io/discourse/topics?server=https%3A%2F%2Fcommunity.nginx.org&logo=nginx&label=forum)](https://community.nginx.org)
-[![Forum Users](https://img.shields.io/discourse/users?server=https%3A%2F%2Fcommunity.nginx.org&logo=nginx&label=forum)](https://community.nginx.org)
 
 **A production-grade Ingress Controller for Kubernetes, powered by NGINX or NGINX Plus.**
 
@@ -55,7 +51,8 @@ NGINX with native Kubernetes integration.
 - **Content-based routing** — Host and path-based routing via standard Ingress resources
 - **TLS/SSL termination** — Automatic certificate handling per hostname
 - **Advanced traffic management** — Traffic splitting, A/B testing, and canary deployments via [VirtualServer/VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/) CRDs
-- **TCP/UDP/gRPC load balancing** — Via [TransportServer](https://docs.nginx.com/nginx-ingress-controller/configuration/transportserver-resource/) CRD
+- **TCP/UDP load balancing** — Via [TransportServer](https://docs.nginx.com/nginx-ingress-controller/configuration/transportserver-resource/) CRD
+- **gRPC load balancing** — Via the `nginx.org/grpc-services` Ingress annotation or gRPC upstreams in VirtualServer/VirtualServerRoute
 - **Security policies** — Rate limiting, JWT auth, WAF (via F5 WAF for NGINX), mTLS, OIDC, and more
 - **Prometheus metrics** — Built-in monitoring and observability
 - **Highly configurable** — [Annotations](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/), [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/), and CRDs for fine-grained control
@@ -95,7 +92,12 @@ Once installed, deploy a sample application:
 ```bash
 # Deploy the Cafe example app
 kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.0/examples/ingress-resources/complete-example/cafe.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.0/examples/ingress-resources/complete-example/cafe-secret.yaml
+
+# Create a self-signed TLS certificate for cafe.example.com and store it in the Secret referenced by the Ingress
+openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout cafe.key -out cafe.crt \
+  -subj "/CN=cafe.example.com" -addext "subjectAltName=DNS:cafe.example.com"
+kubectl create secret tls tls-secret --cert=cafe.crt --key=cafe.key
+
 kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.0/examples/ingress-resources/complete-example/cafe-ingress.yaml
 ```
 
