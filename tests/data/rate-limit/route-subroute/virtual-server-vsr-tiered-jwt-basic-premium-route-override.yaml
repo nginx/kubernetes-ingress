@@ -7,8 +7,8 @@ spec:
   routes:
   - path: "/backends"
     policies:
-      - name: rate-limit-jwt-claim-sub-basic
-      - name: rate-limit-jwt-claim-sub-premium
+    - name: rate-limit-jwt-claim-sub-basic
+    - name: rate-limit-jwt-claim-sub-premium
     route: backends
   - path: "/backend2"
     route: backend2-namespace/backend2

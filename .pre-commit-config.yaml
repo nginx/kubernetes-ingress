@@ -37,7 +37,9 @@ repos:
     hooks:
       - id: golangci-lint
         name: golangci-lint
-        description: Fast linters runner for Go. Note that only modified files are linted, so linters like 'unused' that need to scan all files won't work as expected.
+        description: >-
+          Fast linters runner for Go. Note that only modified files are linted,
+          so linters like 'unused' that need to scan all files won't work as expected.
         entry: golangci-lint run --new-from-rev HEAD --fix
         types: [go]
         language: golang
@@ -121,9 +123,16 @@ repos:
     rev: v0.24.0
     hooks:
       - id: markdownlint-cli2
-        args: [ "**/*.md", "--fix" ]
+        args: ["**/*.md", "--fix"]
         pass_filenames: false
         always_run: true
+
+  # Rules are in .yamllint.yaml file
+  # See https://yamllint.readthedocs.io/en/stable/rules.html# for rule descriptions
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12

@@ -7,8 +7,8 @@ spec:
     blocking-settings:
       violations:
       - name: VIOL_GRPC_METHOD
-        block: True
-        alarm: True
+        block: true
+        alarm: true
     applicationLanguage: utf-8
     bot-defense:
       settings:

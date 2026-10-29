@@ -4,26 +4,26 @@ metadata:
   name: external-dns
 rules:
 - apiGroups: [""]
-  resources: ["services","pods"]
-  verbs: ["get","watch","list"]
+  resources: ["services", "pods"]
+  verbs: ["get", "watch", "list"]
 # Required by --source=service: external-dns reads EndpointSlices, not the
 # legacy core/v1 Endpoints API. Without this the service source fails to sync
 # its informer cache and external-dns exits at startup.
 - apiGroups: ["discovery.k8s.io"]
   resources: ["endpointslices"]
-  verbs: ["get","watch","list"]
-- apiGroups: ["extensions","networking.k8s.io"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["extensions", "networking.k8s.io"]
   resources: ["ingresses"]
-  verbs: ["get","watch","list"]
+  verbs: ["get", "watch", "list"]
 - apiGroups: ["externaldns.k8s.io"]
   resources: ["dnsendpoints"]
-  verbs: ["get","watch","list"]
+  verbs: ["get", "watch", "list"]
 - apiGroups: ["externaldns.k8s.io"]
   resources: ["dnsendpoints/status"]
   verbs: ["update"]
 - apiGroups: [""]
   resources: ["nodes"]
-  verbs: ["list","watch"]
+  verbs: ["list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -62,10 +62,14 @@ spec:
         - --source=ingress
         - --source=crd
         - --crd-source-kind=DNSEndpoint
-        - --domain-filter=<MY_DOMAIN> # will make ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
+        # will make ExternalDNS see only the hosted zones matching provided domain,
+        # omit to process all available hosted zones
+        - --domain-filter=<MY_DOMAIN>
         - --provider=aws
-        - --policy=upsert-only # would prevent ExternalDNS from deleting any records, omit to enable full synchronization
-        - --aws-zone-type=public # only look at public hosted zones (valid values are public, private or no value for both)
+        # would prevent ExternalDNS from deleting any records, omit to enable full synchronization
+        - --policy=upsert-only
+        # only look at public hosted zones (valid values are public, private or no value for both)
+        - --aws-zone-type=public
         - --registry=txt
         - --txt-owner-id=<HOSTED_ZONE_ID>
         - --txt-prefix=externaldns

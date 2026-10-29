@@ -14,21 +14,21 @@ spec:
   routes:
   - path: "/backend1"
     errorPages:
-      - codes: 308
-        redirect:
-          code: "101"
-          url: False
+    - codes: 308
+      redirect:
+        code: "101"
+        url: false
     action:
       pass: backend1
   - path: "/backend2"
     errorPages:
-      - codes: 502
-        return:
-          code: "100"
-          type: 0
-          body: False
-          headers:
-          - name: True
-            value: False
+    - codes: 502
+      return:
+        code: "100"
+        type: 0
+        body: false
+        headers:
+        - name: true
+          value: false
     action:
       pass: backend2

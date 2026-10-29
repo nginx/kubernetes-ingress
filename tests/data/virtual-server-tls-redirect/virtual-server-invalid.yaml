@@ -5,11 +5,11 @@ metadata:
 spec:
   host: virtual-server-tls.example.com
   tls:
-    secret: True
+    secret: true
     redirect:
       enable: "True"
       code: "308"
-      basedOn: True
+      basedOn: true
   upstreams:
   - name: backend2
     service: backend2-svc

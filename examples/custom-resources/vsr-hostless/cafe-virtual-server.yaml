@@ -9,7 +9,7 @@ spec:
   policies:
     - name: rate-limit-policy
   routes:
-  - path: /tea
-    route: default/tea
-  - path: /coffee
-    route: default/coffee
+    - path: /tea
+      route: default/tea
+    - path: /coffee
+      route: default/coffee

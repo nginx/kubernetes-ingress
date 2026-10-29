@@ -18,12 +18,12 @@ spec:
         ports:
         - containerPort: 8080
         volumeMounts:
-          - name: config-volume
-            mountPath: /etc/nginx/conf.d
-      volumes:
         - name: config-volume
-          configMap:
-            name: oidc-config-one
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: config-volume
+        configMap:
+          name: oidc-config-one
 ---
 apiVersion: v1
 kind: Service
@@ -43,6 +43,7 @@ kind: ConfigMap
 metadata:
   name: oidc-config-one
 data:
+  # yamllint disable rule:line-length
   app.conf: |-
     server {
     listen 8080;
@@ -75,12 +76,12 @@ spec:
         ports:
         - containerPort: 8080
         volumeMounts:
-          - name: config-volume
-            mountPath: /etc/nginx/conf.d
-      volumes:
         - name: config-volume
-          configMap:
-            name: oidc-config-two
+          mountPath: /etc/nginx/conf.d
+      volumes:
+      - name: config-volume
+        configMap:
+          name: oidc-config-two
 ---
 apiVersion: v1
 kind: Service
@@ -100,6 +101,7 @@ kind: ConfigMap
 metadata:
   name: oidc-config-two
 data:
+  # yamllint disable rule:line-length
   app.conf: |-
     server {
     listen 8080;

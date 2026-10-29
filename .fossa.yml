@@ -3,4 +3,4 @@ targets:
   exclude:
     - type: setuptools
 paths:
-  exclude:
+  exclude: []

@@ -1,4 +1,5 @@
-# Ingress with proxy_redirect regex pattern. Emits: proxy_redirect ~^http://redirect-backend-svc/v(\d+)/(.*) http://cafe.example.com/coffee/$2;
+# Ingress with proxy_redirect regex pattern.
+# Emits: proxy_redirect ~^http://redirect-backend-svc/v(\d+)/(.*) http://cafe.example.com/coffee/$2;
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress

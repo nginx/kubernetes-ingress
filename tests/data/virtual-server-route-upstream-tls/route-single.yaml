@@ -9,7 +9,7 @@ spec:
     service: backend2-svc
     port: 80
     tls:
-      enable: True
+      enable: true
   subroutes:
   - path: "/backend2"
     action:

@@ -16,4 +16,4 @@ spec:
     action:
       pass: coffee
     policies:
-     - name: rate-limit-policy
+    - name: rate-limit-policy

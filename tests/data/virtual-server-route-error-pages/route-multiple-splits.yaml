@@ -17,27 +17,27 @@ spec:
   subroutes:
   - path: "/backends/backend1"
     splits:
-      - weight: 90
-        action:
-          pass: backend1-v1
-      - weight: 10
-        action:
-          pass: backend1-v2
+    - weight: 90
+      action:
+        pass: backend1-v1
+    - weight: 10
+      action:
+        pass: backend1-v2
     errorPages:
-      - codes: [502]
-        redirect:
-          code: 308
-          url: ${scheme}://virtual-server-route.example.com/error.html
+    - codes: [502]
+      redirect:
+        code: 308
+        url: ${scheme}://virtual-server-route.example.com/error.html
   - path: "/backends/backend3"
     errorPages:
-      - codes: [502]
-        return:
-          code: 207
-          type: application/json
-          body: |
-            {\"status\": \"${upstream_status}\",\"message\":\"Forbidden\"}
-          headers:
-            - name: x-debug-original-status
-              value: ${upstream_status}
+    - codes: [502]
+      return:
+        code: 207
+        type: application/json
+        body: |
+          {\"status\": \"${upstream_status}\",\"message\":\"Forbidden\"}
+        headers:
+        - name: x-debug-original-status
+          value: ${upstream_status}
     action:
       pass: backend3

@@ -19,9 +19,9 @@ spec:
             - containerPort: 514
             - containerPort: 601
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/syslog-ng/syslog-ng.conf
-            subPath: syslog-ng.conf
+            - name: config-volume
+              mountPath: /etc/syslog-ng/syslog-ng.conf
+              subPath: syslog-ng.conf
       volumes:
         - name: config-volume
           configMap:

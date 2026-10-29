@@ -15,6 +15,6 @@ spec:
   routes:
     - path: /
       policies:
-      - name: oidc-policy
+        - name: oidc-policy
       action:
         pass: webapp

@@ -9,7 +9,7 @@ spec:
     service: backend1-svc
     port: 80
     healthCheck:
-      enable: False # validation should occur even when False
+      enable: false # validation should occur even when False
       path: "invalid"
       interval: 1.5d
       jitter: invalid
@@ -20,8 +20,8 @@ spec:
       read-timeout: m
       send-timeout: d
       headers:
-        - name: ""
-          value: "$one"
+      - name: ""
+        value: "$one"
       statusMatch: "invalid"
     slow-start: "-3s"
     queue:
@@ -31,7 +31,7 @@ spec:
     service: backend3-svc
     port: 80
     healthCheck:
-      enable: True
+      enable: true
       path: "invalid"
       interval: 1.5d
       jitter: invalid
@@ -42,8 +42,8 @@ spec:
       read-timeout: m
       send-timeout: d
       headers:
-        - name: "`=1^&*"
-          value: "`=1.±!@£$%^&*()_+{}[]'^&*"
+      - name: "`=1^&*"
+        value: "`=1.±!@£$%^&*()_+{}[]'^&*"
       statusMatch: "invalid"
     slow-start: "1.5m"
     queue:

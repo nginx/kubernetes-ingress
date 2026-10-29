@@ -52,7 +52,7 @@ controller:
     ## Secret containing trusted CA certificate
     # sslTrustedCertificateSecretName: ssl-trusted-cert
 
-    # configMapName allows changing the name of the MGMT config map
+    # configMapName allows changing the name of the MGMT config map
     # the name should not include a namespace
     # configMapName: ""
 
@@ -125,7 +125,7 @@ controller:
         pullPolicy: IfNotPresent
       securityContext:
         allowPrivilegeEscalation: false
-        runAsUser: 101 #nginx
+        runAsUser: 101 # nginx
         runAsNonRoot: true
         capabilities:
           drop:
@@ -171,7 +171,7 @@ controller:
         pullPolicy: IfNotPresent
       securityContext:
         allowPrivilegeEscalation: false
-        runAsUser: 101 #nginx
+        runAsUser: 101 # nginx
         runAsNonRoot: true
         capabilities:
           drop:
@@ -351,7 +351,7 @@ controller:
     {} # Remove curly brackets before adding values
     # allowPrivilegeEscalation: true
     # readOnlyRootFilesystem: true
-    # runAsUser: 101 #nginx
+    # runAsUser: 101 # nginx
     # runAsNonRoot: true
     # capabilities:
     #   drop:
@@ -442,7 +442,7 @@ controller:
       storageClass: ""
       ## Access modes for the nginx-cache volume
       accessModes:
-      - "ReadWriteOnce"
+        - "ReadWriteOnce"
 
   ## Extra containers for the Ingress Controller pods.
   extraContainers: []

@@ -225,7 +225,7 @@ jobs:
   #       with:
   #         assertion-doc: ${{ steps.assertiondoc.outputs.assertion-document-path }}
 
-  #     - name: Cleanup netrc
+  #     - name: Cleanup netrc
   #       run: rm -f $HOME/.netrc
   #       if: ${{ always() }}
 

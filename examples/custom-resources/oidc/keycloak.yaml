@@ -33,38 +33,38 @@ spec:
         app: keycloak
     spec:
       containers:
-        - name: keycloak
-          image: quay.io/keycloak/keycloak:26.8.1
-          args: ["start"]
-          env:
-            - name: KC_BOOTSTRAP_ADMIN_USERNAME
-              value: "admin"
-            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
-              value: "admin"
-            - name: KC_HTTP_ENABLED
-              value: "true"
-            - name: KC_PROXY_HEADERS
-              value: "xforwarded"
-            - name: KC_HTTPS_CERTIFICATE_FILE
-              value: "/etc/x509/https/tls.crt"
-            - name: KC_HTTPS_CERTIFICATE_KEY_FILE
-              value: "/etc/x509/https/tls.key"
-            - name: KC_HOSTNAME_STRICT
-              value: "false"
-          volumeMounts:
-            - name: tls-secret
-              mountPath: /etc/x509/https
-              readOnly: true
-          ports:
-            - name: http
-              containerPort: 8080
-            - name: https
-              containerPort: 8443
-          readinessProbe:
-            httpGet:
-              path: /realms/master
-              port: 8080
-      volumes:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:26.8.1
+        args: ["start"]
+        env:
+        - name: KC_BOOTSTRAP_ADMIN_USERNAME
+          value: "admin"
+        - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+          value: "admin"
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        - name: KC_PROXY_HEADERS
+          value: "xforwarded"
+        - name: KC_HTTPS_CERTIFICATE_FILE
+          value: "/etc/x509/https/tls.crt"
+        - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+          value: "/etc/x509/https/tls.key"
+        - name: KC_HOSTNAME_STRICT
+          value: "false"
+        volumeMounts:
         - name: tls-secret
-          secret:
-            secretName: keycloak-tls-secret
+          mountPath: /etc/x509/https
+          readOnly: true
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: https
+          containerPort: 8443
+        readinessProbe:
+          httpGet:
+            path: /realms/master
+            port: 8080
+      volumes:
+      - name: tls-secret
+        secret:
+          secretName: keycloak-tls-secret

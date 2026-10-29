@@ -26,7 +26,7 @@ spec:
       containers:
       - name: coredns-external-backend
         image: coredns/coredns:1.15.0
-        args: [ "-conf", "/etc/coredns/Corefile" ]
+        args: ["-conf", "/etc/coredns/Corefile"]
         volumeMounts:
         - name: config-volume
           mountPath: /etc/coredns
@@ -41,12 +41,12 @@ spec:
         securityContext:
           readOnlyRootFilesystem: true
       volumes:
-        - name: config-volume
-          configMap:
-            name: coredns-external-config
-            items:
-            - key: Corefile
-              path: Corefile
+      - name: config-volume
+        configMap:
+          name: coredns-external-config
+          items:
+          - key: Corefile
+            path: Corefile
 ---
 apiVersion: v1
 kind: Service
@@ -54,7 +54,7 @@ metadata:
   name: coredns-external-backend-svc
 spec:
   selector:
-   app: coredns-external-backend
+    app: coredns-external-backend
   ports:
   - name: dns
     port: 5353

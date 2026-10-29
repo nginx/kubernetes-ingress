@@ -19,6 +19,8 @@ spec:
     port: 80
   routes:
   - path: "/backends"
+    # action:
+    #   pass: backend4-stable
     matches:
     - conditions:
       - header: x-version
@@ -30,8 +32,6 @@ spec:
         value: deprecated
       action:
         pass: backend3-deprecated
-#    action:
-#      pass: backend4-stable
   - path: "/backend2"
     action:
       pass: backend2

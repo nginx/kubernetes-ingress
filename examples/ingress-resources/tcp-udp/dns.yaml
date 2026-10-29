@@ -26,7 +26,7 @@ spec:
       containers:
       - name: coredns
         image: coredns/coredns:1.15.0
-        args: [ "-conf", "/etc/coredns/Corefile" ]
+        args: ["-conf", "/etc/coredns/Corefile"]
         volumeMounts:
         - name: config-volume
           mountPath: /etc/coredns
@@ -47,12 +47,12 @@ spec:
             - all
           readOnlyRootFilesystem: true
       volumes:
-        - name: config-volume
-          configMap:
-            name: coredns
-            items:
-            - key: Corefile
-              path: Corefile
+      - name: config-volume
+        configMap:
+          name: coredns
+          items:
+          - key: Corefile
+            path: Corefile
 ---
 apiVersion: v1
 kind: Service
@@ -60,7 +60,7 @@ metadata:
   name: coredns
 spec:
   selector:
-   app: coredns
+    app: coredns
   ports:
   - name: dns
     port: 53
@@ -76,7 +76,7 @@ metadata:
 spec:
   clusterIP: None
   selector:
-   app: coredns
+    app: coredns
   ports:
   - name: dns
     port: 53

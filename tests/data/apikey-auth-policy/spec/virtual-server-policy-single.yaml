@@ -21,7 +21,7 @@ spec:
     action:
       pass: backend2
     policies:
-      - name: api-key-policy-2
+    - name: api-key-policy-2
   - path: /no-auth
     action:
       pass: backend2

@@ -10,13 +10,13 @@ spec:
     port: 50051
     type: grpc
     tls:
-      enable: True
+      enable: true
   - name: grpc3
     service: grpc3-svc
     port: 50051
     type: grpc
     tls:
-      enable: True
+      enable: true
   subroutes:
   - path: /grpcs/helloworld.Greeter
     action:

@@ -12,27 +12,27 @@ spec:
       labels:
         app: nginx-ingress
         app.kubernetes.io/name: nginx-ingress
-     #annotations:
-       #prometheus.io/scrape: "true"
-       #prometheus.io/port: "9113"
-       #prometheus.io/scheme: http
+      # annotations:
+      #   prometheus.io/scrape: "true"
+      #   prometheus.io/port: "9113"
+      #   prometheus.io/scheme: http
     spec:
       serviceAccountName: nginx-ingress
       automountServiceAccountToken: true
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-#      volumes:
-#      - name: nginx-etc
-#        emptyDir: {}
-#      - name: nginx-cache
-#        emptyDir: {}
-#      - name: nginx-lib
-#        emptyDir: {}
-#      - name: nginx-lib-state
-#        emptyDir: {}
-#      - name: nginx-log
-#        emptyDir: {}
+      # volumes:
+      # - name: nginx-etc
+      #   emptyDir: {}
+      # - name: nginx-cache
+      #   emptyDir: {}
+      # - name: nginx-lib
+      #   emptyDir: {}
+      # - name: nginx-lib-state
+      #   emptyDir: {}
+      # - name: nginx-log
+      #   emptyDir: {}
       containers:
       - image: nginx/nginx-ingress:5.7.0
         imagePullPolicy: IfNotPresent
@@ -57,30 +57,30 @@ spec:
           requests:
             cpu: "100m"
             memory: "128Mi"
-         #limits:
-         #  cpu: "1"
-         #  memory: "1Gi"
+          # limits:
+          #   cpu: "1"
+          #   memory: "1Gi"
         securityContext:
           allowPrivilegeEscalation: false
-#          readOnlyRootFilesystem: true
-          runAsUser: 101 #nginx
+      #     readOnlyRootFilesystem: true
+          runAsUser: 101 # nginx
           runAsNonRoot: true
           capabilities:
             drop:
             - ALL
             add:
             - NET_BIND_SERVICE
-#        volumeMounts:
-#        - mountPath: /etc/nginx
-#          name: nginx-etc
-#        - mountPath: /var/cache/nginx
-#          name: nginx-cache
-#        - mountPath: /var/lib/nginx
-#          name: nginx-lib
-#        - mountPath: /var/lib/nginx/state
-#          name: nginx-lib-state
-#        - mountPath: /var/log/nginx
-#          name: nginx-log
+      #   volumeMounts:
+        # - mountPath: /etc/nginx
+      #     name: nginx-etc
+        # - mountPath: /var/cache/nginx
+      #     name: nginx-cache
+        # - mountPath: /var/lib/nginx
+      #     name: nginx-lib
+        # - mountPath: /var/lib/nginx/state
+      #     name: nginx-lib-state
+        # - mountPath: /var/log/nginx
+      #     name: nginx-log
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -91,27 +91,28 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
-          - -report-ingress-status
-          - -external-service=nginx-ingress
-         #- -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
-         #- -log-level=debug # Enables extensive logging. Useful for troubleshooting. Options include: trace, debug, info, warning, error, fatal
-         #- -log-format=glog # Sets the log format. Options include: glog, json, text
-         #- -enable-prometheus-metrics
-         #- -global-configuration=$(POD_NAMESPACE)/nginx-configuration
-#      initContainers:
+        - -nginx-configmaps=$(POD_NAMESPACE)/nginx-config
+        - -report-ingress-status
+        - -external-service=nginx-ingress
+        # - -default-server-tls-secret=$(POD_NAMESPACE)/default-server-secret
+        # Enables extensive logging. Useful for troubleshooting. Options: trace, debug, info, warning, error, fatal
+        # - -log-level=debug
+        # - -log-format=glog # Sets the log format. Options include: glog, json, text
+        # - -enable-prometheus-metrics
+        # - -global-configuration=$(POD_NAMESPACE)/nginx-configuration
+      # initContainers:
 #      - image: nginx/nginx-ingress:5.7.0
-#        imagePullPolicy: IfNotPresent
-#        name: init-nginx-ingress
-#        command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
-#        securityContext:
-#          allowPrivilegeEscalation: false
-#          readOnlyRootFilesystem: true
-#          runAsUser: 101 #nginx
-#          runAsNonRoot: true
-#          capabilities:
-#            drop:
-#            - ALL
-#        volumeMounts:
-#        - mountPath: /mnt/etc
-#          name: nginx-etc
+      #   imagePullPolicy: IfNotPresent
+      #   name: init-nginx-ingress
+      #   command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
+      #   securityContext:
+      #     allowPrivilegeEscalation: false
+      #     readOnlyRootFilesystem: true
+      #     runAsUser: 101 # nginx
+      #     runAsNonRoot: true
+      #     capabilities:
+      #       drop:
+      #       - ALL
+      #   volumeMounts:
+        # - mountPath: /mnt/etc
+      #     name: nginx-etc

@@ -3,6 +3,7 @@ kind: ConfigMap
 metadata:
   name: cafe-backend-config
 data:
+  # yamllint disable rule:line-length
   default.conf: |-
     server {
         listen 8080;
@@ -20,6 +21,7 @@ data:
             return 200 "Server name: $hostname\nURI: $request_uri\nUpstream protocol: $server_protocol\nConnection header: $http_connection\n";
         }
     }
+  # yamllint enable rule:line-length
 ---
 apiVersion: apps/v1
 kind: Deployment
