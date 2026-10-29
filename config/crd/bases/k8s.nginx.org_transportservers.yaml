@@ -129,6 +129,10 @@ spec:
                     description: The number of tries for passing a connection to the
                       next server. The default is 0.
                     type: integer
+                  proxyProtocol:
+                    description: Enables or disables the use of the PROXY protocol
+                      for upstream connections. The default is false.
+                    type: boolean
                   udpRequests:
                     description: The number of datagrams, after receiving which, the
                       next datagram from the same client starts a new session. The
