@@ -370,9 +370,31 @@ jobs:
           repo-checkout: false
           cache: true
 
+  scout-cache:
+    name: Docker Scout Cache
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/scout-cache
+
+      - name: Seed Docker Scout cache
+        uses: ./.github/actions/scout-cache
+        continue-on-error: true # soft-fail: scans fall back to downloading the binary
+        with:
+          mode: seed
+          # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
+          version: v1.27.0
+          sha: a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # renovate-digest: datasource=github-tags depName=docker/scout-action
+
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests]
+    needs: [checks, unit-tests, scout-cache]
     if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-artifacts.yml
     with:

@@ -97,6 +97,21 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Bump the scout-cache.yml version/sha inputs in the same PR as the docker/scout-action `uses:` pin, so the cached binary always matches the action.",
+      "addLabels": [
+        "github_actions",
+        "skip changelog"
+      ],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "docker/scout-action"
+      ],
+      "groupName": "github actions",
+      "minimumReleaseAge": "3 days"
+    },
+    {
       "matchPackageNames": [
         "/private-registry\\.nginx\\.com/",
         "/registry\\.redhat\\.io/",
@@ -311,6 +326,16 @@
     ]
   },
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows (e.g. scout-cache.yml inputs)",
+      "managerFilePatterns": [
+        "/.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "version: (?<currentValue>\\S+)\\s+sha: (?<currentDigest>[a-f0-9]{40}) # renovate-digest: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)"
+      ]
+    },
     {
       "customType": "regex",
       "description": "Update env variable version in Github Actions workflow",

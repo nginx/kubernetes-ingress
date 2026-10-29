@@ -1,0 +1,209 @@
+name: Docker Scout Cache
+description: Seed or restore a per-run Actions cache of the docker/scout-action binary, so a run downloads it once instead of once per scanning job.
+
+# Why: docker/scout-action downloads its ~187 MB binary from GitHub releases on
+# every call. The build matrix fans out into many parallel scans, and that
+# download is rate-limited and intermittently returns HTTP 403. Seeding the cache
+# once per run, before the matrix starts, turns N downloads into one. Caches
+# saved from a PR or merge-queue run are scoped to that ref, so eviction does not
+# matter and no schedule is needed.
+#
+# This file is the single home of the cache contract (key, path, install
+# location). Do not restore the cache by hand elsewhere; call `mode: restore`.
+#
+# Cache contract:
+#   key:  docker-scout-action-<os>-<arch>-<version>   e.g. docker-scout-action-linux-amd64-v1.27.0
+#   path: .scout-cache/docker-scout-action_<os>_<arch>   (relative to the workspace)
+#
+# ---------------------------------------------------------------------------
+# 1. Seed: one dedicated job per workflow run
+# ---------------------------------------------------------------------------
+# Add a job that runs once, before (or alongside) the jobs that scan, and add it
+# to the `needs:` of the job that fans out into the scans. Keep it a separate
+# job: seeding inside a matrix job brings back one download per matrix entry.
+#
+#   scout-cache:
+#     name: Docker Scout Cache
+#     if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+#     runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
+#     timeout-minutes: 15
+#     permissions:
+#       contents: read
+#     steps:
+#       - uses: actions/checkout@<sha> # vX       # local actions need the repo
+#         with:
+#           sparse-checkout: .github/actions/scout-cache
+#       - uses: ./.github/actions/scout-cache
+#         continue-on-error: true  # step level, so the job stays green and `needs:` jobs still run
+#         with:
+#           mode: seed
+#           version: v1.27.0
+#           sha: a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # renovate-digest: datasource=github-tags depName=docker/scout-action
+#
+#   build:
+#     needs: [scout-cache]
+#
+# Pin `version` and `sha` to the same release as the `uses: docker/scout-action@`
+# pin of the scanning jobs, and keep them on adjacent lines in that order with
+# the `# renovate-digest:` comment: renovate.json bumps the pair together with
+# the `uses:` pins.
+#
+# To seed another platform (e.g. arm64 runners scan too), add a matrix over
+# `platform` to the seed job.
+#
+# ---------------------------------------------------------------------------
+# 2. Restore: in each job that runs docker/scout-action
+# ---------------------------------------------------------------------------
+# Call it in the same job, before the scan step, with the same version and sha
+# as that job's `uses: docker/scout-action@<sha>`:
+#
+#   - uses: ./.github/actions/scout-cache
+#     with:
+#       mode: restore
+#       version: v1.27.0
+#       sha: a4119c5a8c5076236a54e4ce99531f7e4dd2ef84
+#   - uses: docker/scout-action@a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # v1.27.0
+#     with: ...
+#
+# Restore copies the binary into the `dist/` directory of the downloaded
+# docker/scout-action, which the action uses instead of downloading. It never
+# fails the job: on a cache miss, or when the action directory is not found,
+# docker/scout-action downloads the binary as it would without this cache.
+# Restore matches the exact version only, so a stale binary is never paired with
+# a newer action.
+#
+# Workflows that reach scanning jobs without a seed job (e.g. cache-update.yml
+# calling build-oss.yml) still work: restore misses and the scan downloads.
+
+inputs:
+  mode:
+    description: "`seed` (download on cache miss and save) or `restore` (install into docker/scout-action if cached)"
+    required: true
+  version:
+    description: "docker/scout-action release tag, e.g. v1.27.0"
+    required: true
+  sha:
+    description: "Commit SHA that `version` points to (the docker/scout-action `uses:` pin)"
+    required: true
+  platform:
+    description: "<os>_<arch> release asset suffix. Defaults to the runner's platform"
+    required: false
+    default: ""
+
+outputs:
+  cache-hit:
+    description: "'true' if the binary was found in the cache"
+    value: ${{ steps.seed.outputs.cache-hit || steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve cache key
+      id: key
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        PLATFORM: ${{ inputs.platform }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "${MODE}" in
+          seed | restore) ;;
+          *) echo "::error::mode must be 'seed' or 'restore', got '${MODE}'"; exit 1 ;;
+        esac
+        if [ -z "${PLATFORM}" ]; then
+          os="$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')"
+          case "${RUNNER_ARCH}" in
+            X64) arch=amd64 ;;
+            ARM64) arch=arm64 ;;
+            *) echo "::error::unsupported runner arch ${RUNNER_ARCH}"; exit 1 ;;
+          esac
+          PLATFORM="${os}_${arch}"
+        fi
+        echo "asset=docker-scout-action_${PLATFORM}" >> "$GITHUB_OUTPUT"
+        echo "key=docker-scout-action-${PLATFORM/_/-}-${VERSION}" >> "$GITHUB_OUTPUT"
+
+    # ---- seed ----
+
+    - name: Verify version and SHA match
+      if: inputs.mode == 'seed'
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        SHA: ${{ inputs.sha }}
+      run: |
+        set -euo pipefail
+        # git protocol, not the REST API, so this does not count against API rate limits.
+        # ^{} peels annotated tags to the commit they point to.
+        actual="$(git ls-remote https://github.com/docker/scout-action "refs/tags/${VERSION}" "refs/tags/${VERSION}^{}" | tail -n1 | cut -f1)"
+        if [ "${actual}" != "${SHA}" ]; then
+          echo "::error::docker/scout-action ${VERSION} points to '${actual}', expected '${SHA}'"
+          exit 1
+        fi
+
+    - name: Restore or seed the cache
+      id: seed
+      if: inputs.mode == 'seed'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .scout-cache
+        key: ${{ steps.key.outputs.key }}
+
+    - name: Download docker/scout-action binary
+      if: inputs.mode == 'seed' && steps.seed.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        ASSET: ${{ steps.key.outputs.asset }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        base="https://github.com/docker/scout-action/releases/download/${VERSION}"
+        checksums="docker-scout_${VERSION#v}_checksums.txt"
+        mkdir -p .scout-cache
+        fetch() {
+          local attempt
+          for attempt in 1 2 3 4 5; do
+            curl -fsSL --connect-timeout 20 --retry 5 --retry-all-errors -o "$2" "$1" && return 0
+            echo "Attempt ${attempt} to download $1 failed; retrying"
+            sleep "$((attempt * 15))"
+          done
+          echo "::error::Could not download $1 after 5 attempts"
+          return 1
+        }
+        fetch "${base}/${checksums}" "${RUNNER_TEMP}/${checksums}"
+        fetch "${base}/${ASSET}" ".scout-cache/${ASSET}"
+        # Verify before the binary is saved to a cache that every job in the run trusts.
+        (cd .scout-cache && grep -E "  ${ASSET}\$" "${RUNNER_TEMP}/${checksums}" | sha256sum -c -)
+        chmod +x ".scout-cache/${ASSET}"
+        echo "Cached ${ASSET} ${VERSION} ($(du -h ".scout-cache/${ASSET}" | cut -f1))"
+
+    # ---- restore ----
+
+    - name: Restore docker/scout-action binary
+      id: restore
+      if: inputs.mode == 'restore'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .scout-cache
+        key: ${{ steps.key.outputs.key }}
+
+    - name: Install binary into docker/scout-action
+      if: inputs.mode == 'restore' && steps.restore.outputs.cache-hit == 'true'
+      continue-on-error: true
+      shell: bash
+      env:
+        ASSET: ${{ steps.key.outputs.asset }}
+        SHA: ${{ inputs.sha }}
+      run: |
+        set -euo pipefail
+        # The runner downloads `uses:` actions into _actions/<owner>/<repo>/<ref>, next to the workspace.
+        action_dir="$(dirname "${RUNNER_WORKSPACE}")/_actions/docker/scout-action/${SHA}"
+        if [ -d "${action_dir}" ]; then
+          install -D -m 0755 ".scout-cache/${ASSET}" "${action_dir}/dist/${ASSET}"
+          echo "Installed cached ${ASSET} into ${action_dir}/dist"
+        else
+          echo "::warning::${action_dir} not found; docker/scout-action will download its binary"
+        fi
+        # Keep the binary out of the workspace (e.g. docker build contexts).
+        rm -rf .scout-cache
