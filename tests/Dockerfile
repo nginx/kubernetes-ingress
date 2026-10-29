@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.28
 FROM python:3.15-trixie@sha256:8268b5058c72832502a7eabc0c719892769c09389ed95fc213f3c308cbedc6dd
 ARG ARCH=amd64
+# renovate: datasource=github-releases depName=helm/helm
+ARG HELM_VERSION=v4.3.1
 
 ENV PYTHONUNBUFFERED=1
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
@@ -33,6 +35,12 @@ RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s
 	&& printf "Types: deb\nURIs: https://download.docker.com/linux/debian\nSuites: %s\nComponents: stable\nSigned-By: /etc/apt/keyrings/docker.asc\n" "$( . /etc/os-release && echo "$VERSION_CODENAME" )" > /etc/apt/sources.list.d/docker.sources \
 	&& apt update \
     && apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+RUN curl -fsSLO https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz \
+	&& curl -fsSL https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz.sha256sum | sha256sum -c - \
+	&& tar -xzf helm-${HELM_VERSION}-linux-${ARCH}.tar.gz linux-${ARCH}/helm \
+	&& install -o root -g root -m 0755 linux-${ARCH}/helm /usr/local/bin/helm \
+	&& rm -rf helm-${HELM_VERSION}-linux-${ARCH}.tar.gz linux-${ARCH}
 
 RUN pip install --require-hashes -r requirements.txt --no-deps
 RUN playwright install chromium
