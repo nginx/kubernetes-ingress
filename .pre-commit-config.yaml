@@ -56,7 +56,7 @@ repos:
 
       - id: validate-workflow-gating
         name: validate workflow gating
-        description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
+        description: Ensures every workflow job is gated to the public repository, the internal repository, or both.
         entry: .github/scripts/validate-workflow-gating.sh
         language: golang
         additional_dependencies: ["github.com/mikefarah/yq/v4@v4.53.6"]
