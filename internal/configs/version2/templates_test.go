@@ -203,6 +203,90 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitJWTClaim(t *te
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithJWTAuthorizationMaps(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	// Mirrors the output of generateJWTAuthorization for one rule with an Exact claim (with a
+	// proxySetHeader) and a nested Contains claim. Map keys are already NGINX-escaped.
+	const (
+		issVar   = "$jwt_default_cafe_vs_iss"
+		rolesVar = "$jwt_default_cafe_vs_realm_access_roles"
+		policy   = "$jwt_authz_default_cafe_vs_default_jwt_authz"
+	)
+	cfg := VirtualServerConfig{
+		Server: Server{ServerName: "cafe.example.com", VSName: "default/cafe"},
+		AuthJWTClaimSets: []AuthJWTClaimSet{
+			{Variable: issVar, Claim: "iss"},
+			{Variable: rolesVar, Claim: "realm_access roles"},
+		},
+		Maps: []Map{
+			{
+				Source:   issVar,
+				Variable: policy + "_r0_c0",
+				Parameters: []Parameter{
+					{Value: `""`, Result: "0"},
+					{Value: `"~^(https://idp\\.example\\.com)\\z"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+			{
+				Source:   issVar,
+				Variable: policy + "_r0_c0_hdr",
+				Parameters: []Parameter{
+					{Value: `"~[\r\n]"`, Result: `""`},
+					{Value: "default", Result: issVar},
+				},
+			},
+			{
+				Source:   rolesVar,
+				Variable: policy + "_r0_c1",
+				Parameters: []Parameter{
+					{Value: `""`, Result: "0"},
+					{Value: `"~(^|[ ,])(admin|a\"b)([ ,]|\\z)"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+			{
+				Source:   policy + "_r0_c0" + policy + "_r0_c1",
+				Variable: policy + "_r0",
+				Parameters: []Parameter{
+					{Value: `"~1"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+			{
+				Source:   policy + "_r0",
+				Variable: policy,
+				Parameters: []Parameter{
+					{Value: `"~^1+$"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+		},
+	}
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := string(got)
+	for _, want := range []string{
+		"auth_jwt_claim_set $jwt_default_cafe_vs_realm_access_roles realm_access roles;",
+		`"~^(https://idp\\.example\\.com)\\z" 1;`,
+		`"~(^|[ ,])(admin|a\"b)([ ,]|\\z)" 1;`,
+		`"~[\r\n]" "";`,
+		`map $jwt_authz_default_cafe_vs_default_jwt_authz_r0_c0$jwt_authz_default_cafe_vs_default_jwt_authz_r0_c1 $jwt_authz_default_cafe_vs_default_jwt_authz_r0 {`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("want %q in:\n%s", want, config)
+		}
+	}
+
+	snaps.MatchSnapshot(t, config)
+}
+
 func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitVariableAPIKey(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)

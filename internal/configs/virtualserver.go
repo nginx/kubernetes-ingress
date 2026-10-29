@@ -465,7 +465,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		parentName:      vsEx.VirtualServer.Name,
 		parentType:      "vs",
 	}
-	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator)
+	jwtClaims := make(jwtClaimRegistry)
+
+	policiesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, vsEx.VirtualServer.Spec.Policies, vsEx.Policies, specContext, "/", policyOpts, vsc.bundleValidator, jwtClaims)
 	if len(warnings) > 0 {
 		vsc.mergeWarnings(warnings)
 	}
@@ -486,6 +488,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		policiesCfg.APIKey.ClientMap = make(map[string][]apiKeyClient)
 		policiesCfg.APIKey.ClientMap[apiMapName] = policiesCfg.APIKey.Clients
 	}
+
+	maps = append(maps, policiesCfg.JWTAuth.Maps...)
 
 	if len(policiesCfg.RateLimit.GroupMaps) > 0 {
 		maps = append(maps, policiesCfg.RateLimit.GroupMaps...)
@@ -515,6 +519,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var oidcProviders []version2.OIDCProvider
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
+	// Authorization claim sets go first: de-duplication keeps the first per variable, and a colliding
+	// rate limit must not displace them.
+	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.JWTAuth.ClaimSets...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 	if policiesCfg.OIDCProvider != nil {
 		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
@@ -736,7 +743,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			parentName:      vsEx.VirtualServer.Name,
 			parentType:      "vs",
 		}
-		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator)
+		routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, r.Policies, vsEx.Policies, routeContext, r.Path, policyOpts, vsc.bundleValidator, jwtClaims)
 
 		// Inherit spec-level CORS if route doesn't have its own CORS policy
 		if len(routePoliciesCfg.CORSHeaders) == 0 && len(policiesCfg.CORSHeaders) > 0 {
@@ -839,7 +846,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.JWTAuth.ClaimSets...)
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+		maps = append(maps, routePoliciesCfg.JWTAuth.Maps...)
 		if routePoliciesCfg.OIDCProvider != nil {
 			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
 		}
@@ -848,6 +857,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
+		policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg)
 
 		if len(r.Matches) > 0 {
 			cfg := generateMatchesConfig(
@@ -866,6 +876,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				"", "",
 				vsc.warnings,
 				vsc.DynamicWeightChangesReload,
+				policyHeaders,
 			)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
@@ -882,7 +893,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			matchesRoutes++
 		} else if len(r.Splits) > 0 {
 			cfg := generateDefaultSplitsConfig(r, virtualServerUpstreamNamer, crUpstreams, VariableNamer, len(splitClients),
-				vsc.cfgParams, errorPages, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, vsc.DynamicWeightChangesReload)
+				vsc.cfgParams, errorPages, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, vsc.DynamicWeightChangesReload, policyHeaders)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
@@ -902,7 +913,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 			loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
-				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
+				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, policyHeaders)
 			addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 			loc.Dos = dosRouteCfg
 			loc.AddHeaderInherit = r.AddHeaderInherit
@@ -971,7 +982,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyRefs = r.Policies
 				context = subRouteContext
 			}
-			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator)
+			routePoliciesCfg, warnings := generatePolicies(vsc.cfgParams.Context, ownerDetails, policyRefs, vsEx.Policies, context, r.Path, policyOpts, vsc.bundleValidator, jwtClaims)
 			if len(warnings) > 0 {
 				vsc.mergeWarnings(warnings)
 			}
@@ -1073,7 +1084,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.JWTAuth.ClaimSets...)
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+			maps = append(maps, routePoliciesCfg.JWTAuth.Maps...)
 			if routePoliciesCfg.OIDCProvider != nil {
 				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
 			}
@@ -1082,6 +1095,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
+			policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg)
 
 			if len(r.Matches) > 0 {
 				cfg := generateMatchesConfig(
@@ -1101,6 +1115,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					vsr.Namespace,
 					vsc.warnings,
 					vsc.DynamicWeightChangesReload,
+					policyHeaders,
 				)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
@@ -1117,7 +1132,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				matchesRoutes++
 			} else if len(r.Splits) > 0 {
 				cfg := generateDefaultSplitsConfig(r, upstreamNamer, crUpstreams, VariableNamer, len(splitClients), vsc.cfgParams,
-					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
+					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload, policyHeaders)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
@@ -1137,7 +1152,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 				loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
-					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
+					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, policyHeaders)
 				addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 				loc.Dos = dosRouteCfg
 				loc.AddHeaderInherit = addHeaderInherit
@@ -1184,7 +1199,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
 			loc, returnLoc := generateLocation(exactPath, upstreamName, upstream, r.Action, vsc.cfgParams, errorPageDetails{owner: cr}, false,
-				proxySSLName, plainPath, "", false, len(returnLocations), true, cr.Name, cr.Namespace, vsc.warnings)
+				proxySSLName, plainPath, "", false, len(returnLocations), true, cr.Name, cr.Namespace, vsc.warnings, nil)
 			renderedPaths[loc.Path] = true
 			// Drop global ConfigMap location-snippets too: they could duplicate the auth-off directives
 			// rendered for challenge locations and fail the NGINX config test.
@@ -1234,6 +1249,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	if policiesCfg.OIDC != nil {
 		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
+	// auth_jwt_require cannot be turned off, so these locations reset the inherited one.
+	jwtResetVariable := generateJWTAuthzNoneVariable(vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+	if addJWTRequireReset(locations, policiesCfg.JWTAuth.Auth, jwtResetVariable) {
+		maps = append(maps, generateJWTAuthzNoneMap(jwtResetVariable))
 	}
 
 	vsCfg := version2.VirtualServerConfig{
@@ -2092,7 +2113,7 @@ type errorPageDetails struct {
 func generateLocation(path string, upstreamName string, upstream conf_v1.Upstream, action *conf_v1.Action,
 	cfgParams *ConfigParams, errorPages errorPageDetails, internal bool, proxySSLName string,
 	originalPath string, locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string,
-	vsrNamespace string, vscWarnings Warnings,
+	vsrNamespace string, vscWarnings Warnings, policyHeaders []version2.Header,
 ) (version2.Location, *version2.ReturnLocation) {
 	locationSnippets := generateSnippets(enableSnippets, locSnippets, cfgParams.LocationSnippets)
 
@@ -2109,13 +2130,16 @@ func generateLocation(path string, upstreamName string, upstream conf_v1.Upstrea
 	_, serviceName := ParseServiceReference(upstream.Service, "")
 
 	return generateLocationForProxying(path, upstreamName, upstream, cfgParams, errorPages.pages, internal,
-		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
+		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName, policyHeaders), nil
 }
 
-func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
+// generateProxySetHeaders merges here, not in the template, because the template's default-header
+// checks only see this list. Precedence, case-insensitive: route requestHeaders, policy headers, NIC
+// defaults. The fallback Host is added only if neither the route nor a policy sets one.
+func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool, policyHeaders []version2.Header) []version2.Header {
 	var headers []version2.Header
 
-	hasHostHeader := false
+	seen := make(map[string]struct{})
 
 	if proxy != nil && proxy.RequestHeaders != nil {
 		for _, h := range proxy.RequestHeaders.Set {
@@ -2123,13 +2147,20 @@ func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders boo
 				Name:  h.Name,
 				Value: h.Value,
 			})
-
-			if strings.ToLower(h.Name) == "host" {
-				hasHostHeader = true
-			}
+			seen[strings.ToLower(h.Name)] = struct{}{}
 		}
 	}
 
+	for _, h := range policyHeaders {
+		lower := strings.ToLower(h.Name)
+		if _, ok := seen[lower]; ok {
+			continue
+		}
+		seen[lower] = struct{}{}
+		headers = append(headers, h)
+	}
+
+	_, hasHostHeader := seen["host"]
 	if !hasHostHeader {
 		hostVal := "$host"
 		if useForwardedHeaders {
@@ -2198,7 +2229,7 @@ func generateProxyAddHeaders(proxy *conf_v1.ActionProxy) []version2.AddHeader {
 
 func generateLocationForProxying(path string, upstreamName string, upstream conf_v1.Upstream,
 	cfgParams *ConfigParams, errorPages []conf_v1.ErrorPage, internal bool, errPageIndex int,
-	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string,
+	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string, policyHeaders []version2.Header,
 ) version2.Location {
 	return version2.Location{
 		Path:                     generatePath(path),
@@ -2220,7 +2251,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
 		ProxyInterceptErrors:     generateProxyInterceptErrors(errorPages),
 		ProxyPassRequestHeaders:  generateProxyPassRequestHeaders(proxy),
-		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders),
+		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders, policyHeaders),
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
@@ -2344,6 +2375,7 @@ func generateSplits(
 	vsrNamespace string,
 	vscWarnings Warnings,
 	WeightChangesDynamicReload bool,
+	policyHeaders []version2.Header,
 ) ([]version2.SplitClient, []version2.Location, []version2.ReturnLocation, []version2.Map, []version2.KeyValZone, []version2.KeyVal, []version2.TwoWaySplitClients) {
 	var distributions []version2.Distribution
 	var splitClients []version2.SplitClient
@@ -2408,7 +2440,7 @@ func generateSplits(
 		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
 		loc, returnLoc := generateLocation(path, upstreamName, upstream, s.Action, cfgParams, errorPages, true,
-			proxySSLName, originalPath, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+			proxySSLName, originalPath, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, policyHeaders)
 		locations = append(locations, loc)
 		if returnLoc != nil {
 			returnLocations = append(returnLocations, *returnLoc)
@@ -2435,8 +2467,9 @@ func generateDefaultSplitsConfig(
 	vsrNamespace string,
 	vscWarnings Warnings,
 	weightChangesDynamicReload bool,
+	policyHeaders []version2.Header,
 ) routingCfg {
-	scs, locs, returnLocs, maps, keyValZones, keyVals, twoWaySplitClients := generateSplits(route.Splits, upstreamNamer, crUpstreams, VariableNamer, scIndex, cfgParams, errorPages, originalPath, locSnippets, enableSnippets, retLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, weightChangesDynamicReload)
+	scs, locs, returnLocs, maps, keyValZones, keyVals, twoWaySplitClients := generateSplits(route.Splits, upstreamNamer, crUpstreams, VariableNamer, scIndex, cfgParams, errorPages, originalPath, locSnippets, enableSnippets, retLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, weightChangesDynamicReload, policyHeaders)
 
 	var irl version2.InternalRedirectLocation
 	if weightChangesDynamicReload && len(route.Splits) == 2 {
@@ -2523,7 +2556,7 @@ func generateSplitsForWeightChangesDynamicReload(splits []conf_v1.Split, scIndex
 
 func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, crUpstreams map[string]conf_v1.Upstream,
 	VariableNamer *VariableNamer, index int, scIndex int, cfgParams *ConfigParams, errorPages errorPageDetails,
-	locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string, vsrNamespace string, vscWarnings Warnings, weightChangesDynamicReload bool,
+	locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string, vsrNamespace string, vscWarnings Warnings, weightChangesDynamicReload bool, policyHeaders []version2.Header,
 ) routingCfg {
 	// Generate maps
 	var maps []version2.Map
@@ -2628,6 +2661,7 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 				vsrNamespace,
 				vscWarnings,
 				weightChangesDynamicReload,
+				policyHeaders,
 			)
 			scLocalIndex += len(scs)
 			splitClients = append(splitClients, scs...)
@@ -2645,7 +2679,7 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 			newRetLocIndex := retLocIndex + len(returnLocations)
 			loc, returnLoc := generateLocation(path, upstreamName, upstream, m.Action, cfgParams, errorPages, true,
-				proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+				proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, policyHeaders)
 			locations = append(locations, loc)
 			if returnLoc != nil {
 				returnLocations = append(returnLocations, *returnLoc)
@@ -2673,6 +2707,7 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 			vsrNamespace,
 			vscWarnings,
 			weightChangesDynamicReload,
+			policyHeaders,
 		)
 		splitClients = append(splitClients, scs...)
 		locations = append(locations, locs...)
@@ -2689,7 +2724,7 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
 		loc, returnLoc := generateLocation(path, upstreamName, upstream, route.Action, cfgParams, errorPages, true,
-			proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+			proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, policyHeaders)
 		locations = append(locations, loc)
 		if returnLoc != nil {
 			returnLocations = append(returnLocations, *returnLoc)

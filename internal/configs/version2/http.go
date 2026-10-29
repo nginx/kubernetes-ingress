@@ -277,6 +277,8 @@ type Location struct {
 	ProxyHTTPVersion           string
 	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
 	ACMEChallenge bool
+	// JWTRequireReset clears an inherited auth_jwt_require, which has no "off" value.
+	JWTRequireReset string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -520,12 +522,16 @@ func (rl LimitReqOptions) String() string {
 
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
-	Key      string
-	Secret   string
-	Realm    string
-	Token    string
-	KeyCache string
-	JwksURI  JwksURI
+	Key              string
+	Secret           string
+	Realm            string
+	Token            string
+	KeyCache         string
+	JwksURI          JwksURI
+	RequireVariable  string
+	RequireErrorCode int
+	// ProxySetHeaders are merged into the locations' headers by the generator, not rendered from here.
+	ProxySetHeaders []Header
 }
 
 // JwksURI defines the components of a JwksURI

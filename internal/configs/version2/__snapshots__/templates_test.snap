@@ -3216,6 +3216,54 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersPlusTemplateWithJWTAuthorizationMaps - 1]
+
+auth_jwt_claim_set $jwt_default_cafe_vs_iss iss;
+auth_jwt_claim_set $jwt_default_cafe_vs_realm_access_roles realm_access roles;
+map $jwt_default_cafe_vs_iss $jwt_authz_default_cafe_vs_default_jwt_authz_r0_c0 {
+    "" 0;
+    "~^(https://idp\\.example\\.com)\\z" 1;
+    default 0;
+}
+map $jwt_default_cafe_vs_iss $jwt_authz_default_cafe_vs_default_jwt_authz_r0_c0_hdr {
+    "~[\r\n]" "";
+    default $jwt_default_cafe_vs_iss;
+}
+map $jwt_default_cafe_vs_realm_access_roles $jwt_authz_default_cafe_vs_default_jwt_authz_r0_c1 {
+    "" 0;
+    "~(^|[ ,])(admin|a\"b)([ ,]|\\z)" 1;
+    default 0;
+}
+map $jwt_authz_default_cafe_vs_default_jwt_authz_r0_c0$jwt_authz_default_cafe_vs_default_jwt_authz_r0_c1 $jwt_authz_default_cafe_vs_default_jwt_authz_r0 {
+    "~1" 1;
+    default 0;
+}
+map $jwt_authz_default_cafe_vs_default_jwt_authz_r0 $jwt_authz_default_cafe_vs_default_jwt_authz {
+    "~^1+$" 1;
+    default 0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "";
+    set $resource_type "virtualserver";
+    set $resource_name "default/cafe";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersProxyHTTPVersion - 1]
 
 upstream test-upstream {
