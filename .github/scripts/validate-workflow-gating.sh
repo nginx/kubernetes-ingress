@@ -3,18 +3,18 @@ set -euo pipefail
 
 # This is called from the lint-format.yml workflow file.
 #
-# Purpose of this is to make sure that every job in workflow files that don't start with
-# "mirror-" have a gate that only runs them on the main repository (nginx/kubernetes-ingress).
+# Purpose of this is to make sure that every job in a workflow file has a gate that
+# states, deliberately, which repository the job runs in: the public repository
+# (nginx/kubernetes-ingress), the internal repository (nginx/kubernetes-ingress-internal),
+# or both. Both repositories run the same workflow files, so the gate is what stops a
+# job from running in the wrong one, or in a fork.
 #
-# Workflow files starting with "mirror-" will be used in mirror repositories where slightly
-# different workflows are needed due to access requirements and different jobs. Separating
-# them into different files allows us to keep various branches up to date where we don't need
-# to deal with merge conflicts in the workflow files.
-#
-# A job's `if:` condition is "correctly gated" when it has one of these shapes:
+# A job's `if:` condition is "correctly gated" when it starts with one of these gates,
+# optionally followed by `&& ( <extra conditions> )`:
 #
 #     github.repository == 'nginx/kubernetes-ingress'
-#     github.repository == 'nginx/kubernetes-ingress' && ( <extra conditions> )
+#     github.repository == 'nginx/kubernetes-ingress-internal'
+#     (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
 #
 # The gate must come first, and any extra conditions must be wrapped in a single
 # balanced parenthesis group. GitHub Actions gives `&&` higher precedence than
@@ -55,19 +55,27 @@ validate_if_condition() {
     return 1
   fi
 
-  # <gate>  or  <gate> && ( ... ). The alternation forces the quotes to match
-  # (there is no mixed '..." branch). Capture group 2 is the optional tail and
-  # group 3 is the tail's inner parenthesised content.
-  local gate_re='^github\.repository == ('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress"|'\''nginx/kubernetes-ingress-internal'\''|"nginx/kubernetes-ingress-internal")( && \((.+)\))?$'
+  # <gate>  or  <gate> && ( ... ). The alternations force the quotes to match
+  # (there is no mixed '..." branch). The dual-repo gate must be parenthesised,
+  # otherwise `&&` would bind tighter than its `||`. Capture group 5 is the
+  # optional tail and group 6 is the tail's inner parenthesised content.
+  local pub='('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress")'
+  local int='('\''nginx/kubernetes-ingress-internal'\''|"nginx/kubernetes-ingress-internal")'
+  local single_gate='github\.repository == ('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress"|'\''nginx/kubernetes-ingress-internal'\''|"nginx/kubernetes-ingress-internal")'
+  local dual_gate='\(github\.repository == '"$pub"' \|\| github\.repository == '"$int"'\)'
+  local gate_re='^('"$single_gate"'|'"$dual_gate"')( && \((.+)\))?$'
   if [[ ! "$cond" =~ $gate_re ]]; then
     echo "  - Job '$job_name' is not correctly gated: '$cond'"
-    echo "    Expected: github.repository == 'nginx/kubernetes-ingress'  [ && ( ... ) ]"
+    echo "    Expected one of these, optionally followed by  && ( ... ):"
+    echo "      github.repository == 'nginx/kubernetes-ingress'"
+    echo "      github.repository == 'nginx/kubernetes-ingress-internal'"
+    echo "      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')"
     return 1
   fi
 
   # If there is a parenthesised tail, it must be one balanced group so that a
   # top-level '||' cannot bypass the gate (rejects e.g. "gate && (a) || (b)").
-  if [ -n "${BASH_REMATCH[2]}" ] && ! is_single_group "(${BASH_REMATCH[3]})"; then
+  if [ -n "${BASH_REMATCH[5]}" ] && ! is_single_group "(${BASH_REMATCH[6]})"; then
     echo "  - Job '$job_name' extra conditions must be a single ( ... ) group: '$cond'"
     return 1
   fi
@@ -119,10 +127,10 @@ main() {
   done
 
   if [ "$errors" -ne 0 ]; then
-    echo "❌ Workflow validation failed! All public jobs must have strict repository gating."
+    echo "❌ Workflow validation failed! All jobs must have strict repository gating."
     exit 1
   else
-    echo "✅ All public workflows are successfully gated."
+    echo "✅ All workflows are successfully gated."
     exit 0
   fi
 }
