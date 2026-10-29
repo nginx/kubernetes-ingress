@@ -318,4 +318,4 @@ def wait_for_plm_bundle_ready(custom_objects: CustomObjectsApi, namespace, plura
             print(f"{plural} {namespace}/{name} bundle is ready: {bundle.get('location')}")
             return resource
         wait_before_test(5)
-    pytest.fail(f"{plural} {namespace}/{name} bundle not ready after {timeout}s. Last bundle status: {bundle}")
+    raise TimeoutError(f"{plural} {namespace}/{name} bundle not ready after {timeout}s. Last bundle status: {bundle}")
