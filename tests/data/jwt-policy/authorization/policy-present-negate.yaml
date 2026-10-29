@@ -1,0 +1,21 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-present-negate
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - require: All
+        claims:
+        - name: iss
+          values: ["https://login.example.com"]
+        - name: act
+          match: Present
+          negate: true
+        - name: role
+          values: [guest]
+          negate: true

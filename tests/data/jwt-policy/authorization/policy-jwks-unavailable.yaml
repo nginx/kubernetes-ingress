@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-jwks-unavailable
+spec:
+  jwt:
+    realm: MyProductAPI
+    jwksURI: http://jwks-unavailable.invalid:8080/keys
+    keyCache: 1h
+    token: $http_token
+    authorization:
+      rules:
+      - claims:
+        - name: role
+          values: [admin]
