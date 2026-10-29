@@ -358,6 +358,7 @@ func main() {
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
+		BatchReloadWindow:            time.Duration(*batchReloadWindow) * time.Millisecond,
 		Zone:                         controllerZone,
 		NodeName:                     controllerNodeName,
 		TopologyAwareRouting:         *enableTopologyAwareRouting,
