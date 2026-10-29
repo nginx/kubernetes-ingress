@@ -2360,7 +2360,7 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       - name: waf-enforcer
-        image: private-registry.nginx.com/nap/waf-enforcer:5.16.0
+        image: private-registry.nginx.com/nap/waf-enforcer:5.16.1
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -2371,7 +2371,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: private-registry.nginx.com/nap/waf-config-mgr:5.16.0
+        image: private-registry.nginx.com/nap/waf-config-mgr:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -3950,7 +3950,7 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.16.0
+        image: my.private.reg/nap/waf-enforcer:5.16.1
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -3963,7 +3963,7 @@ spec:
           - name: app-protect-ipi-db
             mountPath: /var/IpRep
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.16.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -3980,7 +3980,7 @@ spec:
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
       - name: waf-ip-intelligence
-        image: my.private.reg/nap/waf-ip-intelligence:5.16.0
+        image: my.private.reg/nap/waf-ip-intelligence:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -4550,7 +4550,7 @@ spec:
           - -agent=true
           - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.16.0
+        image: my.private.reg/nap/waf-enforcer:5.16.1
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -4561,7 +4561,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.16.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -5127,7 +5127,7 @@ spec:
           - -weight-changes-dynamic-reload=false
           - -agent=true
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.16.0
+        image: my.private.reg/nap/waf-enforcer:5.16.1
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -5138,7 +5138,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.16.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -5641,7 +5641,7 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.16.0
+        image: my.private.reg/nap/waf-enforcer:5.16.1
         imagePullPolicy: "IfNotPresent"
         resources:
             limits:
@@ -5661,7 +5661,7 @@ spec:
           - name: app-protect-ipi-db
             mountPath: /var/IpRep
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.16.0
+        image: my.private.reg/nap/waf-config-mgr:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
@@ -5685,7 +5685,7 @@ spec:
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
       - name: waf-ip-intelligence
-        image: my.private.reg/nap/waf-ip-intelligence:5.16.0
+        image: my.private.reg/nap/waf-ip-intelligence:5.16.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
             allowPrivilegeEscalation: false
