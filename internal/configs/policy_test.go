@@ -2862,6 +2862,20 @@ func TestConnectionLimitZoneName(t *testing.T) {
 			key:        "${binary_remote_addr}",
 			want:       "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr,
 		},
+		{
+			name:       "Ingress",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "ing", parentNamespace: "default", parentName: "cafe-master", ownerNamespace: "default", ownerName: "cafe-master"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_ing_default_cafe-master_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "minion",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "ing", parentNamespace: "default", parentName: "cafe-master", ownerType: "ing", ownerNamespace: "coffee", ownerName: "coffee-minion"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_ing_default_cafe-master_ing_coffee_coffee-minion_" + clKeyHashBinaryRemoteAddr,
+		},
 	}
 
 	for _, tc := range tests {
@@ -5365,6 +5379,11 @@ func TestIsPolicySupportedOnIngress(t *testing.T) {
 		{
 			name:     "CORS is supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{CORS: &conf_v1.CORS{}}},
+			expected: true,
+		},
+		{
+			name:     "ConnectionLimit is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10}}},
 			expected: true,
 		},
 		{

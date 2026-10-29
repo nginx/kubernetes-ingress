@@ -595,6 +595,208 @@ func getHeaderValue(headers []version2.AddHeader, headerName string) (string, bo
 	return "", false
 }
 
+func limitConnZoneNames(zones []version2.LimitConnZone) []string {
+	var names []string
+	for _, z := range zones {
+		names = append(names, z.ZoneName)
+	}
+	return names
+}
+
+func TestGenerateNginxCfgForConnectionLimitPolicy(t *testing.T) {
+	t.Parallel()
+
+	perClient := conf_v1.ConnectionLimit{Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error"}
+	dryRun := perClient
+	dryRun.DryRun = true
+	scaled := perClient
+	scaled.Connections = 5
+	scaled.Scale = true
+
+	perClientZone := "pol_cl_default_per-client_ing_default_cafe-ingress_" + clKeyHashBinaryRemoteAddr
+	dryRunZone := "pol_cl_default_dry-run_ing_default_cafe-ingress_" + clKeyHashBinaryRemoteAddr
+	wantOptions := version2.LimitConnOptions{LogLevel: "error", RejectCode: 503}
+
+	tests := []struct {
+		name         string
+		policies     []*conf_v1.Policy
+		replicas     int
+		wantZones    []string
+		wantConns    []version2.LimitConn
+		wantWarnings int
+	}{
+		{
+			name:      "one Policy on two hosts",
+			policies:  []*conf_v1.Policy{connectionLimitPolicy("per-client", perClient)},
+			wantZones: []string{perClientZone},
+			wantConns: []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+		},
+		{
+			name:         "different block options warn once",
+			policies:     []*conf_v1.Policy{connectionLimitPolicy("per-client", perClient), connectionLimitPolicy("dry-run", dryRun)},
+			wantZones:    []string{perClientZone, dryRunZone},
+			wantConns:    []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}, {ZoneName: dryRunZone, Connections: 10}},
+			wantWarnings: 1,
+		},
+		{
+			name:      "scaled",
+			policies:  []*conf_v1.Policy{connectionLimitPolicy("per-client", scaled)},
+			replicas:  2,
+			wantZones: []string{perClientZone},
+			wantConns: []version2.LimitConn{{ZoneName: perClientZone, Connections: 2}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := createCafeIngressEx()
+			secondHost := *ingEx.Ingress.Spec.Rules[0].DeepCopy()
+			secondHost.Host = "cafe-2.example.com"
+			ingEx.Ingress.Spec.Rules = append(ingEx.Ingress.Spec.Rules, secondHost)
+			ingEx.ValidHosts["cafe-2.example.com"] = true
+			ingEx.Policies = make(map[string]*conf_v1.Policy)
+			var names []string
+			for _, p := range tc.policies {
+				ingEx.Policies["default/"+p.Name] = p
+				names = append(names, p.Name)
+			}
+			ingEx.Ingress.Annotations["nginx.org/policies"] = strings.Join(names, ",")
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:              &StaticConfigParams{},
+				ingEx:                     &ingEx,
+				BaseCfgParams:             NewDefaultConfigParams(context.Background(), false),
+				ingressControllerReplicas: tc.replicas,
+			})
+
+			if diff := cmp.Diff(tc.wantZones, limitConnZoneNames(result.LimitConnZones)); diff != "" {
+				t.Errorf("zones mismatch (-want +got):\n%s", diff)
+			}
+			if len(result.Servers) != 2 {
+				t.Fatalf("got %d servers, want 2", len(result.Servers))
+			}
+			for _, server := range result.Servers {
+				if diff := cmp.Diff(tc.wantConns, server.LimitConns); diff != "" {
+					t.Errorf("server %s limits mismatch (-want +got):\n%s", server.Name, diff)
+				}
+				if server.LimitConnOptions != wantOptions {
+					t.Errorf("server %s options = %+v, want %+v", server.Name, server.LimitConnOptions, wantOptions)
+				}
+				for _, loc := range server.Locations {
+					if loc.LimitConns != nil {
+						t.Errorf("server %s location %s has limits %v, want none", server.Name, loc.Path, loc.LimitConns)
+					}
+				}
+			}
+			if got := warnings[ingEx.Ingress]; len(got) != tc.wantWarnings {
+				t.Errorf("got warnings %v, want %d", got, tc.wantWarnings)
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesConnectionLimitPolicy(t *testing.T) {
+	t.Parallel()
+
+	perClient := conf_v1.ConnectionLimit{Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error"}
+	strict := conf_v1.ConnectionLimit{Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "1m", RejectCode: new(429), LogLevel: "warn", DryRun: true}
+
+	masterZone := "pol_cl_default_per-client_ing_default_cafe-ingress-master_" + clKeyHashBinaryRemoteAddr
+	coffeeOwner := "_ing_default_cafe-ingress-master_ing_default_cafe-ingress-coffee-minion_" + clKeyHashBinaryRemoteAddr
+	const challengePath = "/.well-known/acme-challenge/tok"
+
+	tests := []struct {
+		name            string
+		coffeePolicy    *conf_v1.Policy
+		wantCoffeeZone  string
+		wantCoffeeConns int
+		wantCoffeeOpts  version2.LimitConnOptions
+	}{
+		{
+			name:            "minion Policy replaces the master limit",
+			coffeePolicy:    connectionLimitPolicy("coffee-strict", strict),
+			wantCoffeeZone:  "pol_cl_default_coffee-strict" + coffeeOwner,
+			wantCoffeeConns: 2,
+			wantCoffeeOpts:  version2.LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+		},
+		{
+			name:            "same Policy on master and minion counts apart",
+			coffeePolicy:    connectionLimitPolicy("per-client", perClient),
+			wantCoffeeZone:  "pol_cl_default_per-client" + coffeeOwner,
+			wantCoffeeConns: 10,
+			wantCoffeeOpts:  version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations["nginx.org/policies"] = "per-client"
+			mergeableIngresses.Master.Policies = map[string]*conf_v1.Policy{"default/per-client": connectionLimitPolicy("per-client", perClient)}
+
+			coffee := mergeableIngresses.Minions[0]
+			coffee.Ingress.Annotations["nginx.org/policies"] = tc.coffeePolicy.Name
+			coffee.Policies = map[string]*conf_v1.Policy{"default/" + tc.coffeePolicy.Name: tc.coffeePolicy}
+			coffee.Ingress.Spec.Rules[0].HTTP.Paths = append(coffee.Ingress.Spec.Rules[0].HTTP.Paths, networking.HTTPIngressPath{
+				Path: challengePath,
+				Backend: networking.IngressBackend{
+					Service: &networking.IngressServiceBackend{Name: "cm-acme-http-solver-abcde", Port: networking.ServiceBackendPort{Number: 8089}},
+				},
+			})
+			coffee.ValidMinionPaths[challengePath] = true
+
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs: mergeableIngresses,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+				staticParams:  &StaticConfigParams{},
+			})
+			if len(warnings) != 0 {
+				t.Fatalf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+			}
+
+			if diff := cmp.Diff([]string{masterZone, tc.wantCoffeeZone}, limitConnZoneNames(result.LimitConnZones)); diff != "" {
+				t.Errorf("zones mismatch (-want +got):\n%s", diff)
+			}
+			server := result.Servers[0]
+			if diff := cmp.Diff([]version2.LimitConn{{ZoneName: masterZone, Connections: 10}}, server.LimitConns); diff != "" {
+				t.Errorf("master server limits mismatch (-want +got):\n%s", diff)
+			}
+
+			challenges := 0
+			for _, loc := range server.Locations {
+				switch {
+				case loc.ACMEChallenge:
+					challenges++
+					if loc.LimitConns != nil {
+						t.Errorf("challenge location %s has limits %v, want none", loc.Path, loc.LimitConns)
+					}
+				case loc.MinionIngress.Name == "cafe-ingress-tea-minion":
+					if loc.LimitConns != nil {
+						t.Errorf("tea location %s has limits %v, want none", loc.Path, loc.LimitConns)
+					}
+				case loc.MinionIngress.Name == "cafe-ingress-coffee-minion":
+					want := []version2.LimitConn{{ZoneName: tc.wantCoffeeZone, Connections: tc.wantCoffeeConns}}
+					if diff := cmp.Diff(want, loc.LimitConns); diff != "" {
+						t.Errorf("coffee limits mismatch (-want +got):\n%s", diff)
+					}
+					if loc.LimitConnOptions != tc.wantCoffeeOpts {
+						t.Errorf("coffee options = %+v, want %+v", loc.LimitConnOptions, tc.wantCoffeeOpts)
+					}
+				default:
+					t.Errorf("unexpected location %s", loc.Path)
+				}
+			}
+			if challenges != 1 {
+				t.Errorf("got %d challenge locations, want 1", challenges)
+			}
+		})
+	}
+}
+
 func TestFilterIngressPolicyRefs(t *testing.T) {
 	t.Parallel()
 

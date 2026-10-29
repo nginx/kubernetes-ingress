@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -9550,6 +9551,157 @@ func TestExecuteTemplatesForIngressRedirectNoChallengeUnchanged(t *testing.T) {
 			assertCount(t, conf, "auth_basic off;", 0)
 			assertCount(t, conf, "if ($scheme = http) {\n\t\treturn 301 https://$host:443$request_uri;\n\t}", 1)
 			assertCount(t, conf, "if ($http_x_forwarded_proto = 'http') {\n\t\treturn 301 https://$host$request_uri;\n\t}", 1)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+const (
+	clZoneCafePerClient = "pol_cl_default_per-client_ing_default_cafe-ingress_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+	clZoneCafeTotal     = "pol_cl_default_downloads-total_ing_default_cafe-ingress_11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7"
+	clZoneCafeMaster    = "pol_cl_default_per-client_ing_default_cafe-master_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+	clZoneCoffeeMinion  = "pol_cl_coffee_coffee-strict_ing_default_cafe-master_ing_coffee_coffee-minion_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+)
+
+func connectionLimitIngressLocation(path string) Location {
+	return Location{
+		Path:                path,
+		ServiceName:         strings.TrimPrefix(path, "/") + "-svc",
+		Upstream:            testUpstream,
+		ProxyConnectTimeout: "10s",
+		ProxyReadTimeout:    "10s",
+		ProxySendTimeout:    "10s",
+		ClientMaxBodySize:   "1m",
+		ProxyPass:           "http://test",
+	}
+}
+
+var ingressCfgWithConnectionLimit = IngressNginxConfig{
+	Ingress: Ingress{Name: "cafe-ingress", Namespace: "default"},
+	Servers: []Server{
+		{
+			Name:             "cafe.example.com",
+			ServerTokens:     "off",
+			StatusZone:       "cafe.example.com",
+			LimitConnOptions: version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
+			LimitConns: []version2.LimitConn{
+				{ZoneName: clZoneCafePerClient, Connections: 10},
+				{ZoneName: clZoneCafeTotal, Connections: 200},
+			},
+			Locations: []Location{connectionLimitIngressLocation("/tea")},
+		},
+	},
+	LimitConnZones: []version2.LimitConnZone{
+		{Key: "${binary_remote_addr}", ZoneName: clZoneCafePerClient, ZoneSize: "10m"},
+		{Key: "total", ZoneName: clZoneCafeTotal, ZoneSize: "10m"},
+	},
+}
+
+// ingressCfgWithConnectionLimitMinions is the merged configuration of a master with a limit, a minion
+// with its own limit, a minion without one, and an ACME challenge location.
+var ingressCfgWithConnectionLimitMinions = func() IngressNginxConfig {
+	coffee := connectionLimitIngressLocation("/coffee")
+	coffee.MinionIngress = &Ingress{Name: "coffee-minion", Namespace: "coffee"}
+	coffee.LimitConnOptions = version2.LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429}
+	coffee.LimitConns = []version2.LimitConn{{ZoneName: clZoneCoffeeMinion, Connections: 2}}
+
+	tea := connectionLimitIngressLocation("/tea")
+	tea.MinionIngress = &Ingress{Name: "tea-minion", Namespace: "tea"}
+	tea.LimitConnOptions = version2.LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429}
+
+	return IngressNginxConfig{
+		Ingress: Ingress{Name: "cafe-master", Namespace: "default", Annotations: map[string]string{"nginx.org/mergeable-ingress-type": "master"}},
+		Servers: []Server{
+			{
+				Name:                "cafe.example.com",
+				ServerTokens:        "off",
+				StatusZone:          "cafe.example.com",
+				ACMEChallengeActive: true,
+				LimitConnOptions:    version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
+				LimitConns:          []version2.LimitConn{{ZoneName: clZoneCafeMaster, Connections: 10}},
+				Locations:           []Location{coffee, tea, acmeChallengeIngressLocation()},
+			},
+		},
+		LimitConnZones: []version2.LimitConnZone{
+			{Key: "${binary_remote_addr}", ZoneName: clZoneCafeMaster, ZoneSize: "10m"},
+			{Key: "${binary_remote_addr}", ZoneName: clZoneCoffeeMinion, ZoneSize: "1m"},
+		},
+	}
+}()
+
+// serverDirectives returns the text of the first server block up to its first location.
+func serverDirectives(t *testing.T, conf string) string {
+	t.Helper()
+
+	start := strings.Index(conf, "server {")
+	end := strings.Index(conf, "\tlocation ")
+	if start == -1 || end < start {
+		t.Fatalf("no server block with a location in generated config:\n%s", conf)
+	}
+	return conf[start:end]
+}
+
+// assertLimitConnLines checks that the limit_conn directives of block, other than limit_conn_zone, are exactly want.
+func assertLimitConnLines(t *testing.T, name, block string, want []string) {
+	t.Helper()
+
+	var got []string
+	for _, line := range strings.Split(block, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "limit_conn") && !strings.HasPrefix(line, "limit_conn_zone") {
+			got = append(got, line)
+		}
+	}
+	if !slices.Equal(want, got) {
+		t.Errorf("%s: want limit_conn directives %q, got %q", name, want, got)
+	}
+}
+
+func TestExecuteTemplatesForIngressWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			conf := executeIngressTmpl(t, tt.newTmpl(t), ingressCfgWithConnectionLimit)
+
+			assertCount(t, conf, "limit_conn_zone ${binary_remote_addr} zone="+clZoneCafePerClient+":10m;", 1)
+			assertCount(t, conf, "limit_conn_zone total zone="+clZoneCafeTotal+":10m;", 1)
+			assertLimitConnLines(t, "server", serverDirectives(t, conf), []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZoneCafePerClient + " 10;",
+				"limit_conn " + clZoneCafeTotal + " 200;",
+			})
+			assertLimitConnLines(t, "/tea", locationBlock(t, conf, `location "/tea" {`), nil)
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+func TestExecuteTemplatesForIngressWithConnectionLimitMinions(t *testing.T) {
+	t.Parallel()
+	for _, tt := range ingressTemplates {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			conf := executeIngressTmpl(t, tt.newTmpl(t), ingressCfgWithConnectionLimitMinions)
+
+			assertCount(t, conf, "limit_conn_zone ${binary_remote_addr} zone="+clZoneCafeMaster+":10m;", 1)
+			assertCount(t, conf, "limit_conn_zone ${binary_remote_addr} zone="+clZoneCoffeeMinion+":1m;", 1)
+			assertLimitConnLines(t, "server", serverDirectives(t, conf), []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZoneCafeMaster + " 10;",
+			})
+			assertLimitConnLines(t, "/coffee", locationBlock(t, conf, `location "/coffee" {`), []string{
+				"limit_conn_dry_run on;",
+				"limit_conn_log_level warn;",
+				"limit_conn_status 429;",
+				"limit_conn " + clZoneCoffeeMinion + " 2;",
+			})
+			assertLimitConnLines(t, "/tea", locationBlock(t, conf, `location "/tea" {`), nil)
+			assertLimitConnLines(t, "challenge", locationBlock(t, conf, acmeChallengeTestHeader), []string{"limit_conn_dry_run on;"})
 			snaps.MatchSnapshot(t, conf)
 		})
 	}

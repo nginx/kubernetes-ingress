@@ -349,6 +349,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		if ncp.isMinion {
 			ownerDetails.parentName = ncp.mergeableIngs.Master.Ingress.Name
 			ownerDetails.parentNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
+			ownerDetails.ownerType = "ing"
 			pathContext = minionContext
 		}
 		oidcNativeLocations := ncp.oidcNativeLocations
@@ -447,6 +448,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			WAF:                    policyCfg.WAF,
 			EgressMTLS:             policyCfg.EgressMTLS,
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
+			LimitConnOptions:       policyCfg.ConnectionLimit.Options,
+			LimitConns:             policyCfg.ConnectionLimit.Conns,
 		}
 
 		if isDefaultServer {
@@ -665,6 +668,12 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					loc.PoliciesErrorReturn = policyCfg.ErrorReturn
 				}
 
+				// An ACME challenge location keeps the server's limit, which the templates switch to dry run.
+				if !loc.ACMEChallenge {
+					loc.LimitConnOptions = policyCfg.ConnectionLimit.Options
+					loc.LimitConns = policyCfg.ConnectionLimit.Conns
+				}
+
 				if policyCfg.ExternalAuth != nil {
 					exAuth := policyCfg.ExternalAuth
 					authUps, authLocs, portWarning := resolveExternalAuth(exAuth, ncp.ingEx.Ingress, ncp.ingEx.Endpoints, &cfgParams)
@@ -857,6 +866,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
+		LimitConnZones:          policyCfg.ConnectionLimit.Zones,
 		Maps:                    removeDuplicateMaps(maps),
 		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 		HTTP2:                   ncp.BaseCfgParams.HTTP2,
@@ -1397,6 +1407,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	var upstreams []version1.Upstream
 	healthChecks := make(map[string]version1.HealthCheck)
 	var limitReqZones []version1.LimitReqZone
+	var limitConnZones []version2.LimitConnZone
 	var maps []version2.Map
 	var oidcProviders []version2.OIDCProvider
 
@@ -1444,6 +1455,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	upstreams = append(upstreams, masterNginxCfg.Upstreams...)
 	maps = append(maps, masterNginxCfg.Maps...)
+	limitConnZones = append(limitConnZones, masterNginxCfg.LimitConnZones...)
 
 	if masterNginxCfg.OIDCProviders != nil {
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
@@ -1575,6 +1587,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 		upstreams = append(upstreams, minionNginxCfg.Upstreams...)
 		limitReqZones = append(limitReqZones, minionNginxCfg.LimitReqZones...)
+		limitConnZones = append(limitConnZones, minionNginxCfg.LimitConnZones...)
 		maps = append(maps, minionNginxCfg.Maps...)
 	}
 
@@ -1624,6 +1637,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
+		LimitConnZones:          removeDuplicateLimitConnZones(limitConnZones),
 		Maps:                    removeDuplicateMaps(maps),
 		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 		HTTP2:                   ncp.BaseCfgParams.HTTP2,
