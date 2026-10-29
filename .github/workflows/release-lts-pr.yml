@@ -1,17 +1,13 @@
 name: Release LTS PR
-run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Release NIC LTS Docs ${{ inputs.lts_version }} by @${{ github.actor }}
+
+# Run from the LTS release branch (e.g. release-2026-lts) via the "Use workflow from"
+# dropdown, after the version-bump PR has merged. NIC LTS and Helm versions are read from
+# .github/data/version.txt; previous versions come from the nearest lower LTS release tag.
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Release NIC LTS Docs from ${{ github.ref_name }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
     inputs:
-      lts_version:
-        description: "NIC LTS version to release"
-        required: true
-        default: "2026-lts-r7"
-      helm_version:
-        description: "Helm Chart version to release"
-        required: true
-        default: "2026.0.6"
       k8s_versions:
         description: "Kubernetes versions this release was tested on"
         required: true
@@ -50,27 +46,26 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
-      - name: Parse versions
-        id: parse
+      - name: Check release branch
         run: |
-          # Trim whitespace from parsed values
-          new_version=$(echo "${{ inputs.lts_version }}" | xargs)
-          new_helm_version=$(echo "${{ inputs.helm_version }}" | xargs)
-          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
-          echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
-
-      - name: Branch
-        id: branch
-        run: |
-          version=${{ steps.parse.outputs.new_version }}
-          version=${version%-r*}
-          echo "branch=release-$version" >> $GITHUB_OUTPUT
+          if [[ ! "${REF_NAME}" =~ ^release-[0-9]{4}-lts$ ]]; then
+            echo "::error::Run this workflow from an LTS release branch (e.g. release-2026-lts), not '${REF_NAME}'"
+            exit 1
+          fi
+        env:
+          REF_NAME: ${{ github.ref_name }}
 
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.branch.outputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Read release version
+        id: version
+        run: |
+          new_version=$(sed -n 's/^IC_VERSION=//p' .github/data/version.txt | tr -d '[:space:]')
+          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
 
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
@@ -116,13 +111,11 @@ jobs:
 
       - name: Replace
         run: |
-          .github/scripts/release-version-update.sh \
-            ${{ steps.parse.outputs.new_version }} \
-            ${{ steps.parse.outputs.new_helm_version }}
+          .github/scripts/release-version-update.sh
         env:
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
-          LTS: true
+          LTS: "true"
           K8S_VERSIONS: ${{ inputs.k8s_versions }}
           NGINX_VERSION: ${{ inputs.nginx_plus_version }}
           RELEASE_DATE: ${{ inputs.release_date }}
@@ -131,12 +124,12 @@ jobs:
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.app_token.outputs.token }}
-          commit-message: Release ${{ steps.parse.outputs.new_version }}
-          title: Release ${{ steps.parse.outputs.new_version }}
-          branch: docs/release-${{ steps.parse.outputs.new_version }}
+          commit-message: Release ${{ steps.version.outputs.new_version }}
+          title: Release ${{ steps.version.outputs.new_version }}
+          branch: docs/release-${{ steps.version.outputs.new_version }}
           author: nginx-bot <integrations@nginx.com>
           body: |
-            This automated PR updates the docs for ${{ steps.parse.outputs.new_version }} release.
+            This automated PR updates the docs for ${{ steps.version.outputs.new_version }} release.
         if: ${{ ! inputs.dry_run }}
 
   docs-release-pr:
@@ -148,26 +141,19 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
-      - name: Branch
-        id: branch
+      - name: Check release branch
         run: |
-          version=$(echo "${{ inputs.lts_version }}" | xargs)
-          version=${version%-r*}
-          echo "branch=release-${version}" >> $GITHUB_OUTPUT
+          if [[ ! "${REF_NAME}" =~ ^release-[0-9]{4}-lts$ ]]; then
+            echo "::error::Run this workflow from an LTS release branch (e.g. release-2026-lts), not '${REF_NAME}'"
+            exit 1
+          fi
+        env:
+          REF_NAME: ${{ github.ref_name }}
 
       - name: Checkout NIC Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.branch.outputs.branch }}
-
-      - name: Parse versions
-        id: parse
-        run: |
-          # Trim whitespace from parsed values
-          new_version=$(echo "${{ inputs.lts_version }}" | xargs)
-          new_helm_version=$(echo "${{ inputs.helm_version }}" | xargs)
-          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
-          echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
+          fetch-depth: 0
 
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
@@ -210,16 +196,14 @@ jobs:
       - name: Update Documentation Versions
         run: |
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
-          .github/scripts/release-docs.sh \
-            "${{ steps.parse.outputs.new_version }}" \
-            "${{ steps.parse.outputs.new_helm_version }}" \
-            "${{ inputs.k8s_versions }}" \
-            "${{ inputs.nginx_plus_version }}" \
-            "${{ inputs.release_date }}"
+          .github/scripts/release-docs.sh "${K8S_VERSIONS}" "${NGINX_VERSION}" "${RELEASE_DATE}"
         env:
           GITHUB_USERNAME: nginx-bot
           GITHUB_EMAIL: integrations@nginx.com
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
-          LTS: 'true'
+          LTS: "true"
+          K8S_VERSIONS: ${{ inputs.k8s_versions }}
+          NGINX_VERSION: ${{ inputs.nginx_plus_version }}
+          RELEASE_DATE: ${{ inputs.release_date }}

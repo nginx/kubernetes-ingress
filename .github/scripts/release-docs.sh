@@ -12,112 +12,76 @@ GITHUB_USERNAME=${GITHUB_USERNAME:-""}
 GITHUB_EMAIL=${GITHUB_EMAIL:-""}
 NEW_RELEASE_BRANCH=${NEW_RELEASE_BRANCH:-"nic-release-next"}
 PATCH_RELEASE_BRANCH=${PATCH_RELEASE_BRANCH:-"nic-patch-next"}
-LTS=${LTS:-"false"}
-if [ "${LTS}" == "false" ]; then
-    CHANGELOG_DIR=${CHANGELOG_DIR:-"content/nic/changelog"}
-else
-    CHANGELOG_DIR=${CHANGELOG_DIR:-"content/nic/lts"}
-fi
 export GH_TOKEN=${GITHUB_TOKEN:-""}
-
-usage() {
-    if [ "${LTS}" != "false" ]; then
-        echo "Usage: LTS=true $0 <lts_version> <helm_chart_version> <k8s_versions> <nginx_version> <release_date>"
-    else
-        echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
-    fi
-    exit 1
-
-}
-
- validate_format() {
-    local label="$1" value="$2" pattern="$3" example="$4"
-    if [[ ! "${value}" =~ ${pattern} ]]; then
-        echo "ERROR: Invalid ${label}: '${value}'. Expected format like '${example}'. (Pattern: ${pattern})"
-        exit 1
-    fi
-}
-
- # clone local doc repo
- # if branch for the release doesnt exist, create it, otherwise checkout
-
 DOCS_FOLDER=${TMPDIR}/documentation
 
-if [ "${LTS}" != "false" ]; then
-    if [ $# -eq 5 ]; then
-        source "${ROOTDIR}/.github/data/version.txt"
-        ic_version=$1
-        previous_version="${IC_VERSION}"
-        helm_chart_version=$2
-        k8s_versions=$3
-        nginx_version=$4
-        release_date=$5
-    elif [ $# -eq 6 ]; then
-        ic_version=$1
-        previous_version=$2
-        helm_chart_version=$3
-        k8s_versions=$4
-        nginx_version=$5
-        release_date=$6
-    else
+# shellcheck source=release-common.sh
+source "${ROOTDIR}/.github/scripts/release-common.sh"
+
+usage() {
+    echo "Run from the release branch after the version-bump PR has merged."
+    echo ""
+    echo "Usage (mainline): $0 <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version> <nap_waf_release_version>]"
+    echo "Usage (LTS):      $0 <k8s_versions> <nginx_plus_version> <release_date>"
+    echo ""
+    echo "Required env: GITHUB_TOKEN"
+    echo ""
+    echo "Optional overrides:"
+    echo "  LTS=true|false                      cross-checked against version.txt"
+    echo "  NEW_IC_VERSION, NEW_HELM_VERSION    default: .github/data/version.txt"
+    echo "  PREVIOUS_IC_VERSION                 default: nearest lower release tag"
+    exit 1
+}
+
+if [ "${1:-}" == "-h" ] || [ "${1:-}" == "--help" ]; then
+    usage
+fi
+
+# ---- Resolve versions ----
+resolve_new_versions
+resolve_lts_mode
+resolve_previous_versions ic-only
+ic_version="${new_ic_version}"
+helm_chart_version="${new_helm_chart_version}"
+previous_version="${previous_ic_version}"
+
+if [ "${LTS}" == "true" ]; then
+    CHANGELOG_DIR=${CHANGELOG_DIR:-"content/nic/lts"}
+    if [ $# -ne 3 ]; then
         usage
     fi
+    k8s_versions=$1
+    nginx_version=$2
+    release_date=$3
     operator_version=""
     NAP_WAF_VERSION=""
     NAP_WAF_RELEASE_VERSION=""
 else
-    if [ $# -eq 6 ] || [ $# -eq 8 ]; then
-        source "${ROOTDIR}/.github/data/version.txt"
-        ic_version=$1
-        previous_version="${IC_VERSION}"
-        helm_chart_version=$2
-        operator_version=$3
-        k8s_versions=$4
-        nginx_version=$5
-        release_date=$6
-        NAP_WAF_VERSION=${7:-}
-        NAP_WAF_RELEASE_VERSION=${8:-}
-
-    elif [ $# -eq 7 ] || [ $# -eq 9 ]; then
-        ic_version=$1
-        previous_version=$2
-        helm_chart_version=$3
-        operator_version=$4
-        k8s_versions=$5
-        nginx_version=$6
-        release_date=$7
-        NAP_WAF_VERSION=${8:-}
-        NAP_WAF_RELEASE_VERSION=${9:-}
-    else
+    CHANGELOG_DIR=${CHANGELOG_DIR:-"content/nic/changelog"}
+    # NAP versions are both-or-neither, so only 4 or 6 args are valid
+    if [ $# -ne 4 ] && [ $# -ne 6 ]; then
         usage
     fi
+    operator_version=$1
+    k8s_versions=$2
+    nginx_version=$3
+    release_date=$4
+    NAP_WAF_VERSION=${5:-}
+    NAP_WAF_RELEASE_VERSION=${6:-}
 fi
 
-if [ -z "${ic_version}" ]; then
-    usage
-fi
-
-if [ -z "${previous_version}" ]; then
-    usage
-fi
-
-if [ -z "${helm_chart_version}" ]; then
-    usage
-fi
-
-if [ -z "${k8s_versions}" ]; then
-    usage
-fi
-
+for required in k8s_versions nginx_version release_date; do
+    if [ -z "${!required}" ]; then
+        echo "ERROR: ${required} is required"
+        usage
+    fi
+done
 if [ "${LTS}" == "false" ] && [ -z "${operator_version}" ]; then
+    echo "ERROR: operator_version is required"
     usage
 fi
-
-if [ -z "${nginx_version}" ]; then
-    usage
-fi
-
-if [ -z "${release_date}" ]; then
+if { [ -n "${NAP_WAF_VERSION}" ] && [ -z "${NAP_WAF_RELEASE_VERSION}" ]; } || { [ -z "${NAP_WAF_VERSION}" ] && [ -n "${NAP_WAF_RELEASE_VERSION}" ]; }; then
+    echo "ERROR: nap_waf_version and nap_waf_release_version must both be set or both be empty"
     usage
 fi
 
@@ -125,37 +89,21 @@ if [ -n "${NAP_WAF_VERSION}" ]; then
     echo "INFO: NAP WAF version provided: ${NAP_WAF_VERSION}"
 fi
 
-if [ "${LTS}" != "false" ]; then
-    validate_format "LTS version" "${ic_version}" '^[0-9]{4}-lts-r[0-9]+$' "2026-lts-r9"
-    validate_format "NGINX Plus version" "${nginx_version}" '^R[0-9]+(\.[0-9]+)+$' "R37.0.6.3"
-
+# ---- Validate ----
+if [ "${LTS}" == "true" ]; then
+    validate_format "LTS version" "${ic_version}" "${LTS_VERSION_PATTERN}" "2026-lts-r9"
+    validate_format "previous LTS version" "${previous_version}" "${LTS_VERSION_PATTERN}" "2026-lts-r8"
+    validate_format "NGINX Plus version" "${nginx_version}" "${NGINX_PLUS_VERSION_PATTERN}" "R37.0.6.3"
 else
-    validate_format "NIC version" "${ic_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "5.6.4"
-    validate_format "operator version" "${operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.7.4"
-    validate_format "NGINX version" "${nginx_version}" '^[0-9]+\.[0-9]+\.[0-9]+( */ *R[0-9]+(\.[0-9]+)+)?$' "1.31.6 / R37.1.1.2"
+    validate_format "NIC version" "${ic_version}" "${MAINLINE_VERSION_PATTERN}" "5.6.4"
+    validate_format "previous NIC version" "${previous_version}" "${MAINLINE_VERSION_PATTERN}" "5.6.3"
+    validate_format "operator version" "${operator_version}" "${SEMVER_PATTERN}" "3.7.4"
+    validate_format "NGINX version" "${nginx_version}" "${NGINX_VERSION_PATTERN}" "1.31.6 / R37.1.1.2"
 fi
-validate_format "Helm version" "${helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.7.3 or 2026.0.6"
-validate_format "K8s versions" "${k8s_versions}" '^[0-9]+\.[0-9]+ *- *[0-9]+\.[0-9]+$' "1.20 - 1.37"
+validate_format "Helm version" "${helm_chart_version}" "${SEMVER_PATTERN}" "2.7.3 or 2026.0.6"
+validate_format "K8s versions" "${k8s_versions}" "${K8S_VERSIONS_PATTERN}" "1.30 - 1.37"
 
-normalized_date=$(python3 -c "
-import sys
-from datetime import datetime
-for fmt in ('%d %b %Y', '%d %B %Y'):
-    try:
-        d = datetime.strptime(sys.argv[1], fmt)
-        print(d.strftime('%-d %b %Y'))
-        sys.exit(0)
-    except ValueError:
-        continue
-sys.exit(1)
-" "${release_date}" 2>/dev/null)
-
-if [ -z "${normalized_date}" ]; then
-    echo "ERROR: Invalid release date '${release_date}'. Expected format like '16 Sept 2026' or '16 September 2026'"
-    exit 1
-fi
-
-release_date="${normalized_date}"
+release_date=$(normalize_release_date "${release_date}") || exit 1
 
 if [ -z "${GH_TOKEN}" ]; then
     echo "ERROR: GITHUB_TOKEN is not set"
