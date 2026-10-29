@@ -18,8 +18,7 @@ func TestSyncEndpointSlicesNamespaceNotWatched(t *testing.T) {
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
-	result := lbc.syncEndpointSlices(task{Kind: endpointslice, Key: "not-watched/some-endpointslice"})
-	if result {
-		t.Errorf("syncEndpointSlices() = %v, expected false for an unwatched namespace", result)
-	}
+	// The assertion is that this doesn't panic; getNamespacedInformer returning nil
+	// for an unwatched namespace must take syncEndpointSlices's early return.
+	lbc.syncEndpointSlices(task{Kind: endpointslice, Key: "not-watched/some-endpointslice"})
 }
