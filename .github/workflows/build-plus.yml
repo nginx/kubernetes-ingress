@@ -259,7 +259,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # v1.27.0
+        uses: docker/scout-action@4bbf17a9da65a7b5497361bb407e88cc9548f69c # v1.28.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
