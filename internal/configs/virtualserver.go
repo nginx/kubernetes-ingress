@@ -849,24 +849,21 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
+		rc := locationContext{
+			upstreamNamer:  virtualServerUpstreamNamer,
+			crUpstreams:    crUpstreams,
+			cfgParams:      vsc.cfgParams,
+			errorPages:     errorPages,
+			originalPath:   r.Path,
+			locSnippets:    vsLocSnippets,
+			enableSnippets: vsc.enableSnippets,
+			isVSR:          isVSR,
+			warnings:       vsc.warnings,
+		}
+
 		if len(r.Matches) > 0 {
-			cfg := generateMatchesConfig(
-				r,
-				virtualServerUpstreamNamer,
-				crUpstreams,
-				VariableNamer,
-				matchesRoutes,
-				len(splitClients),
-				vsc.cfgParams,
-				errorPages,
-				vsLocSnippets,
-				vsc.enableSnippets,
-				len(returnLocations),
-				isVSR,
-				"", "",
-				vsc.warnings,
-				vsc.DynamicWeightChangesReload,
-			)
+			cfg := generateMatchesConfig(rc, r, VariableNamer, matchesRoutes, len(splitClients), len(returnLocations),
+				vsc.DynamicWeightChangesReload)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
@@ -881,8 +878,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 			matchesRoutes++
 		} else if len(r.Splits) > 0 {
-			cfg := generateDefaultSplitsConfig(r, virtualServerUpstreamNamer, crUpstreams, VariableNamer, len(splitClients),
-				vsc.cfgParams, errorPages, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, vsc.DynamicWeightChangesReload)
+			cfg := generateDefaultSplitsConfig(rc, r, VariableNamer, len(splitClients), len(returnLocations), vsc.DynamicWeightChangesReload)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
@@ -895,14 +891,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			keyVals = append(keyVals, cfg.KeyVals...)
 			twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 		} else {
-			upstreamName := virtualServerUpstreamNamer.GetNameForUpstreamFromAction(r.Action)
-			upstream := crUpstreams[upstreamName]
-
-			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsEx.VirtualServer.Namespace)
-			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
-
-			loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
-				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
+			loc, returnLoc := generateLocation(rc, r.Path, r.Action, false, len(returnLocations))
 			addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 			loc.Dos = dosRouteCfg
 			loc.AddHeaderInherit = r.AddHeaderInherit
@@ -1083,25 +1072,23 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
+			rc := locationContext{
+				upstreamNamer:  upstreamNamer,
+				crUpstreams:    crUpstreams,
+				cfgParams:      vsc.cfgParams,
+				errorPages:     errorPages,
+				originalPath:   r.Path,
+				locSnippets:    locSnippets,
+				enableSnippets: vsc.enableSnippets,
+				isVSR:          isVSR,
+				vsrName:        vsr.Name,
+				vsrNamespace:   vsr.Namespace,
+				warnings:       vsc.warnings,
+			}
+
 			if len(r.Matches) > 0 {
-				cfg := generateMatchesConfig(
-					r,
-					upstreamNamer,
-					crUpstreams,
-					VariableNamer,
-					matchesRoutes,
-					len(splitClients),
-					vsc.cfgParams,
-					errorPages,
-					locSnippets,
-					vsc.enableSnippets,
-					len(returnLocations),
-					isVSR,
-					vsr.Name,
-					vsr.Namespace,
-					vsc.warnings,
-					vsc.DynamicWeightChangesReload,
-				)
+				cfg := generateMatchesConfig(rc, r, VariableNamer, matchesRoutes, len(splitClients), len(returnLocations),
+					vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
@@ -1116,8 +1103,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 				matchesRoutes++
 			} else if len(r.Splits) > 0 {
-				cfg := generateDefaultSplitsConfig(r, upstreamNamer, crUpstreams, VariableNamer, len(splitClients), vsc.cfgParams,
-					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
+				cfg := generateDefaultSplitsConfig(rc, r, VariableNamer, len(splitClients), len(returnLocations), vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
@@ -1131,13 +1117,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 				maps = append(maps, cfg.Maps...)
 			} else {
-				upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
-				upstream := crUpstreams[upstreamName]
-				serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsr.Namespace)
-				proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
-
-				loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
-					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
+				loc, returnLoc := generateLocation(rc, r.Path, r.Action, false, len(returnLocations))
 				addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 				loc.Dos = dosRouteCfg
 				loc.AddHeaderInherit = addHeaderInherit
@@ -1178,13 +1158,18 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				continue
 			}
 
-			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
-			upstream := crUpstreams[upstreamName]
-			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, cr.Namespace)
-			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
-
-			loc, returnLoc := generateLocation(exactPath, upstreamName, upstream, r.Action, vsc.cfgParams, errorPageDetails{owner: cr}, false,
-				proxySSLName, plainPath, "", false, len(returnLocations), true, cr.Name, cr.Namespace, vsc.warnings)
+			rc := locationContext{
+				upstreamNamer: upstreamNamer,
+				crUpstreams:   crUpstreams,
+				cfgParams:     vsc.cfgParams,
+				errorPages:    errorPageDetails{owner: cr},
+				originalPath:  plainPath,
+				isVSR:         true,
+				vsrName:       cr.Name,
+				vsrNamespace:  cr.Namespace,
+				warnings:      vsc.warnings,
+			}
+			loc, returnLoc := generateLocation(rc, exactPath, r.Action, false, len(returnLocations))
 			renderedPaths[loc.Path] = true
 			// Drop global ConfigMap location-snippets too: they could duplicate the auth-off directives
 			// rendered for challenge locations and fail the NGINX config test.
@@ -2089,27 +2074,44 @@ type errorPageDetails struct {
 	owner runtime.Object
 }
 
-func generateLocation(path string, upstreamName string, upstream conf_v1.Upstream, action *conf_v1.Action,
-	cfgParams *ConfigParams, errorPages errorPageDetails, internal bool, proxySSLName string,
-	originalPath string, locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string,
-	vsrNamespace string, vscWarnings Warnings,
+// locationContext holds the inputs shared by every location generated for one route or subroute:
+// the route location itself and its split and match locations.
+type locationContext struct {
+	upstreamNamer  *upstreamNamer
+	crUpstreams    map[string]conf_v1.Upstream
+	cfgParams      *ConfigParams
+	errorPages     errorPageDetails
+	originalPath   string
+	locSnippets    string
+	enableSnippets bool
+	isVSR          bool
+	vsrName        string
+	vsrNamespace   string
+	warnings       Warnings
+}
+
+func generateLocation(rc locationContext, path string, action *conf_v1.Action, internal bool, retLocIndex int,
 ) (version2.Location, *version2.ReturnLocation) {
-	locationSnippets := generateSnippets(enableSnippets, locSnippets, cfgParams.LocationSnippets)
+	locationSnippets := generateSnippets(rc.enableSnippets, rc.locSnippets, rc.cfgParams.LocationSnippets)
 
 	if action.Redirect != nil {
 		return generateLocationForRedirect(path, locationSnippets, action.Redirect), nil
 	}
 
 	if action.Return != nil {
-		return generateLocationForReturn(path, cfgParams.LocationSnippets, action.Return, retLocIndex)
+		return generateLocationForReturn(path, rc.cfgParams.LocationSnippets, action.Return, retLocIndex)
 	}
 
-	checkGrpcErrorPageCodes(errorPages, isGRPC(upstream.Type), upstream.Name, vscWarnings)
+	upstreamName := rc.upstreamNamer.GetNameForUpstreamFromAction(action)
+	upstream := rc.crUpstreams[upstreamName]
 
-	_, serviceName := ParseServiceReference(upstream.Service, "")
+	checkGrpcErrorPageCodes(rc.errorPages, isGRPC(upstream.Type), upstream.Name, rc.warnings)
 
-	return generateLocationForProxying(path, upstreamName, upstream, cfgParams, errorPages.pages, internal,
-		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, rc.upstreamNamer.namespace)
+	proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
+
+	return generateLocationForProxying(path, upstreamName, upstream, rc.cfgParams, rc.errorPages.pages, internal,
+		rc.errorPages.index, proxySSLName, action.Proxy, rc.originalPath, locationSnippets, rc.isVSR, rc.vsrName, rc.vsrNamespace, serviceName), nil
 }
 
 func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
@@ -2328,21 +2330,11 @@ type routingCfg struct {
 }
 
 func generateSplits(
+	rc locationContext,
 	splits []conf_v1.Split,
-	upstreamNamer *upstreamNamer,
-	crUpstreams map[string]conf_v1.Upstream,
 	VariableNamer *VariableNamer,
 	scIndex int,
-	cfgParams *ConfigParams,
-	errorPages errorPageDetails,
-	originalPath string,
-	locSnippets string,
-	enableSnippets bool,
 	retLocIndex int,
-	isVSR bool,
-	vsrName string,
-	vsrNamespace string,
-	vscWarnings Warnings,
 	WeightChangesDynamicReload bool,
 ) ([]version2.SplitClient, []version2.Location, []version2.ReturnLocation, []version2.Map, []version2.KeyValZone, []version2.KeyVal, []version2.TwoWaySplitClients) {
 	var distributions []version2.Distribution
@@ -2402,13 +2394,8 @@ func generateSplits(
 
 	for i, s := range splits {
 		path := fmt.Sprintf("/%vsplits_%d_split_%d", internalLocationPrefix, scIndex, i)
-		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(s.Action)
-		upstream := crUpstreams[upstreamName]
-		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
-		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
-		loc, returnLoc := generateLocation(path, upstreamName, upstream, s.Action, cfgParams, errorPages, true,
-			proxySSLName, originalPath, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+		loc, returnLoc := generateLocation(rc, path, s.Action, true, newRetLocIndex)
 		locations = append(locations, loc)
 		if returnLoc != nil {
 			returnLocations = append(returnLocations, *returnLoc)
@@ -2419,24 +2406,14 @@ func generateSplits(
 }
 
 func generateDefaultSplitsConfig(
+	rc locationContext,
 	route conf_v1.Route,
-	upstreamNamer *upstreamNamer,
-	crUpstreams map[string]conf_v1.Upstream,
 	VariableNamer *VariableNamer,
 	scIndex int,
-	cfgParams *ConfigParams,
-	errorPages errorPageDetails,
-	originalPath string,
-	locSnippets string,
-	enableSnippets bool,
 	retLocIndex int,
-	isVSR bool,
-	vsrName string,
-	vsrNamespace string,
-	vscWarnings Warnings,
 	weightChangesDynamicReload bool,
 ) routingCfg {
-	scs, locs, returnLocs, maps, keyValZones, keyVals, twoWaySplitClients := generateSplits(route.Splits, upstreamNamer, crUpstreams, VariableNamer, scIndex, cfgParams, errorPages, originalPath, locSnippets, enableSnippets, retLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, weightChangesDynamicReload)
+	scs, locs, returnLocs, maps, keyValZones, keyVals, twoWaySplitClients := generateSplits(rc, route.Splits, VariableNamer, scIndex, retLocIndex, weightChangesDynamicReload)
 
 	var irl version2.InternalRedirectLocation
 	if weightChangesDynamicReload && len(route.Splits) == 2 {
@@ -2521,10 +2498,12 @@ func generateSplitsForWeightChangesDynamicReload(splits []conf_v1.Split, scIndex
 	return splitClients, weightsToSplits
 }
 
-func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, crUpstreams map[string]conf_v1.Upstream,
-	VariableNamer *VariableNamer, index int, scIndex int, cfgParams *ConfigParams, errorPages errorPageDetails,
-	locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string, vsrNamespace string, vscWarnings Warnings, weightChangesDynamicReload bool,
+//nolint:gocyclo // complexity is pre-existing; only the signature changed
+func generateMatchesConfig(rc locationContext, route conf_v1.Route, VariableNamer *VariableNamer, index int, scIndex int,
+	retLocIndex int, weightChangesDynamicReload bool,
 ) routingCfg {
+	rc.originalPath = route.Path
+
 	// Generate maps
 	var maps []version2.Map
 	var twoWaySplitClients []version2.TwoWaySplitClients
@@ -2611,24 +2590,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 	for i, m := range route.Matches {
 		if len(m.Splits) > 0 {
 			newRetLocIndex := retLocIndex + len(returnLocations)
-			scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(
-				m.Splits,
-				upstreamNamer,
-				crUpstreams,
-				VariableNamer,
-				scIndex+scLocalIndex,
-				cfgParams,
-				errorPages,
-				route.Path,
-				locSnippets,
-				enableSnippets,
-				newRetLocIndex,
-				isVSR,
-				vsrName,
-				vsrNamespace,
-				vscWarnings,
-				weightChangesDynamicReload,
-			)
+			scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(rc, m.Splits, VariableNamer, scIndex+scLocalIndex,
+				newRetLocIndex, weightChangesDynamicReload)
 			scLocalIndex += len(scs)
 			splitClients = append(splitClients, scs...)
 			locations = append(locations, locs...)
@@ -2639,13 +2602,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 			twoWaySplitClients = append(twoWaySplitClients, twscs...)
 		} else {
 			path := fmt.Sprintf("/%vmatches_%d_match_%d", internalLocationPrefix, index, i)
-			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(m.Action)
-			upstream := crUpstreams[upstreamName]
-			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
-			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 			newRetLocIndex := retLocIndex + len(returnLocations)
-			loc, returnLoc := generateLocation(path, upstreamName, upstream, m.Action, cfgParams, errorPages, true,
-				proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+			loc, returnLoc := generateLocation(rc, path, m.Action, true, newRetLocIndex)
 			locations = append(locations, loc)
 			if returnLoc != nil {
 				returnLocations = append(returnLocations, *returnLoc)
@@ -2656,24 +2614,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 	// Generate default splits or default action
 	if len(route.Splits) > 0 {
 		newRetLocIndex := retLocIndex + len(returnLocations)
-		scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(
-			route.Splits,
-			upstreamNamer,
-			crUpstreams,
-			VariableNamer,
-			scIndex+scLocalIndex,
-			cfgParams,
-			errorPages,
-			route.Path,
-			locSnippets,
-			enableSnippets,
-			newRetLocIndex,
-			isVSR,
-			vsrName,
-			vsrNamespace,
-			vscWarnings,
-			weightChangesDynamicReload,
-		)
+		scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(rc, route.Splits, VariableNamer, scIndex+scLocalIndex,
+			newRetLocIndex, weightChangesDynamicReload)
 		splitClients = append(splitClients, scs...)
 		locations = append(locations, locs...)
 		returnLocations = append(returnLocations, returnLocs...)
@@ -2683,13 +2625,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 		twoWaySplitClients = append(twoWaySplitClients, twscs...)
 	} else {
 		path := fmt.Sprintf("/%vmatches_%d_default", internalLocationPrefix, index)
-		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(route.Action)
-		upstream := crUpstreams[upstreamName]
-		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
-		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
-		loc, returnLoc := generateLocation(path, upstreamName, upstream, route.Action, cfgParams, errorPages, true,
-			proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+		loc, returnLoc := generateLocation(rc, path, route.Action, true, newRetLocIndex)
 		locations = append(locations, loc)
 		if returnLoc != nil {
 			returnLocations = append(returnLocations, *returnLoc)
