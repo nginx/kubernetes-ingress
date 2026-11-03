@@ -596,17 +596,22 @@ class TestJWTAuthorizationPolicies:
             assert got[token] == 403, f"token {token}: {got}"
 
     def test_invalid_signature_returns_401(self, kube_apis, crd_ingress_controller, virtual_server_setup):
+        """
+        A token with the claims the policy requires but signed with a different key returns 401, while the
+        same claims signed with the right key return 200. A malformed token returns 401 as well.
+        """
         with AuthzScenario(kube_apis, virtual_server_setup.namespace, ["policy-claims"]) as scenario:
             self.apply_vs(kube_apis, virtual_server_setup, spec_policy=scenario.policy_names[0])
+            url, host = virtual_server_setup.backend_1_url, virtual_server_setup.vs_host
             try:
-                resp = requests.get(
-                    virtual_server_setup.backend_1_url,
-                    headers={"host": virtual_server_setup.vs_host, "token": read_token(invalid_token)},
-                    timeout=5,
-                )
+                good = get_with_token(url, host, "basic")
+                bad_signature = get_with_token(url, host, "bad-signature")
+                malformed = requests.get(url, headers={"host": host, "token": read_token(invalid_token)}, timeout=5)
             finally:
                 self.restore_vs(kube_apis, virtual_server_setup)
-        assert resp.status_code == 401
+        assert good.status_code == 200
+        assert bad_signature.status_code == 401
+        assert malformed.status_code == 401
 
     def test_contains_on_array_and_negated_nested_claim(self, kube_apis, crd_ingress_controller, virtual_server_setup):
         """
@@ -625,28 +630,36 @@ class TestJWTAuthorizationPolicies:
         assert got["noclaims"] == 403
 
     def test_exact_and_regex_are_case_sensitive(self, kube_apis, crd_ingress_controller, virtual_server_setup):
+        """
+        Exact (iss, role) and Regex (email) comparisons are case-sensitive. Each token differs from the
+        passing one in the case of a single claim, so a regression in any one comparison is caught.
+        """
         got = self.statuses(
             kube_apis,
             virtual_server_setup,
             "policy-case-sensitive",
-            ["basic", "wrong-case", "noclaims"],
+            ["basic", "iss-case", "role-case", "email-case", "wrong-case", "noclaims"],
         )
         assert got["basic"] == 200
-        assert got["wrong-case"] == 403  # iss, role and the email regex all differ only by case
+        assert got["iss-case"] == 403  # only iss differs in case
+        assert got["role-case"] == 403  # only role differs in case
+        assert got["email-case"] == 403  # only the email domain differs in case
+        assert got["wrong-case"] == 403  # all three differ in case
         assert got["noclaims"] == 403
 
     def test_present_and_negated_present(self, kube_apis, crd_ingress_controller, virtual_server_setup):
         """
-        Present with negate requires the claim to be absent, and is the only check that accepts a missing
-        claim. A negated value check still fails on a missing claim.
+        Present with negate requires the claim to be absent: a token that carries act is rejected, and a
+        token without it passes. A negated value check (role != guest) still fails on a missing claim.
         """
         got = self.statuses(
             kube_apis,
             virtual_server_setup,
             "policy-present-negate",
-            ["basic", "guest", "noclaims"],
+            ["basic", "act", "guest", "noclaims"],
         )
         assert got["basic"] == 200  # iss matches, act absent, role is admin and not guest
+        assert got["act"] == 403  # same as basic, but act is present
         assert got["guest"] == 403  # role is guest
         assert got["noclaims"] == 403  # iss is missing
 

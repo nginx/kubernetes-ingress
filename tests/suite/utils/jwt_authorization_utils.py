@@ -3,7 +3,7 @@
 import requests
 import yaml
 from settings import TEST_DATA
-from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
+from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy, wait_for_valid_policy
 from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, retry_get_until_status_code
 
 AUTHZ_DIR = f"{TEST_DATA}/jwt-policy/authorization"
@@ -37,11 +37,6 @@ def vs_manifest(vs_src: str, spec_policy=None, route_policy=None) -> dict:
     if route_policy:
         vs["spec"]["routes"][0]["policies"] = [{"name": route_policy}]
     return vs
-
-
-def create_authz_policy(kube_apis, name: str, namespace: str) -> str:
-    """Create one of the policies in tests/data/jwt-policy/authorization and wait until it is Valid."""
-    return apply_and_wait_for_valid_policy(kube_apis, namespace, policy_src(name))
 
 
 def wait_for_jwt_policy(url: str, host: str) -> None:
@@ -92,9 +87,16 @@ class AuthzScenario:
         self.policy_names = []
 
     def __enter__(self):
-        self.secret_name = create_secret_from_yaml(self.kube_apis.v1, self.namespace, jwk_secret_valid_src)
-        for pol in self.policies:
-            self.policy_names.append(create_authz_policy(self.kube_apis, pol, self.namespace))
+        # Python skips __exit__ when __enter__ raises, so clean up here and register each resource as soon as it exists.
+        try:
+            self.secret_name = create_secret_from_yaml(self.kube_apis.v1, self.namespace, jwk_secret_valid_src)
+            for pol in self.policies:
+                name = create_policy_from_yaml(self.kube_apis.custom_objects, policy_src(pol), self.namespace)
+                self.policy_names.append(name)
+                wait_for_valid_policy(self.kube_apis, self.namespace, name)
+        except BaseException:
+            self.__exit__()
+            raise
         return self
 
     def __exit__(self, *exc):
