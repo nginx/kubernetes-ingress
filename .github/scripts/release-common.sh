@@ -150,7 +150,7 @@ find_previous_tag() {
 }
 
 # resolve_previous_versions [ic-only]
-# Sets: previous_ic_version, previous_helm_chart_version (unless ic-only)
+# Sets: previous_ic_version, previous_release_tag, previous_helm_chart_version (unless ic-only)
 resolve_previous_versions() {
     local need_helm="true" prev_tag prefix=""
     if [ "${1:-}" == "ic-only" ]; then
@@ -191,7 +191,26 @@ resolve_previous_versions() {
         exit 1
     fi
 
+    previous_release_tag="${prev_tag}"
     release_debug "previous versions (tag ${prev_tag}): ic=${previous_ic_version} helm=${previous_helm_chart_version:-n/a}"
+}
+
+# previous_tech_specs_json <output_file>
+# Writes tech-specs.json as it was at previous_release_tag, so rows frozen for
+# that release record what it shipped rather than what main has moved on to.
+# Prints the file path on success; prints nothing (and warns) if unavailable.
+previous_tech_specs_json() {
+    local out="$1"
+    if [ -z "${previous_release_tag:-}" ]; then
+        return 0
+    fi
+    if git -C "${ROOTDIR}" show "${previous_release_tag}:.github/scripts/tech-specs.json" > "${out}" 2>/dev/null; then
+        release_debug "previous tech-specs.json extracted from ${previous_release_tag} to ${out}"
+        echo "${out}"
+    else
+        rm -f "${out}"
+        echo "WARNING: tag '${previous_release_tag}' has no .github/scripts/tech-specs.json; frozen rows will use current values" >&2
+    fi
 }
 
 # Sets: current_operator_version (mainline only)

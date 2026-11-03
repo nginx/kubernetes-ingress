@@ -219,6 +219,11 @@ if [ "${UPDATE_TECH_SPECS}" != "false" ]; then
         --current-helm-version "${current_helm_chart_version}"
     )
 
+    previous_json=$(previous_tech_specs_json "${TMPDIR}/tech-specs-previous.json")
+    if [ -n "${previous_json}" ]; then
+        tech_specs_args+=(--previous-json "${previous_json}")
+    fi
+
     if [ "${LTS}" != "false" ]; then
         if [ -z "${RELEASE_DATE}" ]; then
             echo "ERROR: RELEASE_DATE is required for LTS releases (used to calculate end of technical support)"

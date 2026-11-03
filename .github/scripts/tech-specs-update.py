@@ -357,8 +357,6 @@ def update_nginx_prose(md, nginx_new):
 
     if new_plus:
         plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\.\d+)*(?:\s+P\d+)?)", md)
-        if not plus_match:
-            plus_match = re.search(r"NGINX Plus LTS (R\d+(?:\.\d+)*(?:\s+P\d+)?)", md)
         if plus_match:
             current_plus = plus_match.group(1)
             if current_plus != new_plus:
@@ -372,7 +370,31 @@ def update_nginx_prose(md, nginx_new):
 # ---------------------------------------------------------------------------
 
 
-def freeze_compat_row(json_data, current_nic, current_helm, current_operator):
+def frozen_shortcode_row(json_data, previous_json, section, keys):
+    """Return the shortcode_row values to freeze for the previous release.
+
+    main's tech-specs.json can move on (e.g. a WAF or NGINX bump) after a
+    release ships, so freezing from it would record the wrong versions.
+    When previous_json (the tech-specs.json at the previous release tag) is
+    given, its values are used; any missing section or key falls back to the
+    current JSON with a warning.
+    """
+    current = json_data[section]["shortcode_row"]
+    if previous_json is None:
+        return {k: current[k] for k in keys}
+
+    previous = previous_json.get(section, {}).get("shortcode_row", {})
+    result = {}
+    for k in keys:
+        if previous.get(k):
+            result[k] = previous[k]
+        else:
+            print(f"WARNING: {section}.shortcode_row.{k} not found in previous release JSON, using current value")
+            result[k] = current[k]
+    return result
+
+
+def freeze_compat_row(json_data, current_nic, current_helm, current_operator, previous_json=None):
     """Freeze the current shortcode row as a historical entry in the JSON.
 
     Only called for minor/major releases.  Builds a frozen row from the
@@ -385,7 +407,7 @@ def freeze_compat_row(json_data, current_nic, current_helm, current_operator):
         print(f"INFO: Compat row for {current_nic} already exists, skipping freeze")
         return
 
-    sr = json_data["nic_k8s"]["shortcode_row"]
+    sr = frozen_shortcode_row(json_data, previous_json, "nic_k8s", ["k8s_versions", "nginx_version"])
     frozen = {
         "nic_version": current_nic,
         "k8s_versions": sr["k8s_versions"],
@@ -397,7 +419,7 @@ def freeze_compat_row(json_data, current_nic, current_helm, current_operator):
     print(f"INFO: Frozen compat row for {current_nic}")
 
 
-def freeze_nap_row(json_data, current_nic):
+def freeze_nap_row(json_data, current_nic, previous_json=None):
     """Freeze the current NAP shortcode row as a historical entry in the JSON.
 
     Only called for minor/major releases.  Builds the frozen NAP-WAF version
@@ -409,7 +431,9 @@ def freeze_nap_row(json_data, current_nic):
         print(f"INFO: NAP row for {current_nic} already exists, skipping freeze")
         return
 
-    sr = json_data["nic_nap"]["shortcode_row"]
+    sr = frozen_shortcode_row(
+        json_data, previous_json, "nic_nap", ["nap_waf_prefix", "compiler_version", "waf_release_version"]
+    )
     frozen = {
         "nic_version": current_nic,
         "nap_waf_version": f"{sr['nap_waf_prefix']}+{sr['compiler_version']}",
@@ -420,7 +444,7 @@ def freeze_nap_row(json_data, current_nic):
     print(f"INFO: Frozen NAP row for {current_nic}")
 
 
-def freeze_lts_row(json_data, current_lts, current_helm):
+def freeze_lts_row(json_data, current_lts, current_helm, previous_json=None):
     """Freeze the current LTS shortcode row as a historical entry.
 
     Only called on an LTS series rollover.
@@ -431,7 +455,9 @@ def freeze_lts_row(json_data, current_lts, current_helm):
         print(f"INFO: LTS row for {current_lts} already exists, skipping freeze")
         return
 
-    sr = json_data["nic_lts"]["shortcode_row"]
+    sr = frozen_shortcode_row(
+        json_data, previous_json, "nic_lts", ["k8s_versions", "nginx_plus_version", "end_of_technical_support"]
+    )
     frozen = {
         "lts_version": current_lts,
         "k8s_versions": sr["k8s_versions"],
@@ -505,7 +531,7 @@ Examples:
         """,
     )
 
-    # Positional arguments (backward-compatible with release-docs.sh)
+    # Positional arguments
     parser.add_argument("ic_version", help="New NGINX Ingress Controller version")
     parser.add_argument(
         "k8s_versions",
@@ -587,6 +613,12 @@ Examples:
         default=None,
         help="NAP WAF release version for JSON shortcode_row update",
     )
+    parser.add_argument(
+        "--previous-json",
+        default=None,
+        help="tech-specs.json from the previous release tag; frozen rows use its "
+        "shortcode_row values instead of the current file's (falls back per key)",
+    )
 
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
@@ -609,6 +641,10 @@ Examples:
 
     # ---- Load JSON ----
     json_data = load_json(args.json_file)
+    previous_json = None
+    if args.previous_json:
+        previous_json = load_json(args.previous_json)
+        print(f"INFO: Frozen rows will use values from {args.previous_json}")
 
     if args.verbose:
         print(f"Processing release: {args.ic_version}")
@@ -640,16 +676,16 @@ Examples:
     if args.lts:
         if is_new_lts_series(args.ic_version, current_nic):
             print(f"INFO: New LTS series detected ({current_nic} -> {args.ic_version}), freezing row")
-            freeze_lts_row(json_data, current_nic, current_helm)
+            freeze_lts_row(json_data, current_nic, current_helm, previous_json)
         else:
             print(f"INFO: Same LTS series ({current_nic} -> {args.ic_version}), updating in-place")
     else:
         freeze = is_minor_or_major(args.ic_version, current_nic)
         if freeze:
             print(f"INFO: Minor/major release ({current_nic} -> {args.ic_version}), freezing rows")
-            freeze_compat_row(json_data, current_nic, current_helm, current_operator)
+            freeze_compat_row(json_data, current_nic, current_helm, current_operator, previous_json)
             if args.nap_waf_version:
-                freeze_nap_row(json_data, current_nic)
+                freeze_nap_row(json_data, current_nic, previous_json)
         else:
             print(f"INFO: Patch release or re-run ({current_nic} -> {args.ic_version}), updating in-place")
 
@@ -690,17 +726,9 @@ Examples:
             replace_table_in_file(nic_lts, generate_lts_table_md(json_data, sc_row=updated_lts_sc))
             print("updated", nic_lts)
 
-            # 2. NGINX version prose in LTS technical-specifications.md
-            tech = docs_root / "content" / "nic" / "lts" / "technical-specifications.md"
-            if not tech.exists():
-                sys.exit(f"ERROR: LTS technical specifications file not found: {tech}")
-            if args.verbose:
-                print(f"Updating NGINX version prose in {tech}...")
-            tech.write_text(
-                update_nginx_prose(tech.read_text(encoding="utf-8"), nginx),
-                encoding="utf-8",
-            )
-            print("updated", tech)
+            # The LTS technical-specifications.md prose names the NGINX Plus release
+            # line (e.g. "NGINX Plus LTS R37.0"), which only changes with a new LTS
+            # series, so it is maintained by hand and not touched here.
 
         else:
             # Resolve values for shortcode row updates (overrides or JSON defaults)

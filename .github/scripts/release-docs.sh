@@ -421,6 +421,10 @@ if [ -n "${nginx_version}" ]; then
 
     # Run the consolidated tech specs update script (driven by tech-specs.json)
     tech_specs_args=()
+    previous_json=$(previous_tech_specs_json "${TMPDIR}/tech-specs-previous.json")
+    if [ -n "${previous_json}" ]; then
+        tech_specs_args+=(--previous-json "${previous_json}")
+    fi
     if [ "${LTS}" != "false" ]; then
         tech_specs_args+=(--lts)
         tech_specs_args+=(--lts-helm-version "${helm_chart_version}")
@@ -445,7 +449,7 @@ if [ -n "${nginx_version}" ]; then
     if [ "${DEBUG}" != "false" ]; then
         echo "DEBUG: Updated technical specifications content:"
         if [ "${LTS}" != "false" ]; then
-            cat "${DOCS_FOLDER}/content/nic/lts/technical-specifications.md"
+            cat "${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-lts-k8s.md"
         else
             cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
         fi
@@ -454,7 +458,6 @@ if [ -n "${nginx_version}" ]; then
     # Stage and commit tech specs changes (skip commit in dry-run mode)
     if [ "${DRY_RUN}" == "false" ]; then
         if [ "${LTS}" != "false" ]; then
-            git add "content/nic/lts/technical-specifications.md"
             git add "content/includes/nic/compatibility-tables/nic-lts-k8s.md"
             git commit -m "Update LTS technical specifications for ${ic_version}"
         else
