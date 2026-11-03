@@ -7,6 +7,8 @@ from suite.utils.resources_utils import (
     create_namespace_with_name_from_yaml,
     delete_namespace,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     replace_configmap,
     replace_configmap_from_yaml,
     wait_before_test,
@@ -94,8 +96,9 @@ def vsr_weight_changes_dynamic_reload_many_splits_setup(
     )
 
     print("---------------------- Deploy weight changes dynamic reload vsr app ----------------------------")
-    create_example_app(kube_apis, "weight-changes-dynamic-reload-vsr-many-splits", ns_1)
-    wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "weight-changes-dynamic-reload-vsr-many-splits", ns_1, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, ns_1, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

@@ -129,6 +129,37 @@ func TestContract_QuoteHandlingMatchesNginxTokenizer(t *testing.T) {
 	}
 }
 
+// '#' starts a comment only at the start of a token: it is tested inside the
+// `if (last_space)` branch of ngx_conf_read_token. Confirmed with nginx -t on
+// 1.31.6: `return 302 https://example.com/#/home;` loads with the fragment.
+func TestContract_CommentOnlyAtTokenStart(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{
+		"302 https://example.com/#/home", // URL fragment, mid-token
+		"200 a#b",                        //
+		`"#quoted"`,                      // inside a quoted argument
+	} {
+		if err := ValidateDirectiveValue(value); err != nil {
+			t.Errorf("ValidateDirectiveValue(%q) = %v, want nil; NGINX reads a mid-token '#' as data", value, err)
+		}
+	}
+
+	for _, value := range []string{
+		"#comment",             // first token
+		"404 #comment",         // after whitespace
+		"404\t#comment",        // after a tab
+		`404 "x" #comment`,     // after a closed quoted argument
+		"value; #",             //
+		"https://x/#a #b",      // second '#' starts a token
+		"https://x/# #comment", //
+	} {
+		if err := ValidateDirectiveValue(value); err == nil {
+			t.Errorf("ValidateDirectiveValue(%q) = nil, want an error; the '#' starts a comment", value)
+		}
+	}
+}
+
 // ValidateDirectiveToken must reject everything that would let the value stop
 // being a single token, since it is rendered unquoted.
 func TestContract_DirectiveTokenRejectsTokenBreakers(t *testing.T) {

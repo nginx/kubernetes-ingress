@@ -10,6 +10,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     is_secret_present,
     replace_secret,
     wait_before_test,
@@ -53,12 +55,13 @@ def jwt_secrets_setup(
     with open(f"{TEST_DATA}/jwt-secrets/tokens/jwt-secrets-token.jwt") as token_file:
         token = token_file.read().replace("\n", "")
     print("------------------------- Deploy JWT Secrets Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/jwt-secrets/{request.param}/jwt-secrets-ingress.yaml", test_namespace
     )
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/jwt-secrets/{request.param}/jwt-secrets-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
@@ -100,6 +103,22 @@ class TestJWTSecrets:
         req_url = (
             f"http://{jwt_secrets_setup.public_endpoint.public_ip}:{jwt_secrets_setup.public_endpoint.port}/backend2"
         )
+        resp = requests.get(
+            req_url,
+            headers={"host": jwt_secrets_setup.ingress_host},
+            cookies={"auth_token": jwt_secrets_setup.jwt_token},
+        )
+        assert resp.status_code == 200
+        assert f"Server name: backend2" in resp.text
+
+    def test_response_code_200_with_opaque_secret(self, kube_apis, jwt_secrets_setup, test_namespace, jwt_secret):
+        req_url = (
+            f"http://{jwt_secrets_setup.public_endpoint.public_ip}:{jwt_secrets_setup.public_endpoint.port}/backend2"
+        )
+        # Secret type is immutable, so the typed Secret is replaced rather than patched.
+        delete_secret(kube_apis.v1, jwt_secret.secret_name, test_namespace)
+        create_secret_from_yaml(kube_apis.v1, test_namespace, f"{TEST_DATA}/jwt-secrets/jwt-secret-opaque.yaml")
+        wait_before_test(1)
         resp = requests.get(
             req_url,
             headers={"host": jwt_secrets_setup.ingress_host},

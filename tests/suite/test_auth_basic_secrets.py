@@ -12,6 +12,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     is_secret_present,
     replace_secret,
     wait_before_test,
@@ -59,14 +61,15 @@ def auth_basic_secrets_setup(
     with open(f"{TEST_DATA}/auth-basic-secrets/credentials/credentials.txt") as credentials_file:
         credentials = credentials_file.read().replace("\n", "")
     print("------------------------- Deploy Auth Basic Secrets Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/auth-basic-secrets/{request.param}/auth-basic-secrets-ingress.yaml", test_namespace
     )
     ingress_host = get_first_ingress_host_from_yaml(
         f"{TEST_DATA}/auth-basic-secrets/{request.param}/auth-basic-secrets-ingress.yaml"
     )
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
@@ -111,6 +114,26 @@ def auth_basic_secret(
 class TestAuthBasicSecrets:
     def test_response_code_200_and_server_name(self, auth_basic_secrets_setup, auth_basic_secret):
         req_url = f"http://{auth_basic_secrets_setup.public_endpoint.public_ip}:{auth_basic_secrets_setup.public_endpoint.port}/backend2"
+        resp = requests.get(
+            req_url,
+            headers={
+                "host": auth_basic_secrets_setup.ingress_host,
+                "authorization": f"Basic {to_base64(auth_basic_secrets_setup.credentials)}",
+            },
+        )
+        assert resp.status_code == 200
+        assert f"Server name: backend2" in resp.text
+
+    def test_response_code_200_with_opaque_secret(
+        self, kube_apis, auth_basic_secrets_setup, test_namespace, auth_basic_secret
+    ):
+        req_url = f"http://{auth_basic_secrets_setup.public_endpoint.public_ip}:{auth_basic_secrets_setup.public_endpoint.port}/backend2"
+        # Secret type is immutable, so the typed Secret is replaced rather than patched.
+        delete_secret(kube_apis.v1, auth_basic_secret.secret_name, test_namespace)
+        create_secret_from_yaml(
+            kube_apis.v1, test_namespace, f"{TEST_DATA}/auth-basic-secrets/auth-basic-secret-opaque.yaml"
+        )
+        wait_before_test(1)
         resp = requests.get(
             req_url,
             headers={

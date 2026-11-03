@@ -8,4 +8,4 @@ spec:
     authServiceName: "external-auth-svc"
     sslEnabled: true
     sslVerify: true
-    trustedCertSecret: "wrong-type-ca-secret"
+    trustedCertSecret: "missing-ca-crt-secret"

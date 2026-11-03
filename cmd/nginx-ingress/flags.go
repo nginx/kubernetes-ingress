@@ -5,11 +5,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -18,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/nginx/kubernetes-ingress/internal/externaldns"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
@@ -178,6 +182,9 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	nginxReloadTimeout = flag.Int("nginx-reload-timeout", 60000,
 		`The timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start. (default 60000)`)
 
+	batchReloadWindow = flag.Int("batch-reload-window", 2000,
+		`The maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn (e.g. a rolling deployment) before flushing it, bounding how stale the running NGINX config can get. A value of 0 disables the bound, restoring unbounded deferral under churn. (default 2000)`)
+
 	wildcardTLSSecret = flag.String("wildcard-tls-secret", "",
 		`A Secret with a TLS certificate and key for TLS termination of every Ingress/VirtualServer host for which TLS termination is enabled but the Secret is not specified.
 		Format: <namespace>/<name>. If the argument is not set, for such Ingress/VirtualServer hosts NGINX will break any attempt to establish a TLS connection.
@@ -225,11 +232,27 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	enableLatencyMetrics = flag.Bool("enable-latency-metrics", false,
 		"Enable collection of latency metrics for upstreams. Requires -enable-prometheus-metrics")
 
+	latencyMetricsBuckets = flag.String("latency-metrics-buckets", "",
+		`Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream_server_response_latency_ms histogram, e.g. "5,10,25,50,100,250,500,1000". Requires -enable-latency-metrics. When not set, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.`)
+
+	latencyBuckets []float64
+
+	enableTopologyAwareRouting = flag.Bool("enable-topology-aware-routing", false,
+		`Honor EndpointSlice topology hints (set by Service spec.trafficDistribution or the service.kubernetes.io/topology-mode annotation) when selecting upstream endpoints, preferring endpoints on the same node or in the same zone as the Ingress Controller pod.
+		Spread Ingress Controller replicas across zones in proportion to client traffic, as each replica only routes to its own node or zone.
+		The zone is read from the topology.kubernetes.io/zone label of the pod's node at startup; restart the Ingress Controller if that label changes.`)
+
 	enableCertManager = flag.Bool("enable-cert-manager", false,
 		"Enable cert-manager controller for VirtualServer resources. Requires -enable-custom-resources")
 
 	enableExternalDNS = flag.Bool("enable-external-dns", false,
 		"Enable external-dns controller for VirtualServer resources. Requires -enable-custom-resources")
+
+	externalDNSGroupVersion = flag.String("external-dns-group-version", externaldns.GroupVersionNginx,
+		fmt.Sprintf("The DNSEndpoint API group and version NGINX Ingress Controller writes to when -enable-external-dns is set. "+
+			"Use %q for the NGINX Ingress Controller CRD (external-dns <= v0.20.x, started with --crd-source-apiversion=externaldns.nginx.org/v1), "+
+			"or %q for the upstream CRD that external-dns v0.21.0+ recognizes.",
+			externaldns.GroupVersionNginx, externaldns.GroupVersionUpstream))
 
 	disableIPV6 = flag.Bool("disable-ipv6", false,
 		`Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack`)
@@ -297,6 +320,20 @@ func initValidate(ctx context.Context) {
 	if *enableLatencyMetrics && !*enablePrometheusMetrics {
 		nl.Warn(l, "enable-latency-metrics flag requires enable-prometheus-metrics, latency metrics will not be collected")
 		*enableLatencyMetrics = false
+	}
+
+	if *latencyMetricsBuckets != "" {
+		switch {
+		case !*enableLatencyMetrics:
+			nl.Warn(l, "latency-metrics-buckets flag requires enable-latency-metrics, the configured buckets will be ignored")
+		default:
+			parsedBuckets, err := parseLatencyBuckets(*latencyMetricsBuckets)
+			if err != nil {
+				nl.Warnf(l, "Invalid latency-metrics-buckets value %q: %v. Falling back to the default latency buckets", *latencyMetricsBuckets, err)
+			} else {
+				latencyBuckets = parsedBuckets
+			}
+		}
 	}
 
 	if *enableServiceInsight && !*nginxPlus {
@@ -415,6 +452,12 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatalf(l, "Invalid value for service-insight-listen-port: %v", metricsPortValidationError)
 	}
 
+	// The upper bound keeps time.Duration(ms) * time.Millisecond from overflowing int64.
+	const maxBatchReloadWindow = math.MaxInt64 / int64(time.Millisecond)
+	if *batchReloadWindow < 0 || int64(*batchReloadWindow) > maxBatchReloadWindow {
+		nl.Fatalf(l, "Invalid value for batch-reload-window: %v, must be between 0 and %d milliseconds", *batchReloadWindow, maxBatchReloadWindow)
+	}
+
 	var err error
 	allowedCIDRs, err = parseNginxStatusAllowCIDRs(*nginxStatusAllowCIDRs)
 	if err != nil {
@@ -485,6 +528,11 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "enable-external-dns flag requires -enable-custom-resources")
 	}
 
+	if !externaldns.IsSupportedGroupVersion(*externalDNSGroupVersion) {
+		nl.Fatalf(l, "invalid -external-dns-group-version %q; supported values: %v",
+			*externalDNSGroupVersion, externaldns.SupportedGroupVersions())
+	}
+
 	if *ingressLink != "" && *externalService != "" {
 		nl.Fatal(l, "ingresslink and external-service cannot both be set")
 	}
@@ -536,6 +584,35 @@ func validateLogLevel(logLevel string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid log level: %v", logLevel)
+}
+
+// parseLatencyBuckets parses a comma-separated list of latency histogram buckets
+// in milliseconds. The values must be positive and listed in strictly ascending
+// order, as required by Prometheus histogram bucket bounds.
+func parseLatencyBuckets(s string) ([]float64, error) {
+	parts := strings.Split(s, ",")
+	buckets := make([]float64, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return nil, fmt.Errorf("empty bucket value in %q", s)
+		}
+		v, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %q as a number: %w", p, err)
+		}
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil, fmt.Errorf("bucket values must be finite, got %q", p)
+		}
+		if v <= 0 {
+			return nil, fmt.Errorf("bucket values must be positive, got %v", v)
+		}
+		if len(buckets) > 0 && v <= buckets[len(buckets)-1] {
+			return nil, fmt.Errorf("bucket values must be in strictly ascending order, got %v after %v", v, buckets[len(buckets)-1])
+		}
+		buckets = append(buckets, v)
+	}
+	return buckets, nil
 }
 
 // validateLogFormat makes sure a given logFormat is one of the allowed values

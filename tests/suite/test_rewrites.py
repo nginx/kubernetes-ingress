@@ -4,6 +4,8 @@ from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_items_from_yaml,
     delete_items_from_yaml,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -19,8 +21,9 @@ hello_app_yaml = f"{TEST_DATA}/rewrites/hello.yaml"
 
 @pytest.fixture(scope="class")
 def hello_app(request, kube_apis, test_namespace):
-    create_items_from_yaml(kube_apis, hello_app_yaml, test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_items_from_yaml(kube_apis, hello_app_yaml, test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

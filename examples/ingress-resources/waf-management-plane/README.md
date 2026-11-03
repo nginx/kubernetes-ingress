@@ -40,7 +40,6 @@ For NIM, create a secret with a bearer token:
 
 ```console
 kubectl create secret generic nim-credentials \
-  --type=nginx.com/waf-bundle \
   --from-literal=token=<YOUR_NIM_TOKEN>
 ```
 
@@ -48,7 +47,6 @@ For N1C, create a secret with an API token:
 
 ```console
 kubectl create secret generic n1c-credentials \
-  --type=nginx.com/waf-bundle \
   --from-literal=token=<YOUR_N1C_API_TOKEN>
 ```
 

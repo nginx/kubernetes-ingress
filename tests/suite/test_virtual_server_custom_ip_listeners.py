@@ -5,6 +5,7 @@ import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import create_gc_from_yaml, delete_gc
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_secret_from_yaml,
     delete_secret,
     get_events_for_object,
@@ -144,7 +145,7 @@ class TestVirtualServerCustomListeners:
         wait_before_test(30)
 
         print("\nStep 3: Test generated VS configs")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,

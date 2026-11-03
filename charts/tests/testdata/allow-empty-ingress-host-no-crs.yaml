@@ -1,0 +1,3 @@
+controller:
+  enableCustomResources: false
+  allowEmptyIngressHost: true

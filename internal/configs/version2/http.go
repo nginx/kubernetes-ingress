@@ -30,6 +30,13 @@ type VirtualServerConfig struct {
 	Upstreams               []Upstream
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
+	// HTTP2 mirrors the http2 ConfigMap key, which is set in the http context. Servers with
+	// HTTP/2 off only render http2 off; when this is on.
+	HTTP2 bool
 }
 
 // AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
@@ -112,13 +119,15 @@ type Server struct {
 	VSName                    string
 	DisableIPV6               bool
 	Gunzip                    bool
+	HTTP2                     bool
 	NGINXDebugLevel           string
 	AddHeaderInherit          string
+	// ACMEChallengeActive is true when the server has at least one ACME HTTP-01 challenge location.
+	ACMEChallengeActive bool
 }
 
 // SSL defines SSL configuration for a server.
 type SSL struct {
-	HTTP2           bool
 	Certificate     string
 	CertificateKey  string
 	RejectHandshake bool
@@ -165,6 +174,10 @@ type OIDC struct {
 	VerifyDepth           int
 	CAFile                string
 	PolicyName            string
+	// AppProtectLoadModule mirrors the controller's --enable-app-protect flag so
+	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // APIKey holds API key configuration.
@@ -199,8 +212,10 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                       string
-	Internal                   bool
+	Path     string
+	Internal bool
+	// DisableWAF marks subrequest targets; splits/matches internal locations carry client traffic and must keep WAF.
+	DisableWAF                 bool
 	Snippets                   []string
 	ProxyConnectTimeout        string
 	ProxyReadTimeout           string
@@ -254,11 +269,14 @@ type Location struct {
 	GRPCPass                   string
 	CORSEnabled                bool
 	DisableForwardedHeaders    bool
+	UseForwardedHeaders        bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
 	ProxyHTTPVersion           string
+	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
+	ACMEChallenge bool
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -281,12 +299,6 @@ type Return struct {
 	Code int
 	Text string
 }
-
-// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
-// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
-// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
-// 302) to the client instead of the original error code.
-const ErrorPageResponseCodeInherit = -1
 
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {

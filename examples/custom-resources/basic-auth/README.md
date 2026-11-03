@@ -31,7 +31,7 @@ kubectl apply -f cafe.yaml
 
 ## Step 2 - Deploy the Basic Auth Secret
 
-Create a secret of type `nginx.org/htpasswd` with the name `cafe-passwd` that will be used for Basic Auth validation. It
+Create a secret of type `Opaque` (or legacy `nginx.org/htpasswd`) with the name `cafe-passwd` that will be used for Basic Auth validation. It
 contains a list of user and base64 encoded password pairs:
 
 ```console

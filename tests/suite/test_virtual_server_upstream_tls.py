@@ -10,6 +10,7 @@ from suite.utils.custom_assertions import (
     assert_response_codes,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     ensure_response_from_backend,
     get_events,
     get_first_pod_name,
@@ -35,7 +36,7 @@ class TestVirtualServerUpstreamTls:
     def test_responses_and_config_after_setup(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -65,7 +66,7 @@ class TestVirtualServerUpstreamTls:
     def test_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_events_vs = get_events(kube_apis.v1, virtual_server_setup.namespace)
         with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
@@ -100,7 +101,7 @@ class TestVirtualServerUpstreamTls:
     def test_responses_and_config_after_disable_tls(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
         vs_event_text = f"Configuration for {text} was added or updated"
         initial_events_vs = get_events(kube_apis.v1, virtual_server_setup.namespace)

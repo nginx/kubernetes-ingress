@@ -17,7 +17,6 @@ type UpstreamLabels struct {
 type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
-	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
 	OIDCProviders           []version2.OIDCProvider
@@ -26,6 +25,13 @@ type IngressNginxConfig struct {
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
 	KeyValZones             []version2.KeyValZone
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
+	// HTTP2 mirrors the http2 ConfigMap key, which is set in the http context. Servers with
+	// HTTP/2 off only render http2 off; when this is on.
+	HTTP2 bool
 }
 
 // Ingress holds information about an Ingress resource.
@@ -45,6 +51,7 @@ type Upstream struct {
 	QueueTimeout     int64
 	UpstreamZoneSize string
 	UpstreamLabels   UpstreamLabels
+	Keepalive        string
 }
 
 // UpstreamServer describes a server in an NGINX upstream.
@@ -167,6 +174,9 @@ type Server struct {
 	CustomHTTPErrorBackend string
 
 	AppRoot string
+
+	// ACMEChallengeActive is true when the server has at least one ACME HTTP-01 challenge location.
+	ACMEChallengeActive bool
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -234,10 +244,13 @@ type Location struct {
 	ServiceName             string
 	LimitReq                *LimitReq
 	DisableForwardedHeaders bool
+	UseForwardedHeaders     bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
 	Internal       bool
+	// DisableWAF marks subrequest targets such as the ExternalAuth location.
+	DisableWAF bool
 
 	MinionIngress *Ingress
 
@@ -268,6 +281,8 @@ type Location struct {
 	EgressMTLS                 *version2.EgressMTLS
 	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
+	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
+	ACMEChallenge bool
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
@@ -361,6 +376,7 @@ type MainConfig struct {
 	TLSPassthroughPort                 int
 	VariablesHashBucketSize            uint64
 	VariablesHashMaxSize               uint64
+	UseForwardedHeaders                bool
 	WorkerConnections                  string
 	WorkerCPUAffinity                  string
 	WorkerProcesses                    string

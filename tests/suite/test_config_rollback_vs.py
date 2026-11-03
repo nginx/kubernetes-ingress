@@ -13,6 +13,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_events_for_object,
     get_first_pod_name,
     get_ts_nginx_template_conf,
@@ -85,7 +86,7 @@ class TestConfigRollbackVSCreate:
             ],
         )
         # Step 3: conf file was removed — no traffic served for this host
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         assert_vs_conf_not_exists(
             kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, vs_name
         )
@@ -172,7 +173,7 @@ class TestConfigRollbackVirtualServer:
         upstream proxy buffer fields (buffer-size alone or with incompatible buffers),
         covering nginx errors from different config directive types.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         # Step 1: valid VS serves traffic
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
         # Step 2: load VS YAML, apply invalid patch, send to cluster
@@ -239,10 +240,13 @@ class TestConfigRollbackVirtualServer:
             ({"http-snippets": "upstream;"}, 'directive "upstream" has no opening "{"'),
             # http log_format: unknown variable (no $ in error message)
             ({"log-format": "$invalid_nonexistent_var"}, 'unknown "invalid_nonexistent_var" variable'),
-            # http log_format: must set log-format too, otherwise escaping is never rendered
+            # http variables hash: NIC accepts any unsigned integer, but NGINX
+            # cannot build the variables hash with a maximum size of 0. The
+            # directive is rendered only in nginx.conf, so this exercises the
+            # main config rollback path.
             (
-                {"log-format": "$remote_addr", "log-format-escaping": "invalid_escape_value"},
-                'unknown log format escaping "invalid_escape_value"',
+                {"variables-hash-max-size": "0"},
+                "could not build variables_hash, you should increase variables_hash_max_size: 0",
             ),
         ],
     )
@@ -260,11 +264,11 @@ class TestConfigRollbackVirtualServer:
         """Invalid ConfigMap setting causes nginx.conf to fail validation and roll back.
 
         VS and TS are unaffected. Parametrized across different ConfigMap keys and nginx
-        error types (invalid value, missing block, unknown variable, unknown escape value).
-        Note: log-format-escaping only takes effect when log-format is also set, so the
-        escaping case passes both keys together.
+        error types (invalid value, missing block, unknown variable, impossible hash size).
+        The variables-hash-max-size case passes NIC-side parsing but is a value that only
+        NGINX rejects during configuration testing.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         # Step 1: VS serves traffic, capture TS config
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
         ts_conf_before = get_ts_nginx_template_conf(
@@ -328,7 +332,7 @@ class TestConfigRollbackVirtualServer:
         """ConfigMap location-snippets invalid: consecutive VirtualServer failures trigger the
         shared-input early-exit path.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         # Step 1: create three valid VirtualServers
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)

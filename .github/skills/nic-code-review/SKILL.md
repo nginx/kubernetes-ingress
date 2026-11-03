@@ -76,14 +76,36 @@ Downgrade or drop a finding when any of these apply:
 ## Review workflow
 
 1. **Read the PR title, description, and linked issue.** Understand intent before reading the diff.
-2. **Get the diff.** Locally: `git diff origin/main...HEAD` or `gh pr diff <n>`. In agent context, use the `get_changed_files` tool.
-3. **Classify the change** using the table below to pick the right sub-skills.
-4. **Read the surrounding code**, not just the diff hunks, context often lives in the same file just outside the hunk.
-5. **Verify NGINX / NIC semantics upstream** for any change that reaches a `.tmpl` file, an annotation, or a CRD field -- see the source table above.
-6. **Walk the review dimensions** in order (Security -> Correctness -> Architecture -> Tests -> Build/chart/CI -> Docs and Examples), loading the referenced skills for depth.
-7. **Verify claims before commenting.** Grep for the symbol, read the referenced file, run `make lint`/`make test` if in doubt.
-8. **Run the completeness gate** below before writing anything.
-9. **Produce the review** in the Output Format below.
+2. **Check if the PR is part of a stack** using `gh` CLI, `gh api`, or `gh stack` (`gh extension install github/gh-stack`).
+   - **Interactive / local**: If stacked and unspecified, show the stack chain and ask whether to review **this PR only** (`origin/<baseRefName>...<headRefName>`) or the **full stack** (`origin/main...<stack-tip>`).
+   - **Unattended / bot**: Review **this PR only** (`origin/<baseRefName>...<headRefName>`), using sibling PRs in the stack for context and cross-layer completeness checks.
+3. **Get the diff.** Locally: `gh pr diff <n>` or `git diff origin/<base>...HEAD`. In agent context, use the `get_changed_files` tool (or `gh pr diff` / `git diff origin/<base>...HEAD` when stacked).
+4. **Classify the change** using the table below to pick the right sub-skills.
+5. **Read the surrounding code**, not just the diff hunks, context often lives in the same file just outside the hunk.
+6. **Verify NGINX / NIC semantics upstream** for any change that reaches a `.tmpl` file, an annotation, or a CRD field -- see the source table above.
+7. **Walk the review dimensions** in order (Security -> Correctness -> Architecture -> Tests -> Build/chart/CI -> Docs and Examples), loading the referenced skills for depth.
+8. **Verify claims before commenting.** Grep for the symbol, read the referenced file, run `make lint`/`make test` if in doubt.
+9. **Run the completeness gate** below before writing anything.
+10. **Produce the review** in the Output Format below.
+11. **Clean up.** Leave no trace of the review -- see below.
+
+### Local checkout and cleanup
+
+This section applies only to reviews run on a developer's machine, where a review can leave worktrees, scratch files and pulled images behind. The GitHub Copilot Code Review bot can skip it.
+
+- Never write to the user's checkout. Run anything that can write files -- `make test` (go-snaps writes missing snapshots outside CI), `make test-update-snaps`, `make update-codegen`, `make update-crds`, `make format` -- in a detached throwaway worktree, so the review creates no branch: `git fetch origin pull/<n>/head && git worktree add --detach /tmp/pr-<n> FETCH_HEAD` for a PR, `git worktree add --detach /tmp/pr-head HEAD` for the current branch.
+- Pass environment variables per command (`GH_PAGER=cat gh pr view <n>`); never `export` them in the shared shell.
+- Delete only what this review created, and ask before removing older leftovers.
+- Do not wipe shared caches as cleanup: no `go clean -cache`, `docker system prune` or `git gc --prune=now`.
+
+When the review is done, remove what it created, then confirm `git status --short` matches what it showed before the review:
+
+```sh
+git worktree remove /tmp/pr-<n>  # /tmp/pr-head for a current-branch review
+rm -f /tmp/<scratch files>
+docker rmi <image>  # only if it was not present before the review
+git worktree list && git status --short
+```
 
 ## Severity ladder
 
@@ -160,7 +182,7 @@ Before producing output, confirm you have checked each row that the diff touches
 | `.github/workflows/**` | Correct `github.repository` gate for the stage (internal repo builds, public repo publishes), pinned action SHAs, matrix JSON in sync |
 | A new user-controlled string reaching NGINX config | A `containsDangerousChars()` / `ValidateEscapedString()` guard **and** a negative test |
 
-An unmet row is Blocking unless the Fixed verdicts table above assigns it a lower severity. Cite the missing artifact by path.
+An unmet row is Blocking unless the Fixed verdicts table above assigns it a lower severity, or (when reviewing a single PR in a stack) the missing layer is intentionally split into a sibling PR in the stack. Cite the missing artifact by path.
 
 ## Change type classification
 
@@ -295,3 +317,5 @@ Rules:
 ## GitHub Copilot Code Review bot
 
 The bot reads `.github/copilot-instructions.md` on every PR. The `Skills` and `Code Review Checklist` sections there reference this file, so keep this skill authoritative and keep `copilot-instructions.md` short.
+
+Before walking the review dimensions, the bot runs the triage gates in [`nic-contribution-review`](../nic-contribution-review/SKILL.md) and reviews only the code those gates leave in scope. That skill is bot-only: local reviews (`/pr-review`, IDE chat, Copilot CLI, Claude Code) never load it and run this workflow unchanged.

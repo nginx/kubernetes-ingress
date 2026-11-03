@@ -356,6 +356,8 @@ func baseOIDC() *conf_v1.OIDC {
 func TestPolicyCannotInjectConfiguration(t *testing.T) {
 	t.Parallel()
 
+	schema := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_policies.yaml")
+
 	// Policies are the surface where NGINX Plus adds the most: OIDC and JWT are
 	// Plus-only, so the OSS pass mostly measures that they are refused.
 	for _, isPlus := range []bool{false, true} {
@@ -365,7 +367,7 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 			EnableAppProtect: true,
 		}
 
-		var byValidation, admitted int
+		var bySchema, byValidation, admitted int
 		for _, field := range policyStringFields {
 			benign := policyWithField(field, field.benignValue())
 
@@ -380,9 +382,14 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 				continue
 			}
 
-			// The benign value must survive admission, or every payload for this
-			// field is rejected for the shape of the fixture rather than its
-			// content and the field is never really tested.
+			// The benign object has to clear both admission gates, or the fixture
+			// is wrong for this field and the payloads below would be measuring
+			// the fixture rather than the field.
+			if err := schema.admits(benign); err != nil {
+				t.Errorf("plus=%v field=%s: a benign value does not satisfy the CRD schema, so the fixture is wrong: %v",
+					isPlus, field.name, err)
+				continue
+			}
 			if err := validation.ValidatePolicy(benign, cfg); err != nil {
 				t.Errorf("plus=%v field=%s: the benign value %q is rejected at admission, so the fixture is wrong: %v",
 					isPlus, field.name, field.benignValue(), err)
@@ -399,6 +406,13 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 			for _, payload := range payloads {
 				policy := policyWithField(field, payload)
 
+				// Gate 1a. Anything the API server refuses never reaches the
+				// controller, so it cannot reach configuration either.
+				if schema.admits(policy) != nil {
+					bySchema++
+					continue
+				}
+				// Gate 1b.
 				if validation.ValidatePolicy(policy, cfg) != nil {
 					byValidation++
 					continue
@@ -419,13 +433,17 @@ func TestPolicyCannotInjectConfiguration(t *testing.T) {
 			}
 		}
 
+		if bySchema == 0 {
+			t.Errorf("plus=%v: no payload was rejected by the CRD schema, so that gate is not tested here", isPlus)
+		}
 		if byValidation == 0 {
 			t.Errorf("plus=%v: no payload was rejected by Go validation", isPlus)
 		}
 		if admitted == 0 {
 			t.Errorf("plus=%v: every payload was rejected at admission, so the rendering was never exercised", isPlus)
 		}
-		t.Logf("plus=%v: %d rejected by Go validation, %d admitted and rendered as data", isPlus, byValidation, admitted)
+		t.Logf("plus=%v: %d rejected by the CRD schema, %d by the Go validation, %d admitted and rendered as data",
+			isPlus, bySchema, byValidation, admitted)
 	}
 }
 
@@ -456,10 +474,9 @@ func shapeForPolicy(t *testing.T, policy *conf_v1.Policy, isPlus bool) ([]string
 
 	secretRefs := secretRefsForPolicy(policy)
 	if vs.Spec.TLS != nil {
-		secretRefs["default/"+vs.Spec.TLS.Secret] = &secrets.SecretReference{
+		secretRefs[secrets.RefKey("default/"+vs.Spec.TLS.Secret, secrets.RoleTLS)] = &secrets.SecretReference{
 			Secret: &api_v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: vs.Spec.TLS.Secret, Namespace: "default"},
-				Type:       api_v1.SecretTypeTLS,
 			},
 			Path: "/etc/nginx/secrets/default-" + vs.Spec.TLS.Secret,
 		}
@@ -564,16 +581,15 @@ func writeWAFBundles(bundlePath string, policy *conf_v1.Policy) error {
 // because the policy generators dereference them without checking they exist.
 // The controller resolves references before generating configuration, so this
 // only matters for a policy assembled directly.
-func secretRefsForPolicy(policy *conf_v1.Policy) map[string]*secrets.SecretReference {
-	refs := make(map[string]*secrets.SecretReference)
-	add := func(name string, secretType api_v1.SecretType) {
+func secretRefsForPolicy(policy *conf_v1.Policy) map[secrets.SecretRefKey]*secrets.SecretReference {
+	refs := make(map[secrets.SecretRefKey]*secrets.SecretReference)
+	add := func(name string, role secrets.SecretRole) {
 		if name == "" {
 			return
 		}
-		refs["default/"+name] = &secrets.SecretReference{
+		refs[secrets.RefKey("default/"+name, role)] = &secrets.SecretReference{
 			Secret: &api_v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
-				Type:       secretType,
 			},
 			Path: "/etc/nginx/secrets/default-" + name,
 		}
@@ -581,28 +597,28 @@ func secretRefsForPolicy(policy *conf_v1.Policy) map[string]*secrets.SecretRefer
 
 	s := policy.Spec
 	if s.JWTAuth != nil {
-		add(s.JWTAuth.Secret, "nginx.org/jwk")
-		add(s.JWTAuth.TrustedCertSecret, "nginx.org/ca")
+		add(s.JWTAuth.Secret, secrets.RoleJWK)
+		add(s.JWTAuth.TrustedCertSecret, secrets.RoleCA)
 	}
 	if s.ExternalAuth != nil {
-		add(s.ExternalAuth.TrustedCertSecret, "nginx.org/ca")
+		add(s.ExternalAuth.TrustedCertSecret, secrets.RoleCA)
 	}
 	if s.BasicAuth != nil {
-		add(s.BasicAuth.Secret, "nginx.org/htpasswd")
+		add(s.BasicAuth.Secret, secrets.RoleHtpasswd)
 	}
 	if s.IngressMTLS != nil {
-		add(s.IngressMTLS.ClientCertSecret, "nginx.org/ca")
+		add(s.IngressMTLS.ClientCertSecret, secrets.RoleCA)
 	}
 	if s.EgressMTLS != nil {
-		add(s.EgressMTLS.TLSSecret, "kubernetes.io/tls")
-		add(s.EgressMTLS.TrustedCertSecret, "nginx.org/ca")
+		add(s.EgressMTLS.TLSSecret, secrets.RoleTLS)
+		add(s.EgressMTLS.TrustedCertSecret, secrets.RoleCA)
 	}
 	if s.OIDC != nil {
-		add(s.OIDC.ClientSecret, "nginx.org/oidc")
-		add(s.OIDC.TrustedCertSecret, "nginx.org/ca")
+		add(s.OIDC.ClientSecret, secrets.RoleOIDC)
+		add(s.OIDC.TrustedCertSecret, secrets.RoleCA)
 	}
 	if s.APIKey != nil {
-		add(s.APIKey.ClientSecret, "nginx.org/apikey")
+		add(s.APIKey.ClientSecret, secrets.RoleAPIKey)
 	}
 	return refs
 }

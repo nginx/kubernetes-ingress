@@ -7,7 +7,7 @@ package v1
 //
 // The EgressMTLS policy configures upstreams authentication and certificate verification.
 type EgressMTLSApplyConfiguration struct {
-	// The name of the Kubernetes secret that stores the TLS certificate and key. It must be in the same namespace as the Policy resource. The secret must be of the type kubernetes.io/tls, the certificate must be stored in the secret under the key tls.crt, and the key must be stored under the key tls.key, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the TLS certificate and key. It must be in the same namespace as the Policy resource. A secret of the type kubernetes.io/tls or Opaque is recommended. The secret is resolved with the TLS role and must store the certificate chain under tls.crt key and matching private key under the tls.key key.
 	TLSSecret *string `json:"tlsSecret,omitempty"`
 	// Enables verification of the upstream HTTPS server certificate.
 	VerifyServer *bool `json:"verifyServer,omitempty"`
@@ -19,7 +19,7 @@ type EgressMTLSApplyConfiguration struct {
 	SessionReuse *bool `json:"sessionReuse,omitempty"`
 	// Specifies the enabled ciphers for requests to an upstream HTTPS server. The default is DEFAULT.
 	Ciphers *string `json:"ciphers,omitempty"`
-	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Enables passing of the server name through Server Name Indication extension.
 	ServerName *bool `json:"serverName,omitempty"`

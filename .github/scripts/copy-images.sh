@@ -45,13 +45,13 @@ SOURCE_PLUS_IMAGE_PREFIX=${SOURCE_PLUS_IMAGE_PREFIX:-"nginx-ic/nginx-plus-ingres
 SOURCE_NAP_WAF_IMAGE_PREFIX=${SOURCE_NAP_WAF_IMAGE_PREFIX:-"nginx-ic-nap/nginx-plus-ingress"}
 SOURCE_NAP_WAFV5_IMAGE_PREFIX=${SOURCE_NAP_WAFV5_IMAGE_PREFIX:-"nginx-ic-nap-v5/nginx-plus-ingress"}
 SOURCE_NAP_DOS_IMAGE_PREFIX=${SOURCE_NAP_DOS_IMAGE_PREFIX:-"nginx-ic-dos/nginx-plus-ingress"}
-SOURCE_NAP_WAF_DOS_IMAGE_PREFIX=${SOURCE_NAP_WAF_DOS_IMAGE_PREFIX:-"nginx-ic-dos-nap/nginx-plus-ingress"}
+SOURCE_NAP_WAF_DOS_IMAGE_PREFIX=${SOURCE_NAP_WAF_DOS_IMAGE_PREFIX:-"nginx-ic-nap-dos/nginx-plus-ingress"}
 
 TARGET_PLUS_IMAGE_PREFIX=${TARGET_PLUS_IMAGE_PREFIX:-"nginx-ic/nginx-plus-ingress"}
 TARGET_NAP_WAF_IMAGE_PREFIX=${TARGET_NAP_WAF_IMAGE_PREFIX:-"nginx-ic-nap/nginx-plus-ingress"}
 TARGET_NAP_WAFV5_IMAGE_PREFIX=${TARGET_NAP_WAFV5_IMAGE_PREFIX:-"nginx-ic-nap-v5/nginx-plus-ingress"}
 TARGET_NAP_DOS_IMAGE_PREFIX=${TARGET_NAP_DOS_IMAGE_PREFIX:-"nginx-ic-dos/nginx-plus-ingress"}
-TARGET_NAP_WAF_DOS_IMAGE_PREFIX=${TARGET_NAP_WAF_DOS_IMAGE_PREFIX:-"nginx-ic-dos-nap/nginx-plus-ingress"}
+TARGET_NAP_WAF_DOS_IMAGE_PREFIX=${TARGET_NAP_WAF_DOS_IMAGE_PREFIX:-"nginx-ic-nap-dos/nginx-plus-ingress"}
 
 declare -a OSS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine")
 declare -a PLUS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine" "-alpine-fips")

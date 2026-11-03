@@ -4,15 +4,21 @@ metadata:
   name: external-dns
 rules:
 - apiGroups: [""]
-  resources: ["services","endpoints","pods"]
+  resources: ["services","pods"]
+  verbs: ["get","watch","list"]
+# Required by --source=service: external-dns reads EndpointSlices, not the
+# legacy core/v1 Endpoints API. Without this the service source fails to sync
+# its informer cache and external-dns exits at startup.
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
   verbs: ["get","watch","list"]
 - apiGroups: ["extensions","networking.k8s.io"]
   resources: ["ingresses"]
   verbs: ["get","watch","list"]
-- apiGroups: ["externaldns.nginx.org"]
+- apiGroups: ["externaldns.k8s.io"]
   resources: ["dnsendpoints"]
   verbs: ["get","watch","list"]
-- apiGroups: ["externaldns.nginx.org"]
+- apiGroups: ["externaldns.k8s.io"]
   resources: ["dnsendpoints/status"]
   verbs: ["update"]
 - apiGroups: [""]
@@ -50,12 +56,11 @@ spec:
       serviceAccountName: external-dns
       containers:
       - name: external-dns
-        image: registry.k8s.io/external-dns/external-dns:v0.20.0
+        image: registry.k8s.io/external-dns/external-dns:v0.21.0
         args:
         - --source=service
         - --source=ingress
         - --source=crd
-        - --crd-source-apiversion=externaldns.nginx.org/v1
         - --crd-source-kind=DNSEndpoint
         - --domain-filter=<MY_DOMAIN> # will make ExternalDNS see only the hosted zones matching provided domain, omit to process all available hosted zones
         - --provider=aws

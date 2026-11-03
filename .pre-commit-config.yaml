@@ -55,26 +55,44 @@ repos:
 
       - id: validate-workflow-gating
         name: validate workflow gating
-        description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
+        description: Ensures every workflow job is gated to the public repository, the internal repository, or both.
         entry: .github/scripts/validate-workflow-gating.sh
         language: golang
-        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.53.6"]
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.54.1"]
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: false
         require_serial: true
 
+      - id: validate-image-matrices
+        name: validate image matrices
+        description: Ensures image matrix definitions follow schema and invariant rules.
+        entry: .github/scripts/validate-image-matrices.sh
+        language: script
+        files: ^(\.github/data/matrix-images-.*\.json|build/Dockerfile)$
+        pass_filenames: false
+        require_serial: true
+
+      - id: test-image-matrices
+        name: test image matrices validator script
+        description: Runs unit tests for the image matrix validator.
+        entry: .github/scripts/validate-image-matrices_test.sh
+        language: script
+        files: ^\.github/scripts/validate-image-matrices(_test)?\.sh$
+        pass_filenames: false
+        require_serial: true
+
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.21.2
+    rev: v3.22.0
     hooks:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 9.0.1
+    rev: 9.0.2
     hooks:
       - id: isort
 
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 26.5.1
+    rev: 26.10.1
     hooks:
       - id: black
 
@@ -91,7 +109,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.38.2
+    rev: 0.39.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -100,7 +118,7 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.3
+    rev: v0.24.0
     hooks:
       - id: markdownlint-cli2
         args: [ "**/*.md", "--fix" ]
@@ -120,5 +138,5 @@ repos:
         args: ["-shellcheck", ""]
 
 ci:
-  skip: [golangci-lint, check-jsonschema, markdownlint-cli2]
+  skip: [golangci-lint, check-jsonschema, markdownlint-cli2, validate-image-matrices, test-image-matrices]
   autoupdate_schedule: quarterly # We use renovate for more frequent updates and there's no way to disable autoupdate

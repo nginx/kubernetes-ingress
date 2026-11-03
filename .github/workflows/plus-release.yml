@@ -109,7 +109,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -132,7 +132,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -143,9 +143,6 @@ jobs:
           export CONFIG_PATH=.github/config/config-plus-gcr-release
           export SOURCE_TAG=${{ inputs.source_tag }}
           export TARGET_TAG=${{ inputs.target_tag }}
-          if [[ "${{ inputs.source_registry }}" == *docker-mgmt* ]]; then
-            export SOURCE_NAP_WAF_DOS_IMAGE_PREFIX="nginx-ic-nap-dos/nginx-plus-ingress"
-          fi
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
@@ -184,7 +181,7 @@ jobs:
         if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -200,7 +197,7 @@ jobs:
             core.setOutput('id_token', id_token)
 
       - name: Login to NGINX Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: docker-mgmt.nginx.com
           username: ${{ steps.idtoken.outputs.id_token }}
@@ -223,7 +220,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -236,9 +233,6 @@ jobs:
           export TARGET_TAG=${{ inputs.target_tag }}
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
-          fi
-          if [[ "${{ inputs.source_registry }}" == *docker-mgmt* ]]; then
-            export SOURCE_NAP_WAF_DOS_IMAGE_PREFIX="nginx-ic-nap-dos/nginx-plus-ingress"
           fi
           .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
@@ -298,7 +292,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -348,7 +342,7 @@ jobs:
         if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -356,13 +350,13 @@ jobs:
         if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           aws-region: us-east-1
           role-to-assume: ${{ env.AWS_ROLE_MARKETPLACE }}
 
       - name: Login to ECR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: 709825985650.dkr.ecr.us-east-1.amazonaws.com
 
@@ -383,7 +377,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -431,7 +425,7 @@ jobs:
         if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -466,7 +460,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}

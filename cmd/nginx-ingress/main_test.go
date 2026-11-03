@@ -7,8 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
@@ -444,6 +446,177 @@ func TestCreateHeadlessService(t *testing.T) {
 				assert.False(t, serviceUpdated, "no service update when no action is expected")
 			default:
 				t.Fatalf("Invalid expectedAction: %s", tc.expectedAction)
+			}
+		})
+	}
+}
+
+func TestGetAndValidateSecret(t *testing.T) {
+	t.Parallel()
+
+	jwkSecret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "jwk-secret", Namespace: "default"},
+		Type:       api_v1.SecretTypeOpaque,
+		Data:       map[string][]byte{"jwk": []byte("{}")},
+	}
+
+	tests := []struct {
+		name         string
+		secretNsName string
+		role         secrets.SecretRole
+		wantErr      string
+	}{
+		{
+			name:         "valid for the role whose required key it carries",
+			secretNsName: "default/jwk-secret",
+			role:         secrets.RoleJWK,
+		},
+		{
+			name:         "invalid for a role whose required keys it lacks",
+			secretNsName: "default/jwk-secret",
+			role:         secrets.RoleTLS,
+			wantErr:      `default/jwk-secret is invalid: secret is missing required key "tls.crt"`,
+		},
+		{
+			name:         "secret absent from the cluster",
+			secretNsName: "default/nope",
+			role:         secrets.RoleJWK,
+			wantErr:      "could not find default/nope",
+		},
+		{
+			name:         "unparseable secret reference",
+			secretNsName: "not-a-namespaced-name",
+			role:         secrets.RoleJWK,
+			wantErr:      "could not parse the not-a-namespaced-name argument",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			clientset := fake.NewClientset(jwkSecret)
+
+			secret, err := getAndValidateSecret(clientset, test.secretNsName, test.role)
+
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("getAndValidateSecret() unexpected error: %v", err)
+				}
+				if secret == nil || secret.Name != "jwk-secret" {
+					t.Errorf("getAndValidateSecret() returned %v, want jwk-secret", secret)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("getAndValidateSecret() expected an error containing %q, got none", test.wantErr)
+			}
+			if !strings.Contains(err.Error(), test.wantErr) {
+				t.Errorf("getAndValidateSecret() error = %q, want it to contain %q", err.Error(), test.wantErr)
+			}
+		})
+	}
+}
+
+func TestGetControllerZone(t *testing.T) {
+	t.Parallel()
+
+	node := func(name string, labels map[string]string) *api_v1.Node {
+		return &api_v1.Node{ObjectMeta: meta_v1.ObjectMeta{Name: name, Labels: labels}}
+	}
+
+	tests := []struct {
+		name     string
+		nodeName string
+		objects  []runtime.Object
+		want     string
+	}{
+		{
+			name:     "zone label on the controller node",
+			nodeName: "node-1",
+			objects: []runtime.Object{
+				node("node-1", map[string]string{api_v1.LabelTopologyZone: "zone-a"}),
+				node("node-2", map[string]string{api_v1.LabelTopologyZone: "zone-b"}),
+			},
+			want: "zone-a",
+		},
+		{
+			name:     "controller node has no zone label",
+			nodeName: "node-1",
+			objects:  []runtime.Object{node("node-1", nil)},
+			want:     "",
+		},
+		{
+			name:     "controller node not found",
+			nodeName: "node-1",
+			objects:  []runtime.Object{node("node-2", map[string]string{api_v1.LabelTopologyZone: "zone-b"})},
+			want:     "",
+		},
+		{
+			name:     "empty node name",
+			nodeName: "",
+			objects:  []runtime.Object{node("node-1", map[string]string{api_v1.LabelTopologyZone: "zone-a"})},
+			want:     "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clientset := fake.NewClientset(test.objects...)
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+			got := getControllerZone(ctx, clientset, test.nodeName)
+			if got != test.want {
+				t.Errorf("getControllerZone() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestGetControllerTopology(t *testing.T) {
+	t.Parallel()
+
+	pod := &api_v1.Pod{Spec: api_v1.PodSpec{NodeName: "node-1"}}
+	node := &api_v1.Node{ObjectMeta: meta_v1.ObjectMeta{
+		Name:   "node-1",
+		Labels: map[string]string{api_v1.LabelTopologyZone: "zone-a"},
+	}}
+
+	tests := []struct {
+		name         string
+		enabled      bool
+		wantNodeName string
+		wantZone     string
+		wantActions  int
+	}{
+		{
+			name:         "enabled resolves node and zone",
+			enabled:      true,
+			wantNodeName: "node-1",
+			wantZone:     "zone-a",
+			wantActions:  1,
+		},
+		{
+			name:        "disabled does not query the API",
+			enabled:     false,
+			wantActions: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clientset := fake.NewClientset(node)
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+			gotNodeName, gotZone := getControllerTopology(ctx, clientset, pod, test.enabled)
+			if gotNodeName != test.wantNodeName || gotZone != test.wantZone {
+				t.Errorf("getControllerTopology() = (%q, %q), want (%q, %q)", gotNodeName, gotZone, test.wantNodeName, test.wantZone)
+			}
+			if got := len(clientset.Actions()); got != test.wantActions {
+				t.Errorf("getControllerTopology() made %d API calls, want %d", got, test.wantActions)
 			}
 		})
 	}

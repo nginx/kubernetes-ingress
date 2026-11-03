@@ -2,6 +2,7 @@ import pytest
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_assertions import assert_event
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_items_from_yaml,
     create_namespace_with_name_from_yaml,
     create_service_from_yaml,
@@ -53,7 +54,7 @@ def ts_externalname_setup(
 
     external_svc = create_service_from_yaml(kube_apis.v1, transport_server_setup.namespace, external_svc_src)
     wait_before_test()
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

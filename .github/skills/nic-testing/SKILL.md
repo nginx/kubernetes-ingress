@@ -228,7 +228,7 @@ The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specif
 | You changed | Run | Path CI diffs |
 | --- | --- | --- |
 | `pkg/apis/**/types.go` | `make update-codegen` | `pkg/**` |
-| `pkg/apis/**` kubebuilder markers | `make update-crds` | `config/crd/bases` only |
+| `pkg/apis/**` kubebuilder markers | `make update-crds` | `config/crd/bases` and `config/crd/upstream` only |
 | Telemetry `Data` / `NICResourceCounts` in `internal/telemetry/exporter.go` | `make telemetry-schema` | `internal/telemetry` |
 | Any import / dependency | `go mod tidy` | `go.mod`, `go.sum` |
 | Any `.tmpl` or template struct | `make test-update-snaps` | not checked by `verify-codegen` -- fails in `unit-tests` instead |

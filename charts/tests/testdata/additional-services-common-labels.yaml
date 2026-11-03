@@ -1,0 +1,16 @@
+commonLabels:
+  team: platform
+  environment: production
+
+controller:
+  service:
+    additionalServices:
+      nginx-ingress-redis:
+        type: ClusterIP
+        extraLabels:
+          team: data # must win over commonLabels.team on collision
+        ports:
+          - name: redis
+            port: 6379
+            targetPort: 6379
+            protocol: TCP

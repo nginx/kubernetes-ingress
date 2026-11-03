@@ -7,11 +7,10 @@ import (
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	extdns_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	listersV1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/configuration/v1"
-	extdnslisters "github.com/nginx/kubernetes-ingress/pkg/client/listers/externaldns/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,17 +34,18 @@ type ExtDNSController struct {
 	queue         workqueue.TypedRateLimitingInterface[types.NamespacedName]
 	recorder      record.EventRecorder
 	client        k8s_nginx.Interface
-	informerGroup map[string]*namespacedInformer
+	informerGroup *nsregistry.Registry[namespacedInformer]
 	resync        time.Duration
+	groupVersion  string
 }
 
 type namespacedInformer struct {
 	vsLister              listersV1.VirtualServerLister
 	sharedInformerFactory k8s_nginx_informers.SharedInformerFactory
-	extdnslister          extdnslisters.DNSEndpointLister
+	backend               dnsEndpointBackend
 	mustSync              []cache.InformerSynced
 	stopCh                chan struct{}
-	lock                  sync.RWMutex
+	stopOnce              sync.Once
 }
 
 // ExtDNSOpts represents config required for building the External DNS Controller.
@@ -56,11 +56,12 @@ type ExtDNSOpts struct {
 	client        k8s_nginx.Interface
 	resyncPeriod  time.Duration
 	isDynamicNs   bool
+	groupVersion  string
 }
 
 // NewController takes external dns config and return a new External DNS Controller.
 func NewController(opts *ExtDNSOpts) (*ExtDNSController, error) {
-	ig := make(map[string]*namespacedInformer)
+	ig := nsregistry.New[namespacedInformer]()
 
 	rateLimiter := workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName]()
 
@@ -73,6 +74,7 @@ func NewController(opts *ExtDNSOpts) (*ExtDNSController, error) {
 		recorder:      opts.eventRecorder,
 		client:        opts.client,
 		resync:        opts.resyncPeriod,
+		groupVersion:  opts.groupVersion,
 	}
 
 	for _, ns := range opts.namespace {
@@ -85,7 +87,7 @@ func NewController(opts *ExtDNSOpts) (*ExtDNSController, error) {
 		}
 	}
 
-	c.sync = SyncFnFor(c.recorder, c.client, c.informerGroup)
+	c.sync = SyncFnFor(c.recorder, c.informerGroup)
 	return c, nil
 }
 
@@ -93,7 +95,6 @@ func (c *ExtDNSController) newNamespacedInformer(ns string) (*namespacedInformer
 	nsi := &namespacedInformer{sharedInformerFactory: k8s_nginx_informers.NewSharedInformerFactoryWithOptions(c.client, c.resync, k8s_nginx_informers.WithNamespace(ns))}
 	nsi.stopCh = make(chan struct{})
 	nsi.vsLister = nsi.sharedInformerFactory.K8s().V1().VirtualServers().Lister()
-	nsi.extdnslister = nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Lister()
 
 	if _, err := nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(
 		&QueuingEventHandler{
@@ -103,18 +104,23 @@ func (c *ExtDNSController) newNamespacedInformer(ns string) (*namespacedInformer
 		return nil, fmt.Errorf("failed to add VirtualServer event handler: %w", err)
 	}
 
-	if _, err := nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().AddEventHandler(&BlockingEventHandler{
-		WorkFunc: externalDNSHandler(c.queue),
-	}); err != nil {
-		return nil, fmt.Errorf("failed to add DNSEndpoint event handler: %w", err)
+	backend, syncs, err := registerDNSEndpointInformer(
+		c.groupVersion,
+		nsi.sharedInformerFactory,
+		c.client,
+		&BlockingEventHandler{WorkFunc: externalDNSHandler(c.queue)},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register DNSEndpoint informer: %w", err)
 	}
+	nsi.backend = backend
 
 	nsi.mustSync = append(
 		nsi.mustSync,
 		nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced,
-		nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().HasSynced,
 	)
-	c.informerGroup[ns] = nsi
+	nsi.mustSync = append(nsi.mustSync, syncs...)
+	c.informerGroup.Set(ns, nsi)
 	return nsi, nil
 }
 
@@ -131,10 +137,10 @@ func (c *ExtDNSController) Run(stopCh <-chan struct{}) {
 	nl.Info(l, "Starting external-dns control loop")
 
 	var mustSync []cache.InformerSynced
-	for _, ig := range c.informerGroup {
+	c.informerGroup.ForEach(func(ig *namespacedInformer) {
 		ig.start()
 		mustSync = append(mustSync, ig.mustSync...)
-	}
+	})
 
 	// wait for all informer caches to be synced
 	nl.Debugf(l, "Waiting for %d caches to sync", len(mustSync))
@@ -148,9 +154,9 @@ func (c *ExtDNSController) Run(stopCh <-chan struct{}) {
 
 	<-stopCh
 	nl.Debugf(l, "shutting down queue as workqueue signaled shutdown")
-	for _, ig := range c.informerGroup {
+	c.informerGroup.ForEach(func(ig *namespacedInformer) {
 		ig.stop()
-	}
+	})
 	c.queue.ShutDown()
 }
 
@@ -158,8 +164,12 @@ func (nsi *namespacedInformer) start() {
 	go nsi.sharedInformerFactory.Start(nsi.stopCh)
 }
 
+// stop closes the group's stop channel. It is idempotent: the shutdown sweep in
+// Run and RemoveNamespacedInformer can both reach the same group.
 func (nsi *namespacedInformer) stop() {
-	close(nsi.stopCh)
+	nsi.stopOnce.Do(func() {
+		close(nsi.stopCh)
+	})
 }
 
 // runWorker is a long-running function that will continually call the processItem
@@ -191,8 +201,16 @@ func (c *ExtDNSController) processItem(ctx context.Context, key types.Namespaced
 	name := key.Name
 	l := nl.LoggerFromContext(ctx)
 	var vs *conf_v1.VirtualServer
-	nsi := getNamespacedInformer(namespace, c.informerGroup)
-	vs, err := nsi.vsLister.VirtualServers(namespace).Get(name)
+	var err error
+	watched := c.informerGroup.WithInformer(namespace, func(nsi *namespacedInformer) {
+		vs, err = nsi.vsLister.VirtualServers(namespace).Get(name)
+	})
+	if !watched {
+		// the namespace stopped being watched between the item being queued
+		// and it being processed, so there is nothing left to reconcile
+		nl.Debugf(l, "Skipping VirtualServer %s/%s: namespace %s is not watched", namespace, name, namespace)
+		return nil
+	}
 
 	// VS has been deleted
 	if apierrors.IsNotFound(err) {
@@ -208,7 +226,7 @@ func (c *ExtDNSController) processItem(ctx context.Context, key types.Namespaced
 
 func externalDNSHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj interface{}) {
 	return func(obj interface{}) {
-		ep, ok := obj.(*extdns_v1.DNSEndpoint)
+		ep, ok := keyFromDNSEndpoint(obj)
 		if !ok {
 			runtime.HandleError(fmt.Errorf("not a DNSEndpoint object: %#v", obj))
 			return
@@ -228,13 +246,13 @@ func externalDNSHandler(queue workqueue.TypedRateLimitingInterface[types.Namespa
 			return
 		}
 
-		key := types.NamespacedName{Namespace: ep.Namespace, Name: ref.Name}
+		key := types.NamespacedName{Namespace: ep.GetNamespace(), Name: ref.Name}
 		queue.Add(key)
 	}
 }
 
 // BuildOpts builds the externalDNS controller options
-func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, client k8s_nginx.Interface, resync time.Duration, idn bool) *ExtDNSOpts {
+func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, client k8s_nginx.Interface, resync time.Duration, idn bool, groupVersion string) *ExtDNSOpts {
 	return &ExtDNSOpts{
 		context:       ctx,
 		namespace:     ns,
@@ -242,32 +260,15 @@ func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, clien
 		client:        client,
 		resyncPeriod:  resync,
 		isDynamicNs:   idn,
+		groupVersion:  groupVersion,
 	}
-}
-
-func getNamespacedInformer(ns string, ig map[string]*namespacedInformer) *namespacedInformer {
-	var nsi *namespacedInformer
-	var isGlobalNs bool
-	var exists bool
-
-	nsi, isGlobalNs = ig[""]
-
-	if !isGlobalNs {
-		// get the correct namespaced informers
-		nsi, exists = ig[ns]
-		if !exists {
-			// we are not watching this namespace
-			return nil
-		}
-	}
-	return nsi
 }
 
 // AddNewNamespacedInformer adds watchers for a new namespace
-func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
+func (c *ExtDNSController) AddNewNamespacedInformer(ctx context.Context, ns string) {
 	l := nl.LoggerFromContext(c.ctx)
 	nl.Debugf(l, "Adding or Updating external-dns Watchers for Namespace: %v", ns)
-	nsi := getNamespacedInformer(ns, c.informerGroup)
+	nsi := c.informerGroup.Get(ns)
 	if nsi == nil {
 		var err error
 		nsi, err = c.newNamespacedInformer(ns)
@@ -277,7 +278,11 @@ func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
 		}
 		nsi.start()
 	}
-	if !cache.WaitForCacheSync(nsi.stopCh, nsi.mustSync...) {
+	// ctx is the caller's run context. This is called from the main
+	// controller's queue worker, and its shutdown waits for that worker, so
+	// the wait must also end when ctx is canceled rather than only when this
+	// group's stopCh closes.
+	if !nsregistry.WaitForCacheSync(ctx, nsi.stopCh, nsi.mustSync...) {
 		return
 	}
 }
@@ -286,12 +291,8 @@ func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
 func (c *ExtDNSController) RemoveNamespacedInformer(ns string) {
 	l := nl.LoggerFromContext(c.ctx)
 	nl.Debugf(l, "Deleting external-dns Watchers for Deleted Namespace: %v", ns)
-	nsi := getNamespacedInformer(ns, c.informerGroup)
-	if nsi != nil {
-		nsi.lock.Lock()
-		defer nsi.lock.Unlock()
+	// Remove waits for in-flight readers, so nothing is still reading it
+	if nsi := c.informerGroup.Remove(ns); nsi != nil {
 		nsi.stop()
-		delete(c.informerGroup, ns)
-		nsi = nil
 	}
 }

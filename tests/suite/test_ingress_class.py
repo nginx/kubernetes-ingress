@@ -8,6 +8,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -43,9 +45,10 @@ def backend_setup(request, kube_apis, ingress_controller_endpoint, test_namespac
     :return: BackendSetup
     """
     print("------------------------- Deploy the backend -----------------------------------")
-    create_example_app(kube_apis, "simple", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
     req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,

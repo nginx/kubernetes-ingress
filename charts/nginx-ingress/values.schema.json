@@ -10,6 +10,13 @@
     "serviceInsight"
   ],
   "properties": {
+    "commonLabels": {
+      "type": "object",
+      "default": {},
+      "title": "Common labels to apply to all chart-managed resources, including pod templates",
+      "description": "A resource's own extraLabels field takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
+      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
+    },
     "controller": {
       "type": "object",
       "default": {},
@@ -244,6 +251,15 @@
             60000
           ]
         },
+        "batchReloadWindow": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 2000,
+          "title": "Maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn before flushing it. 0 disables the bound",
+          "examples": [
+            2000
+          ]
+        },
         "appprotect": {
           "type": "object",
           "default": {},
@@ -381,10 +397,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.15.0",
+                      "default": "5.16.1",
                       "title": "The tag of the  App Protect WAF v5 Enforcer image",
                       "examples": [
-                        "5.15.0"
+                        "5.16.1"
                       ]
                     },
                     "digest": {
@@ -420,7 +436,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                      "tag": "5.15.0",
+                      "tag": "5.16.1",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -458,10 +474,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.15.0",
+                      "default": "5.16.1",
                       "title": "The tag of the  App Protect WAF v5 Config Manager image",
                       "examples": [
-                        "5.15.0"
+                        "5.16.1"
                       ]
                     },
                     "digest": {
@@ -497,7 +513,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                      "tag": "5.15.0",
+                      "tag": "5.16.1",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -554,10 +570,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.15.0",
+                      "default": "5.16.1",
                       "title": "The tag of the App Protect WAF v5 IP Intelligence image",
                       "examples": [
-                        "5.15.0"
+                        "5.16.1"
                       ]
                     },
                     "digest": {
@@ -593,7 +609,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-                      "tag": "5.15.0",
+                      "tag": "5.16.1",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -838,10 +854,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "5.6.3",
+              "default": "5.7.0",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "5.6.3"
+                "5.7.0"
               ]
             },
             "digest": {
@@ -877,7 +893,7 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "5.6.3",
+              "tag": "5.7.0",
               "pullPolicy": "IfNotPresent"
             }
           ]
@@ -1266,6 +1282,19 @@
             false
           ]
         },
+        "externalDNSGroupVersion": {
+          "type": "string",
+          "default": "externaldns.nginx.org/v1",
+          "title": "The externalDNSGroupVersion",
+          "description": "DNSEndpoint API group and version NGINX Ingress Controller writes to. Use externaldns.nginx.org/v1 with external-dns <= v0.20.x, or externaldns.k8s.io/v1alpha1 with external-dns v0.21.0+.",
+          "enum": [
+            "externaldns.nginx.org/v1",
+            "externaldns.k8s.io/v1alpha1"
+          ],
+          "examples": [
+            "externaldns.nginx.org/v1"
+          ]
+        },
         "globalConfiguration": {
           "type": "object",
           "default": {},
@@ -1458,6 +1487,7 @@
               "type": "object",
               "default": {},
               "title": "The extraLabels",
+              "description": "Takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
               "required": [],
               "properties": {},
               "examples": [
@@ -1626,6 +1656,126 @@
               "title": "The customPorts",
               "items": {
                 "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
+              }
+            },
+            "additionalServices": {
+              "type": "object",
+              "default": {},
+              "title": "Additional Services that expose the Ingress Controller pods",
+              "propertyNames": {
+                "type": "string",
+                "maxLength": 63,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "ports"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "title": "The Service type",
+                    "enum": [
+                      "ClusterIP",
+                      "NodePort",
+                      "LoadBalancer"
+                    ]
+                  },
+                  "annotations": {
+                    "default": {},
+                    "title": "The Service annotations",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
+                  },
+                  "extraLabels": {
+                    "default": {},
+                    "title": "The extra Service labels",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
+                  },
+                  "clusterIP": {
+                    "default": "",
+                    "title": "The Service clusterIP",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/clusterIP"
+                  },
+                  "externalTrafficPolicy": {
+                    "default": "",
+                    "title": "The Service externalTrafficPolicy",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalTrafficPolicy"
+                  },
+                  "loadBalancerIP": {
+                    "default": "",
+                    "title": "The Service loadBalancerIP",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerIP"
+                  },
+                  "loadBalancerClass": {
+                    "default": "",
+                    "title": "The Service loadBalancerClass",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerClass"
+                  },
+                  "externalIPs": {
+                    "default": [],
+                    "title": "The Service externalIPs",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalIPs"
+                  },
+                  "loadBalancerSourceRanges": {
+                    "default": [],
+                    "title": "The Service loadBalancerSourceRanges",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerSourceRanges"
+                  },
+                  "allocateLoadBalancerNodePorts": {
+                    "default": true,
+                    "title": "Allocate NodePorts for the LoadBalancer Service",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
+                  },
+                  "ipFamilyPolicy": {
+                    "default": "",
+                    "title": "The Service ipFamilyPolicy",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilyPolicy"
+                  },
+                  "ipFamilies": {
+                    "default": [],
+                    "title": "The Service ipFamilies",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
+                  },
+                  "ports": {
+                    "type": "array",
+                    "title": "The Service ports",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
+                    }
+                  },
+                  "sessionAffinity": {
+                    "type": "object",
+                    "default": {},
+                    "title": "The sessionAffinity Schema",
+                    "additionalProperties": false,
+                    "properties": {
+                      "enable": {
+                        "type": "boolean",
+                        "default": false,
+                        "title": "Enable session affinity"
+                      },
+                      "type": {
+                        "type": "string",
+                        "default": "ClientIP",
+                        "title": "Session affinity type",
+                        "enum": [
+                          "ClientIP"
+                        ]
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "default": 3600,
+                        "title": "Session affinity timeout in seconds",
+                        "minimum": 1,
+                        "maximum": 86400
+                      }
+                    }
+                  }
+                }
               }
             },
             "sessionAffinity": {
@@ -1889,6 +2039,7 @@
             "extraLabels": {
               "default": {},
               "title": "The extraLabels Schema",
+              "description": "Takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
             }
           },
@@ -2068,6 +2219,23 @@
             false
           ]
         },
+        "latencyMetricsBuckets": {
+          "type": "string",
+          "default": "",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?)*$",
+          "title": "The latencyMetricsBuckets",
+          "examples": [
+            "5,10,25,50,100,250,500,1000"
+          ]
+        },
+        "enableTopologyAwareRouting": {
+          "type": "boolean",
+          "default": false,
+          "title": "The enableTopologyAwareRouting",
+          "examples": [
+            false
+          ]
+        },
         "disableIPV6": {
           "type": "boolean",
           "default": false,
@@ -2178,6 +2346,7 @@
           "kind": "deployment",
           "nginxplus": false,
           "nginxReloadTimeout": 60000,
+          "batchReloadWindow": 2000,
           "appprotect": {
             "enable": false,
             "v5": false,
@@ -2201,7 +2370,7 @@
               "port": 50000,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                "tag": "5.15.0",
+                "tag": "5.16.1",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {}
@@ -2209,7 +2378,7 @@
             "configManager": {
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                "tag": "5.15.0",
+                "tag": "5.16.1",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2227,7 +2396,7 @@
               "enable": false,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-                "tag": "5.15.0",
+                "tag": "5.16.1",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2267,7 +2436,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "5.6.3",
+            "tag": "5.7.0",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2347,6 +2516,7 @@
           "tlsPassthroughPort": 443,
           "enableCertManager": false,
           "enableExternalDNS": false,
+          "externalDNSGroupVersion": "externaldns.nginx.org/v1",
           "globalConfiguration": {
             "create": false,
             "spec": {}
@@ -2411,6 +2581,7 @@
             "initialDelaySeconds": 0
           },
           "enableLatencyMetrics": false,
+          "enableTopologyAwareRouting": false,
           "disableIPV6": false,
           "defaultHTTPListenerPort": 80,
           "defaultHTTPSListenerPort": 443,
@@ -2722,12 +2893,12 @@
                 "secret": {
                   "type": "string",
                   "default": "",
-                  "title": "kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and NGINX Instance Manager"
+                  "title": "kubernetes.io/tls or Opaque secret with a TLS certificate and key for using mTLS between NGINX Agent and NGINX Instance Manager"
                 },
                 "caSecret": {
                   "type": "string",
                   "default": "",
-                  "title": "nginx.org/ca secret for verification of Instance Manager TLS"
+                  "title": "Opaque secret for verification of Instance Manager TLS"
                 },
                 "skipVerify": {
                   "type": "boolean",
@@ -2805,6 +2976,7 @@
         "kind": "deployment",
         "nginxplus": false,
         "nginxReloadTimeout": 60000,
+        "batchReloadWindow": 2000,
         "appprotect": {
           "enable": false,
           "v5": false,
@@ -2828,7 +3000,7 @@
             "port": 50000,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-enforcer",
-              "tag": "5.15.0",
+              "tag": "5.16.1",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {}
@@ -2836,7 +3008,7 @@
           "configManager": {
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-              "tag": "5.15.0",
+              "tag": "5.16.1",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2854,7 +3026,7 @@
             "enable": false,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-              "tag": "5.15.0",
+              "tag": "5.16.1",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2894,7 +3066,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "5.6.3",
+          "tag": "5.7.0",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },
@@ -2974,6 +3146,7 @@
         "tlsPassthroughPort": 443,
         "enableCertManager": false,
         "enableExternalDNS": false,
+        "externalDNSGroupVersion": "externaldns.nginx.org/v1",
         "globalConfiguration": {
           "create": false,
           "spec": {}
@@ -3038,6 +3211,7 @@
           "initialDelaySeconds": 0
         },
         "enableLatencyMetrics": false,
+        "enableTopologyAwareRouting": false,
         "disableIPV6": false,
         "defaultHTTPListenerPort": 80,
         "defaultHTTPSListenerPort": 443,

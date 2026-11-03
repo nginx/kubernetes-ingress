@@ -19,10 +19,12 @@ type helmOptions struct {
 	valuesFiles []string
 }
 
-// renderTemplateE shells out to `helm template` and returns its stdout.
+// renderTemplateE shells out to `helm template` and returns its stdout, passed
+// through normalizeRendered so the result is independent of the helm binary's
+// major version.
 //
 // The argument order deliberately mirrors what terratest's helm.RenderTemplateE
-// built, so the committed snapshots keep matching:
+// built:
 //
 //	helm template [--namespace ns] [-f <abs values file>]... [extra args...] <release> <chart dir>
 //
@@ -63,21 +65,73 @@ func renderTemplateE(chartDir, releaseName string, opts helmOptions, extraArgs .
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return trimTrailingNewline(stdout.String()),
+		return normalizeRendered(stdout.String()),
 			fmt.Errorf("error while running command: %w; %s", err, trimTrailingNewline(stderr.String()))
 	}
 
-	return trimTrailingNewline(stdout.String()), nil
+	return normalizeRendered(stdout.String()), nil
 }
 
-// trimTrailingNewline drops the single trailing newline helm writes.
-//
-// terratest accumulated command output line by line and rejoined it with
-// strings.Join(lines, "\n"), which discarded that final newline. The committed
-// snapshots were recorded through that path, so reproduce it here rather than
-// rewriting 39 snapshot files.
+// trimTrailingNewline drops the single trailing newline helm writes. It is used
+// for stderr, which carries helm's schema and template validation messages and
+// must stay verbatim for the negative tests to assert on.
 func trimTrailingNewline(s string) string {
 	return strings.TrimSuffix(strings.ReplaceAll(s, "\r\n", "\n"), "\n")
+}
+
+// normalizeRendered rewrites `helm template` output into a form that does not
+// depend on the major version of the helm binary on PATH.
+//
+// Helm 3 and Helm 4 render this chart to semantically identical manifests but
+// serialize them differently. Helm 4 preserves trailing whitespace that Helm 3
+// stripped, and for a template that renders to nothing Helm 3 emits a
+// placeholder document (a lone `# Source:` comment between two separators)
+// where Helm 4 emits blank lines. Both differences are cosmetic: rendering
+// every fixture through both binaries and comparing the parsed objects yields
+// no differences. Left unnormalized they would couple the committed snapshots
+// to whichever helm binary produced them.
+//
+// The normal form is one `---` separated document per rendered object, each
+// preceded by the `# Source:` comment naming the template it came from, with
+// blank lines and trailing whitespace removed. Helm prints `# Source:` once per
+// template file, so a document following an inner `---` inherits the source of
+// the file being rendered. Documents with no content are dropped together with
+// their source comment, which is what lets a test assert that a template
+// rendered nothing at all.
+//
+// Caveat: blank lines inside block scalars are removed as well. That is safe
+// here because every block scalar this chart emits uses `|-` (strip chomping),
+// so trailing newlines are not part of the value. A future `|` or `|+` scalar
+// whose trailing newlines are significant would need this revisited.
+func normalizeRendered(s string) string {
+	var (
+		docs   []string
+		body   []string
+		source string
+	)
+
+	flush := func() {
+		if len(body) > 0 {
+			docs = append(docs, "---\n"+source+"\n"+strings.Join(body, "\n"))
+		}
+		body = nil
+	}
+
+	for _, line := range strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n") {
+		line = strings.TrimRight(line, " \t")
+
+		switch {
+		case line == "---":
+			flush()
+		case strings.HasPrefix(line, "# Source:"):
+			source = line
+		case line != "":
+			body = append(body, line)
+		}
+	}
+	flush()
+
+	return strings.Join(docs, "\n")
 }
 
 // renderTemplate is renderTemplateE but fails the test instead of returning an error.

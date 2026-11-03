@@ -17,6 +17,8 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_items_from_yaml,
     delete_secret,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -60,7 +62,7 @@ def create_bundle_server_secrets(v1: CoreV1Api, namespace: str) -> None:
         create_secret_from_yaml(v1, namespace, yaml_path)
 
 
-def deploy_bundle_server(kube_apis, namespace: str) -> None:
+def deploy_bundle_server(kube_apis, namespace: str, e2e_run_id: str) -> None:
     """Deploy the HTTPS bundle server and copy the WAF bundle into it.
 
     Applies bundle-server.yaml (ConfigMap + Deployment + Services), waits
@@ -68,14 +70,16 @@ def deploy_bundle_server(kube_apis, namespace: str) -> None:
 
     :param kube_apis: KubeApis fixture object
     :param namespace: target namespace
+    :param e2e_run_id: run ID applied to the bundle server workload
     """
     print("Deploy bundle server")
-    create_items_from_yaml(kube_apis, BUNDLE_SERVER_YAML, namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, namespace)
-    _copy_bundle_to_pod(kube_apis.v1, namespace)
+    create_items_from_yaml(kube_apis, BUNDLE_SERVER_YAML, namespace, e2e_run_id)
+    selector = get_e2e_run_selector(e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, namespace, selector)
+    _copy_bundle_to_pod(kube_apis.v1, namespace, selector)
 
 
-def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
+def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str, selector: str) -> None:
     """Copy the pre-compiled WAF bundle into the bundle-server pod.
 
     Uses kubectl cp which handles buffering and EOF signaling reliably,
@@ -85,7 +89,7 @@ def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
     if not os.path.exists(WAF_BUNDLE_PATH):
         raise FileNotFoundError(f"WAF bundle not found: {WAF_BUNDLE_PATH}")
 
-    pod_name = _get_bundle_server_pod(v1, namespace)
+    pod_name = _get_bundle_server_pod(v1, namespace, selector)
     dest_path = "/www/bundles/wafv5.tgz"
     print(f"Copy WAF bundle to bundle-server pod {pod_name}")
 
@@ -100,9 +104,9 @@ def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
     print("WAF bundle copied to bundle-server pod")
 
 
-def _get_bundle_server_pod(v1: CoreV1Api, namespace: str) -> str:
+def _get_bundle_server_pod(v1: CoreV1Api, namespace: str, selector: str) -> str:
     """Return the name of the bundle-server pod."""
-    pods = v1.list_namespaced_pod(namespace, label_selector="app=bundle-server")
+    pods = v1.list_namespaced_pod(namespace, label_selector=f"app=bundle-server,{selector}")
     if not pods.items:
         raise RuntimeError(f"No bundle-server pod found in namespace {namespace}")
     return pods.items[0].metadata.name
@@ -255,8 +259,9 @@ def setup_bundle_server(kube_apis, namespace: str) -> BundleServerSetup:
     :param namespace: target namespace
     :return: BundleServerSetup with URLs and secret names
     """
+    e2e_run_id = generate_e2e_run_id()
     create_bundle_server_secrets(kube_apis.v1, namespace)
-    deploy_bundle_server(kube_apis, namespace)
+    deploy_bundle_server(kube_apis, namespace, e2e_run_id)
     # Allow time for service endpoints to fully propagate (especially mTLS on port 443).
     wait_before_test(5)
 

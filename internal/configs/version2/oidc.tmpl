@@ -9,6 +9,9 @@
 
     location = /_jwks_uri {
         internal;
+        {{- if .AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;                       # Subrequest inherits parent Content-Length
         proxy_cache jwk;                              # Cache the JWK Set received from IdP
         proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
@@ -46,6 +49,9 @@
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
+        {{- if .AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;                       # Subrequest inherits parent Content-Length
 
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
@@ -68,6 +74,9 @@
         # use the proxy_ directives to construct the OpenID Connect token request, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
         internal;
+        {{- if .AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;                       # Subrequest inherits parent Content-Length
 
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
@@ -89,6 +98,9 @@
         # Internal location to verify any JWT (e.g., id_token, logout_token)
         # using the auth_jwt module. Extracts the claims and returns them as JSON.
         internal;
+        {{- if .AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;                       # Subrequest inherits parent Content-Length
         auth_jwt "" token=$arg_token;
         js_content oidc.extractTokenClaims;

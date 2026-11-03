@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: pebble
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.org/ssl-redirect: "true"
+    nginx.org/basic-auth-secret: acme-htpasswd
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - acme-ingress.example.com
+    secretName: acme-ingress-tls
+  rules:
+  - host: acme-ingress.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

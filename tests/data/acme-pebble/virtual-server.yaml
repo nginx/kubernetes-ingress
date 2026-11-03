@@ -1,0 +1,20 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: acme-vs
+spec:
+  host: acme-vs.example.com
+  tls:
+    secret: acme-vs-tls
+    redirect:
+      enable: true
+    cert-manager:
+      cluster-issuer: pebble
+  upstreams:
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: /
+    action:
+      pass: backend1

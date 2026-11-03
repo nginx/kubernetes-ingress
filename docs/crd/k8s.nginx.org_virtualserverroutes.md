@@ -15,7 +15,7 @@ The `.spec` object supports the following fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. Must be the same as the host of the VirtualServer that references this resource. |
+| `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. When set, must be the same as the host of the VirtualServer that references this resource. When omitted (hostless mode), the VirtualServerRoute can be referenced by any VirtualServer regardless of host, enabling the same route configuration to be shared across multiple VirtualServers. |
 | `ingressClassName` | `string` | Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource. |
 | `subroutes` | `array` | A list of subroutes. |
 | `subroutes[].action` | `object` | The default action to perform for a request. |
@@ -232,5 +232,5 @@ The `.spec` object supports the following fields:
 | `upstreams[].subselector` | `object` | Selects the pods within the service using label keys and values. By default, all pods of the service are selected. Note: the specified labels are expected to be present in the pods when they are created. If the pod labels are updated, NGINX Ingress Controller will not see that change until the number of the pods is changed. |
 | `upstreams[].tls` | `object` | The TLS configuration for the Upstream. |
 | `upstreams[].tls.enable` | `boolean` | Enables HTTPS for requests to upstream servers. The default is False , meaning that HTTP will be used. Note: by default, NGINX will not verify the upstream server certificate. To enable the verification, configure an EgressMTLS Policy. |
-| `upstreams[].type` | `string` | The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2 in the ConfigMap and configure TLS termination in the VirtualServer. |
+| `upstreams[].type` | `string` | The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2, using the VirtualServer http2 field or the http2 ConfigMap key. |
 | `upstreams[].use-cluster-ip` | `boolean` | Enables using the Cluster IP and port of the service instead of the default behavior of using the IP and port of the pods. When this field is enabled, the fields that configure NGINX behavior related to multiple upstream servers (like lb-method and next-upstream) will have no effect, as NGINX Ingress Controller will configure NGINX with only one upstream server that will match the service Cluster IP. |

@@ -14,6 +14,8 @@ from suite.utils.resources_utils import (
     create_items_from_yaml,
     delete_common_app,
     delete_items_from_yaml,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_reload_count,
     wait_for_reload,
     wait_until_all_pods_are_ready,
@@ -45,13 +47,14 @@ ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-aut
 ext_auth_tls_backend_src = f"{TEST_DATA}/external-auth/backend/external-auth-backend-tls.yaml"
 ext_auth_tls_server_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-server-tls-secret.yaml"
 ext_auth_tls_ca_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret.yaml"
-ext_auth_tls_wrong_ca_src = f"{TEST_DATA}/external-auth/backend/wrong-type-ca-secret.yaml"
+ext_auth_tls_ca_secret_opaque_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret-opaque.yaml"
+ext_auth_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/backend/missing-ca-crt-secret.yaml"
 
 # TLS policies
 ext_auth_pol_tls_basic_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-basic.yaml"
 ext_auth_pol_tls_full_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-full.yaml"
 ext_auth_pol_tls_nonexistent_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-nonexistent-ca.yaml"
-ext_auth_pol_tls_wrong_ca_type_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-wrong-ca-type.yaml"
+ext_auth_pol_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-missing-ca-crt.yaml"
 ext_auth_pol_tls_bad_sni_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-bad-sni.yaml"
 ext_auth_pol_tls_cross_ns_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-cross-ns-ca.yaml"
 ext_auth_pol_tls_no_trusted_cert_src = (
@@ -89,14 +92,15 @@ def create_ingress_setup(
     ingress_controller_prerequisites,
     test_namespace,
     ingress_src,
+    e2e_run_id,
 ):
     """Deploy the backend app and create the Ingress, returning an IngressSetup."""
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
     count_before = get_reload_count(metrics_url)
-    create_items_from_yaml(kube_apis, ingress_src, test_namespace)
+    create_items_from_yaml(kube_apis, ingress_src, test_namespace, e2e_run_id)
 
     ingress_host = get_first_ingress_host_from_yaml(ingress_src)
     request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
@@ -177,6 +181,7 @@ def setup_ext_auth(
     policy_yamls,
     vs_host,
     *,
+    e2e_run_id=None,
     tls=False,
     validate_policies=True,
 ):
@@ -188,12 +193,14 @@ def setup_ext_auth(
         credentials: Path to credentials file, or None for no-auth requests.
         policy_yamls: List of policy YAML file paths (1 or more).
         vs_host: The VirtualServer/VSR host header value.
+        e2e_run_id: Run ID applied to the external auth backend workload.
         tls: If True, deploy TLS backend with server TLS and CA secrets.
         validate_policies: If True, wait for each policy to reach Valid state.
 
     Returns:
         (secret_names: list[str], policy_names: list[str], headers: dict)
     """
+    e2e_run_id = e2e_run_id or generate_e2e_run_id()
     if tls:
         secret_yamls = [
             ext_auth_backend_secret_src,
@@ -211,6 +218,7 @@ def setup_ext_auth(
         secret_yamls=secret_yamls,
         backend_yaml=backend_yaml,
         policy_yamls=policy_yamls,
+        e2e_run_id=e2e_run_id,
         validate_policies=validate_policies,
         wait_for_service="external-auth-svc",
     )
@@ -243,10 +251,10 @@ def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=F
 
 
 @pytest.fixture
-def ext_auth_setup(request, kube_apis, test_namespace):
+def ext_auth_setup(request, kube_apis, test_namespace, e2e_run_id):
     """Parametrized fixture that deploys the external auth backend and policies.
 
-    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies]])``.
+    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies[, ca_secret_src]]])``.
 
     .. code-block:: python
 
@@ -264,10 +272,11 @@ def ext_auth_setup(request, kube_apis, test_namespace):
     policy_yamls = params[0]
     tls = params[1] if len(params) > 1 else False
     validate_policies = params[2] if len(params) > 2 else True
+    ca_secret_src = params[3] if len(params) > 3 else ext_auth_tls_ca_secret_src
 
     backend_yaml = ext_auth_tls_backend_src if tls else ext_auth_backend_src
     secret_yamls = (
-        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ext_auth_tls_ca_secret_src]
+        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ca_secret_src]
         if tls
         else [ext_auth_backend_secret_src]
     )
@@ -278,6 +287,7 @@ def ext_auth_setup(request, kube_apis, test_namespace):
         secret_yamls=secret_yamls,
         backend_yaml=backend_yaml,
         policy_yamls=policy_yamls,
+        e2e_run_id=e2e_run_id,
         validate_policies=validate_policies,
         wait_for_service="external-auth-svc",
     )
@@ -299,6 +309,7 @@ def ext_auth_ingress(
     ingress_controller_endpoint,
     ingress_controller_prerequisites,
     test_namespace,
+    e2e_run_id,
 ):
     """Parametrized fixture that creates an Ingress with guaranteed teardown.
 
@@ -316,6 +327,7 @@ def ext_auth_ingress(
         ingress_controller_prerequisites,
         test_namespace,
         request.param,
+        e2e_run_id,
     )
 
     def fin():

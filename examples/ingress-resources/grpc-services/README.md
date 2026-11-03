@@ -6,8 +6,10 @@ to your Ingress resource definition.
 ## Prerequisites
 
 - HTTP/2 must be enabled. See `http2` ConfigMap key in the
-  [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#listeners)
-- Ingress resources for gRPC applications must include TLS termination.
+  [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#listeners),
+  or set the `nginx.org/http2: "true"` annotation on a single Ingress.
+- This example uses TLS termination. gRPC without TLS (h2c) also works, but on the default HTTP port it also needs the
+  `http2` ConfigMap key, because NGINX accepts unencrypted HTTP/2 based on the listener's default server.
 
 ## Syntax
 

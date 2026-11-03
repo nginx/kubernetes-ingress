@@ -12,6 +12,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_item_removal,
+    get_e2e_run_selector,
     get_service_endpoint,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -90,7 +91,15 @@ def apply_and_wait_for_valid_policy(kube_apis, namespace, policy_yaml, retry_cou
 
 
 def setup_policy_backend(
-    kube_apis, namespace, *, secret_yamls, backend_yaml, policy_yamls, validate_policies=True, wait_for_service=None
+    kube_apis,
+    namespace,
+    *,
+    secret_yamls,
+    backend_yaml,
+    policy_yamls,
+    e2e_run_id,
+    validate_policies=True,
+    wait_for_service=None,
 ):
     """Deploy a backend with secrets and create policies.
 
@@ -103,6 +112,7 @@ def setup_policy_backend(
         secret_yamls: List of YAML file paths for secrets to create.
         backend_yaml: YAML file path for backend deployment (ConfigMap + Deployment + Service).
         policy_yamls: List of YAML file paths for policies to create.
+        e2e_run_id: Run ID applied to the backend workload and used for readiness checks.
         validate_policies: If True (default), wait for each policy to reach Valid state.
             Set to False for tests that expect the policy to be Invalid/Rejected.
         wait_for_service: If set, wait for this service name's endpoints to be registered
@@ -119,8 +129,8 @@ def setup_policy_backend(
         secret_names.append(name)
 
     print(f"Deploy backend from {backend_yaml}")
-    create_items_from_yaml(kube_apis, backend_yaml, namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+    create_items_from_yaml(kube_apis, backend_yaml, namespace, e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, namespace, get_e2e_run_selector(e2e_run_id))
 
     if wait_for_service:
         print(f"Waiting for endpoints of service '{wait_for_service}' to be ready...")

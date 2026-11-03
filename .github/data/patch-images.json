@@ -90,15 +90,15 @@
     "platforms": "linux/amd64"
   },
   {
-    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress",
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-dos/nginx-plus-ingress",
     "source_os": "debian",
-    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
     "platforms": "linux/amd64"
   },
   {
-    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress",
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-dos/nginx-plus-ingress",
     "source_os": "ubi",
-    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
     "platforms": "linux/amd64"
   },
   {
@@ -138,15 +138,15 @@
     "platforms": "linux/amd64"
   },
   {
-    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress",
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-dos/nginx-plus-ingress",
     "source_os": "agent",
-    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
     "platforms": "linux/amd64"
   },
   {
-    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-dos-nap/nginx-plus-ingress",
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-dos/nginx-plus-ingress",
     "source_os": "ubi-agent",
-    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-dos/nginx-plus-ingress",
     "platforms": "linux/amd64"
   }
 ]

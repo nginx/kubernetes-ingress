@@ -126,6 +126,12 @@ func ValidateURI(uri string, options ...URIValidationOption) error {
 
 	parsed, err := url.Parse(uri)
 	if err != nil {
+		// *url.Error repeats the whole input, which can carry user:password,
+		// and callers put this error in logs and Events. Report only the cause.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return fmt.Errorf("error parsing uri: %w", err)
 	}
 

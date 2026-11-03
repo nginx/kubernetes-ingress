@@ -15,6 +15,8 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_secret,
     delete_service,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -55,6 +57,7 @@ class KeycloakSetup:
 def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint, virtual_server_setup):
 
     # Create Keycloak resources and setup Keycloak idp
+    e2e_run_id = generate_e2e_run_id()
 
     vs_secret_name = create_secret_from_yaml(
         kube_apis.v1, virtual_server_setup.namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
@@ -72,9 +75,9 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
             kube_apis.v1, test_namespace, f"{TEST_DATA}/oidc/keycloak-ca-secret.yaml"
         )
 
-    create_example_app(kube_apis, backend_app, test_namespace)
+    create_example_app(kube_apis, backend_app, test_namespace, e2e_run_id=e2e_run_id)
     wait_before_test()
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     keycloak_vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, keycloak_vs_src, test_namespace)
     wait_before_test()
 
@@ -202,6 +205,35 @@ class TestOIDCHttp:
             oidcYaml,
         )
 
+    def test_oidc_with_opaque_secret(
+        self,
+        request,
+        kube_apis,
+        ingress_controller_endpoint,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        test_namespace,
+        virtual_server_setup,
+        keycloak_setup,
+    ):
+        """
+        Full login flow with the client secret stored in an Opaque secret.
+
+        The secret carries the same client-secret key and the same name as the nginx.org/oidc
+        fixture, so the policy resolves it unchanged.
+        """
+        run_test(
+            kube_apis,
+            ingress_controller_endpoint,
+            ingress_controller_prerequisites,
+            test_namespace,
+            virtual_server_setup,
+            keycloak_setup,
+            cm_src,
+            "standard",
+            secret_type="Opaque",
+        )
+
 
 @pytest.mark.oidc
 @pytest.mark.skip_for_nginx_oss
@@ -270,11 +302,14 @@ def run_test(
     keycloak_setup,
     configmap,
     oidcYaml,
+    secret_type=None,
 ):
     print(f"Create oidc secret")
     with open(oidc_secret_src) as f:
         secret_data = yaml.safe_load(f)
     secret_data["data"]["client-secret"] = keycloak_setup.secret
+    if secret_type is not None:
+        secret_data["type"] = secret_type
     secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
     policy_file = get_oidc_policy_file(keycloak_setup, oidcYaml)

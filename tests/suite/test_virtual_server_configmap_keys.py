@@ -1,14 +1,17 @@
 import pytest
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_events,
     get_events_for_object,
     get_file_contents,
     get_first_pod_name,
+    get_nginx_template_conf,
     get_pods_amount,
     get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
     wait_before_test,
+    wait_for_event,
 )
 from suite.utils.yaml_utils import get_configmap_fields_from_yaml
 
@@ -55,18 +58,18 @@ def assert_keys_without_validation(config, expected_values):
     assert f" {expected_values['upstream-zone-size']};" in config
 
 
-def assert_keys_without_validation_or_proxies(config, expected_values):
-    assert f"proxy_connect_timeout {expected_values['proxy-connect-timeout']};" in config
-    assert f"proxy_read_timeout {expected_values['proxy-read-timeout']};" in config
-    assert f"client_max_body_size {expected_values['client-max-body-size']};" in config
-    assert f"proxy_max_temp_file_size {expected_values['proxy-max-temp-file-size']};" in config
-    assert f"set_real_ip_from {expected_values['set-real-ip-from']};" in config
-    assert f"real_ip_header {expected_values['real-ip-header']};" in config
-    assert f"{expected_values['location-snippets']}" in config
-    assert f"{expected_values['server-snippets']}" in config
-    assert f"fail_timeout={expected_values['fail-timeout']}" in config
-    assert f"proxy_send_timeout {expected_values['proxy-send-timeout']};" in config
-    assert f" {expected_values['upstream-zone-size']};" in config
+def assert_invalid_values_only_in_snippets(config, invalid_value):
+    # NIC now validates every key in this ConfigMap except the snippets, so an
+    # invalid value is dropped and the key keeps its default. Only the snippets,
+    # which are raw NGINX configuration by design, still carry the value through.
+    lines = [line.strip() for line in config.splitlines() if invalid_value in line]
+    assert lines, "the snippets should still be rendered"
+    assert all(line == invalid_value for line in lines), f"invalid value rendered outside a snippet: {lines}"
+    assert "proxy_connect_timeout 60s;" in config
+    assert "proxy_read_timeout 60s;" in config
+    assert "proxy_send_timeout 60s;" in config
+    assert "client_max_body_size 1m;" in config
+    assert "fail_timeout=10s" in config
 
 
 def assert_keys_with_validation(config, expected_values):
@@ -126,16 +129,18 @@ def assert_defaults_of_keys_with_validation_in_main_config(config, unexpected_va
     assert f"variables_hash_max_size {unexpected_values['variables-hash-max-size']};" not in config
 
 
-def assert_ssl_keys(config):
+def assert_ssl_keys(config, main_config):
     # based on f"{TEST_DATA}/virtual-server-configmap-keys/configmap-ssl-keys.yaml"
     assert "if ($schema = 'http') {" not in config
     assert "listen 443 ssl proxy_protocol;" in config
+    assert "http2 on;" in main_config
     assert "http2 on;" in config
 
 
-def assert_defaults_of_ssl_keys(config):
+def assert_defaults_of_ssl_keys(config, main_config):
     assert "if ($schema = 'http') {" not in config
     assert "listen 443 ssl;" in config
+    assert "http2 on;" not in main_config
     assert "http2 on;" not in config
 
 
@@ -202,8 +207,8 @@ class TestVirtualServerConfigMapNoTls:
         virtual_server_setup,
         clean_up,
     ):
-        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
         print("Step 1: update ConfigMap with valid keys without validation rules")
@@ -236,10 +241,15 @@ class TestVirtualServerConfigMapNoTls:
             ingress_controller_prerequisites.namespace,
             cm_src,
         )
-        expected_values = get_configmap_fields_from_yaml(
-            f"{TEST_DATA}/virtual-server-configmap-keys/configmap-no-validation-keys-invalid-no-proxies.yaml"
-        )
-        wait_before_test(1)
+        # Every rejected key emits its own InvalidValue event before the
+        # VirtualServer event, and the client-side event rate limit can delay the
+        # VirtualServer event past a fixed sleep, so poll for it instead.
+        vs_key = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
+        assert wait_for_event(
+            kube_apis.v1,
+            f"Configuration for {vs_key} was added or updated ; but was not applied",
+            virtual_server_setup.namespace,
+        ), "VirtualServer did not report the failed reload"
         step_2_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
         step_2_config = get_vs_nginx_template_conf(
             kube_apis.v1,
@@ -249,7 +259,7 @@ class TestVirtualServerConfigMapNoTls:
             ingress_controller_prerequisites.namespace,
         )
         assert_not_applied_events_emitted(virtual_server_setup, step_2_events, step_1_events, ic_pods_amount)
-        assert_keys_without_validation_or_proxies(step_2_config, expected_values)
+        assert_invalid_values_only_in_snippets(step_2_config, "something invalid")
 
         # to cover the OSS case, this will be changed in the future
         if cli_arguments["ic-type"] == "nginx-ingress":
@@ -317,8 +327,8 @@ class TestVirtualServerConfigMapNoTls:
         clean_up,
     ):
         wait_before_test(1)
-        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
         data_file = f"{TEST_DATA}/virtual-server-configmap-keys/configmap-validation-keys.yaml"
         data_file_invalid = f"{TEST_DATA}/virtual-server-configmap-keys/configmap-validation-keys-invalid.yaml"
@@ -396,7 +406,7 @@ class TestVirtualServerConfigMapWithTls:
         virtual_server_setup,
         clean_up,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
         print("Step 1: update ConfigMap with valid ssl keys")
@@ -416,7 +426,10 @@ class TestVirtualServerConfigMapWithTls:
             ingress_controller_prerequisites.namespace,
         )
         assert_update_event_count_increased(virtual_server_setup, step_1_events, initial_list)
-        assert_ssl_keys(step_1_config)
+        assert_ssl_keys(
+            step_1_config,
+            get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace, ic_pod_name),
+        )
 
         print("Step 2: update ConfigMap with invalid ssl keys")
         replace_configmap_from_yaml(
@@ -435,7 +448,10 @@ class TestVirtualServerConfigMapWithTls:
             ingress_controller_prerequisites.namespace,
         )
         assert_update_event_count_increased(virtual_server_setup, step_2_events, step_1_events)
-        assert_defaults_of_ssl_keys(step_2_config)
+        assert_defaults_of_ssl_keys(
+            step_2_config,
+            get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace, ic_pod_name),
+        )
 
     def test_configmap_events(
         self,

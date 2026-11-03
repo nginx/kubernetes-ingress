@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 )
 
@@ -53,7 +54,7 @@ type SyncFn func(context.Context, *vsapi.VirtualServer) error
 func SyncFnFor(
 	rec record.EventRecorder,
 	cmClient clientset.Interface,
-	ig map[string]*namespacedInformer,
+	ig *nsregistry.Registry[namespacedInformer],
 ) SyncFn {
 	return func(ctx context.Context, vs *vsapi.VirtualServer) error {
 		var err error
@@ -69,9 +70,16 @@ func SyncFnFor(
 			return err
 		}
 
-		nsi := getNamespacedInformer(vs.GetNamespace(), ig)
-
-		newCrts, updateCrts, err := buildCertificates(ctx, nsi.cmLister, vs, issuerName, issuerKind, issuerGroup)
+		var newCrts, updateCrts []*cmapi.Certificate
+		watched := ig.WithInformer(vs.GetNamespace(), func(nsi *namespacedInformer) {
+			newCrts, updateCrts, err = buildCertificates(ctx, nsi.cmLister, vs, issuerName, issuerKind, issuerGroup)
+		})
+		if !watched {
+			// the namespace stopped being watched between the item being
+			// queued and it being processed
+			nl.Debugf(l, "Skipping VirtualServer %s/%s: namespace %s is not watched", vs.GetNamespace(), vs.GetName(), vs.GetNamespace())
+			return nil
+		}
 		if err != nil {
 			nl.Errorf(l, "Incorrect cert-manager configuration for VirtualServer resource: %v", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect cert-manager configuration for VirtualServer resource: %s",
@@ -102,7 +110,14 @@ func SyncFnFor(
 		}
 		var certs []*cmapi.Certificate
 
-		certs, err = nsi.cmLister.Certificates(vs.GetNamespace()).List(labels.Everything())
+		stillWatched := ig.WithInformer(vs.GetNamespace(), func(nsi *namespacedInformer) {
+			certs, err = nsi.cmLister.Certificates(vs.GetNamespace()).List(labels.Everything())
+		})
+		if !stillWatched {
+			// the namespace stopped being watched while this item was being
+			// reconciled, so there is nothing left to clean up
+			return nil
+		}
 		if err != nil {
 			return err
 		}

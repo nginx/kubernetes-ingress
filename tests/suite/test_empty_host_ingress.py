@@ -3,11 +3,14 @@ import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress_from_yaml,
     delete_common_app,
     delete_ingress,
+    generate_e2e_run_id,
     get_default_server_conf,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -39,8 +42,9 @@ class TestEmptyHostIngressCollisionResolution:
         ingress_controller,
         test_namespace,
     ):
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        e2e_run_id = generate_e2e_run_id()
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         wait_and_assert_status_code(
             404,
             f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/",
@@ -61,7 +65,7 @@ class TestEmptyHostIngressCollisionResolution:
         empty_host_apps_setup,
         test_namespace,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
@@ -190,8 +194,9 @@ class TestEmptyHostIngressValidation:
         ingress_controller,
         test_namespace,
     ):
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        e2e_run_id = generate_e2e_run_id()
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -233,7 +238,7 @@ class TestEmptyHostIngressValidation:
         )
         wait_before_test()
 
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         conf = get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
 
         assert "backend2-svc" in conf

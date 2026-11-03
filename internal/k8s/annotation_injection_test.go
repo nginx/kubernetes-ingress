@@ -137,6 +137,7 @@ var nginxOrgAnnotations = []annotationField{
 		with: map[string]string{"nginx.org/hsts": "true"},
 	},
 	{name: "nginx.org/http-redirect-code", benign: "301"},
+	{name: "nginx.org/http2", benign: "true"},
 	{name: "nginx.org/keepalive", benign: "16"},
 	{name: "nginx.org/lb-method", benign: "round_robin", extra: []string{
 		`hash $request_uri"; ip_hash; #`, "hash $request_uri; ip_hash;", "hash $request_uri consistent; ip_hash;",
@@ -446,10 +447,13 @@ func ingressExForAnnotations(annotations map[string]string) *configs.IngressEx {
 	// annotations without checking it exists, because the controller resolves
 	// references before generating configuration. Provide them so the fixture
 	// reaches the generator rather than panicking on the way in.
-	secretRefs := make(map[string]*secrets.SecretReference)
-	for _, annotation := range []string{configs.JWTKeyAnnotation, configs.BasicAuthSecretAnnotation} {
+	secretRefs := make(map[secrets.SecretRefKey]*secrets.SecretReference)
+	for annotation, role := range map[string]secrets.SecretRole{
+		configs.JWTKeyAnnotation:          secrets.RoleJWK,
+		configs.BasicAuthSecretAnnotation: secrets.RoleHtpasswd,
+	} {
 		if value, exists := annotations[annotation]; exists {
-			secretRefs[value] = &secrets.SecretReference{Secret: nil, Path: "", Error: nil}
+			secretRefs[secrets.RefKey(ing.Namespace+"/"+value, role)] = &secrets.SecretReference{Secret: nil, Path: "", Error: nil}
 		}
 	}
 

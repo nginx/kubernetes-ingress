@@ -5,6 +5,7 @@ PULL_POLICY                 ?= IfNotPresent
 DEPLOYMENT_TYPE             = deployment
 SERVICE                     ?= nodeport
 NODE_IP                     =
+LB_IP                       ?=
 TEST_PREFIX                 = test-runner
 KUBE_CONFIG_FOLDER          = ${HOME}/.kube
 KIND_KUBE_CONFIG_FOLDER     = $(KUBE_CONFIG_FOLDER)/kind
@@ -98,6 +99,7 @@ run-local-tests: secrets ## Run tests
 		--ic-type=$(IC_TYPE) \
 		--service=$(SERVICE) \
 		--node-ip=$(NODE_IP) \
+		--lb-ip=$(LB_IP) \
 		--show-ic-logs=$(SHOW_IC_LOGS) \
 		--plus-jwt=$(PLUS_JWT) \
 		-sv \
@@ -115,6 +117,7 @@ run-tests: secrets ## Run tests
 		--ic-type=$(IC_TYPE) \
 		--service=$(SERVICE) \
 		--node-ip=$(NODE_IP) \
+		--lb-ip=$(LB_IP) \
 		--show-ic-logs=$(SHOW_IC_LOGS) \
 		--plus-jwt=$(PLUS_JWT) \
 		$(PYTEST_ARGS)

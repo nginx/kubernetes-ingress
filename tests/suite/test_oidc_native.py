@@ -9,6 +9,7 @@ from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_assertions import assert_vs_status
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     create_secret,
@@ -16,6 +17,8 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_secret,
     delete_service,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
@@ -61,6 +64,7 @@ class KeycloakSetup:
 def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint, virtual_server_setup):
 
     # Create Keycloak resources and setup Keycloak idp
+    e2e_run_id = generate_e2e_run_id()
 
     vs_secret_name = create_secret_from_yaml(
         kube_apis.v1, virtual_server_setup.namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
@@ -74,9 +78,9 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
         kube_apis.v1, test_namespace, f"{TEST_DATA}/oidc/keycloak-ca-secret.yaml"
     )
 
-    create_example_app(kube_apis, backend_app, test_namespace)
+    create_example_app(kube_apis, backend_app, test_namespace, e2e_run_id=e2e_run_id)
     wait_before_test()
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     keycloak_vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, keycloak_vs_src, test_namespace)
     wait_before_test()
 
@@ -246,6 +250,35 @@ class TestOIDCNative:
             oidcYaml,
         )
 
+    def test_oidc_native_with_opaque_secret(
+        self,
+        request,
+        kube_apis,
+        ingress_controller_endpoint,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        test_namespace,
+        virtual_server_setup,
+        keycloak_setup,
+    ):
+        """
+        Full login flow with the client secret stored in an Opaque secret.
+
+        The secret carries the same client-secret key and the same name as the nginx.org/oidc
+        fixture, so the policy resolves it unchanged.
+        """
+        run_test(
+            kube_apis,
+            ingress_controller_endpoint,
+            ingress_controller_prerequisites,
+            test_namespace,
+            virtual_server_setup,
+            keycloak_setup,
+            cm_src,
+            "standard",
+            secret_type="Opaque",
+        )
+
 
 def run_test(
     kube_apis,
@@ -256,6 +289,7 @@ def run_test(
     keycloak_setup,
     configmap,
     oidcYaml,
+    secret_type=None,
 ):
     # Order matters. NGINX cannot change the `sync` flag of an existing shared
     # memory zone across a reload -- it fails with "the \"sync\" flag of
@@ -295,6 +329,8 @@ def run_test(
         with open(oidc_native_secret_src) as f:
             secret_data = yaml.safe_load(f)
         secret_data["data"]["client-secret"] = keycloak_setup.secret
+        if secret_type is not None:
+            secret_data["type"] = secret_type
         secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
         policy_file = get_oidc_native_policy_file(oidcYaml)
@@ -459,7 +495,7 @@ class TestOIDCNativeTrustedCA:
             vs_patched = True
             assert_vs_status(kube_apis, test_namespace, virtual_server_setup.vs_name, "Valid")
 
-            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
             conf = get_vs_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,

@@ -19,6 +19,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     delete_service,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -86,6 +88,7 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
     """
     Sets up Keycloak IdP using purely Ingress resources (no VirtualServer).
     """
+    e2e_run_id = generate_e2e_run_id()
     ingress_secret_name = create_secret_from_yaml(
         kube_apis.v1, test_namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
     )
@@ -99,9 +102,9 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
         kube_apis.v1, test_namespace, f"{TEST_DATA}/oidc/keycloak-ca-secret.yaml"
     )
 
-    create_example_app(kube_apis, backend_app, test_namespace)
+    create_example_app(kube_apis, backend_app, test_namespace, e2e_run_id=e2e_run_id)
     wait_before_test()
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     keycloak_ingress_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, keycloak_ingress_src)
     wait_before_test()
@@ -229,8 +232,17 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
 )
 class TestOIDCNativeIngress:
 
-    @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
-    @pytest.mark.parametrize("oidcYaml", ["standard", "pkce"])
+    @pytest.mark.parametrize(
+        "configmap, oidcYaml, secret_type",
+        [
+            (cm_src, "standard", None),
+            (cm_src, "pkce", None),
+            (cm_zs_src, "standard", None),
+            (cm_zs_src, "pkce", None),
+            # Same client-secret key and secret name, Opaque type.
+            (cm_src, "standard", "Opaque"),
+        ],
+    )
     def test_oidc_native_ingress(
         self,
         kube_apis,
@@ -240,6 +252,8 @@ class TestOIDCNativeIngress:
         keycloak_ingress_setup,
         configmap,
         oidcYaml,
+        e2e_run_id,
+        secret_type,
     ):
         secret_name = None
         pol_name = None
@@ -263,14 +277,18 @@ class TestOIDCNativeIngress:
                 with open(svc_src) as f:
                     headless_name = yaml.safe_load(f)["metadata"]["name"]
 
-            create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/backend1.yaml", test_namespace)
+            create_items_from_yaml(
+                kube_apis, f"{TEST_DATA}/common/backend1.yaml", test_namespace, e2e_run_id=e2e_run_id
+            )
             create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/backend1-svc.yaml", test_namespace)
             backend_deployed = True
-            wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+            wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
             with open(oidc_native_secret_src) as f:
                 secret_data = yaml.safe_load(f)
             secret_data["data"]["client-secret"] = keycloak_ingress_setup.secret
+            if secret_type is not None:
+                secret_data["type"] = secret_type
             secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
             policy_file = get_oidc_native_policy_file(oidcYaml)
