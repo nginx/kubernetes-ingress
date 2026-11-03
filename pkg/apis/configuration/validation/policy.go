@@ -605,11 +605,8 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 		}
 	}
 
-	switch oidcNative.PKCE {
-	case "on":
-		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
-	case "off":
-		allErrs = append(allErrs, validatePKCE(false, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	if oidcNative.PKCE == "off" && oidcNative.ClientSecret == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("clientSecret"), "clientSecret is required when PKCE is not used"))
 	}
 
 	return allErrs
