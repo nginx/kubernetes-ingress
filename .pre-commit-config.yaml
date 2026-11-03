@@ -121,7 +121,6 @@ repos:
     rev: v0.24.0
     hooks:
       - id: markdownlint-cli2
-        language_version: lts
         args: [ "**/*.md", "--fix" ]
         pass_filenames: false
         always_run: true
