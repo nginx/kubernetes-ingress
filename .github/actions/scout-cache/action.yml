@@ -159,7 +159,6 @@ runs:
         set -euo pipefail
         base="https://github.com/docker/scout-action/releases/download/${VERSION}"
         checksums="docker-scout_${VERSION#v}_checksums.txt"
-        mkdir -p .scout-cache
         fetch() {
           local attempt
           for attempt in 1 2 3 4 5; do
@@ -171,10 +170,13 @@ runs:
           return 1
         }
         fetch "${base}/${checksums}" "${RUNNER_TEMP}/${checksums}"
-        fetch "${base}/${ASSET}" ".scout-cache/${ASSET}"
-        # Verify before the binary is saved to a cache that every job in the run trusts.
-        (cd .scout-cache && grep -E "  ${ASSET}\$" "${RUNNER_TEMP}/${checksums}" | sha256sum -c -)
-        chmod +x ".scout-cache/${ASSET}"
+        fetch "${base}/${ASSET}" "${RUNNER_TEMP}/${ASSET}"
+        (cd "${RUNNER_TEMP}" && grep -E "  ${ASSET}\$" "${checksums}" | sha256sum -c -)
+        # Stage in RUNNER_TEMP and create .scout-cache only after verification: the
+        # actions/cache post step saves even when this step fails under the caller's
+        # continue-on-error, and a missing path makes it skip the save.
+        mkdir -p .scout-cache
+        install -m 0755 "${RUNNER_TEMP}/${ASSET}" ".scout-cache/${ASSET}"
         echo "Cached ${ASSET} ${VERSION} ($(du -h ".scout-cache/${ASSET}" | cut -f1))"
 
     # ---- restore ----
