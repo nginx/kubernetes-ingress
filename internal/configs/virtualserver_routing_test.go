@@ -1826,21 +1826,23 @@ func TestGenerateSplits(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			resultSplitClients, resultLocations, resultReturnLocations, _, _, _, _ := generateSplits(
+				locationContext{
+					upstreamNamer:  upstreamNamer,
+					crUpstreams:    crUpstreams,
+					cfgParams:      &cfgParams,
+					errorPages:     errorPageDetails,
+					originalPath:   originalPath,
+					locSnippets:    locSnippet,
+					enableSnippets: enableSnippets,
+					isVSR:          true,
+					vsrName:        "coffee",
+					vsrNamespace:   "default",
+					warnings:       vsc.warnings,
+				},
 				test.splits,
-				upstreamNamer,
-				crUpstreams,
 				variableNamer,
 				scIndex,
-				&cfgParams,
-				errorPageDetails,
-				originalPath,
-				locSnippet,
-				enableSnippets,
 				returnLocationIndex,
-				true,
-				"coffee",
-				"default",
-				vsc.warnings,
 				vsc.DynamicWeightChangesReload,
 			)
 
@@ -3497,21 +3499,21 @@ func TestGenerateSplitsWeightChangesDynamicReload(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			resultSplitClients, resultLocations, _, resultMaps, resultKeyValZones, resultKeyVals, resultTwoWaySplitClients := generateSplits(
+				locationContext{
+					upstreamNamer:  upstreamNamer,
+					crUpstreams:    crUpstreams,
+					cfgParams:      &cfgParams,
+					originalPath:   originalPath,
+					enableSnippets: enableSnippets,
+					isVSR:          true,
+					vsrName:        "coffee",
+					vsrNamespace:   "default",
+					warnings:       vsc.warnings,
+				},
 				test.splits,
-				upstreamNamer,
-				crUpstreams,
 				variableNamer,
 				scIndex,
-				&cfgParams,
-				errorPageDetails{},
-				originalPath,
-				"",
-				enableSnippets,
 				returnLocationIndex,
-				true,
-				"coffee",
-				"default",
-				vsc.warnings,
 				vsc.DynamicWeightChangesReload,
 			)
 
@@ -3644,8 +3646,18 @@ func TestGenerateDefaultSplitsConfig(t *testing.T) {
 		owner: nil,
 	}
 
-	result := generateDefaultSplitsConfig(route, upstreamNamer, crUpstreams, variableNamer, index, &cfgParams,
-		errorPageDetails, "", locSnippet, enableSnippets, 0, true, "coffee", "default", Warnings{}, weightChangesDynamicReload)
+	result := generateDefaultSplitsConfig(locationContext{
+		upstreamNamer:  upstreamNamer,
+		crUpstreams:    crUpstreams,
+		cfgParams:      &cfgParams,
+		errorPages:     errorPageDetails,
+		locSnippets:    locSnippet,
+		enableSnippets: enableSnippets,
+		isVSR:          true,
+		vsrName:        "coffee",
+		vsrNamespace:   "default",
+		warnings:       Warnings{},
+	}, route, variableNamer, index, 0, weightChangesDynamicReload)
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("generateDefaultSplitsConfig() returned \n%+v but expected \n%+v", result, expected)
 	}
@@ -4044,21 +4056,20 @@ func TestGenerateMatchesConfig(t *testing.T) {
 	}
 
 	result := generateMatchesConfig(
+		locationContext{
+			upstreamNamer:  upstreamNamer,
+			crUpstreams:    crUpstreams,
+			cfgParams:      &cfgParams,
+			errorPages:     errorPageDetails,
+			locSnippets:    locSnippets,
+			enableSnippets: enableSnippets,
+			warnings:       Warnings{},
+		},
 		route,
-		upstreamNamer,
-		crUpstreams,
 		variableNamer,
 		index,
 		scIndex,
-		&cfgParams,
-		errorPageDetails,
-		locSnippets,
-		enableSnippets,
 		0,
-		false,
-		"",
-		"",
-		Warnings{},
 		weightChangesDynamicReload,
 	)
 	if !reflect.DeepEqual(result, expected) {
@@ -4456,21 +4467,23 @@ func TestGenerateMatchesConfigWithMultipleSplits(t *testing.T) {
 	}
 
 	result := generateMatchesConfig(
+		locationContext{
+			upstreamNamer:  upstreamNamer,
+			crUpstreams:    crUpstreams,
+			cfgParams:      &cfgParams,
+			errorPages:     errorPageDetails,
+			locSnippets:    locSnippets,
+			enableSnippets: enableSnippets,
+			isVSR:          true,
+			vsrName:        "coffee",
+			vsrNamespace:   "default",
+			warnings:       Warnings{},
+		},
 		route,
-		upstreamNamer,
-		crUpstreams,
 		variableNamer,
 		index,
 		scIndex,
-		&cfgParams,
-		errorPageDetails,
-		locSnippets,
-		enableSnippets,
 		0,
-		true,
-		"coffee",
-		"default",
-		Warnings{},
 		weightChangesWithoutReload,
 	)
 	if !reflect.DeepEqual(result, expected) {
