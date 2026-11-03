@@ -1,5 +1,6 @@
 import pytest
 import requests
+import yaml
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.jwt_authorization_utils import AuthzScenario, get_with_token, wait_for_jwt_policy
@@ -650,7 +651,13 @@ class TestJWTAuthorizationPoliciesVsr:
                 fails = self.request(v_s_route_setup, path, "guest")
                 no_token = self.request(v_s_route_setup, path, None)
             finally:
-                patch_virtual_server_from_yaml(kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, namespace)
+                # a merge patch keeps omitted keys, so null spec.policies to actually remove it
+                with open(std_vs_src) as f:
+                    std_vs = yaml.safe_load(f)
+                std_vs["spec"]["policies"] = None
+                kube_apis.custom_objects.patch_namespaced_custom_object(
+                    "k8s.nginx.org", "v1", namespace, "virtualservers", v_s_route_setup.vs_name, std_vs
+                )
 
         assert passes.status_code == 200
         assert fails.status_code == 403
