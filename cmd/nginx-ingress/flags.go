@@ -226,7 +226,7 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	readyStatusPort = flag.Int("ready-status-port", 8081, "Set the port where the readiness endpoint is exposed. [1024 - 65535]")
 
 	enableLatencyMetrics = flag.Bool("enable-latency-metrics", false,
-		"Enable collection of latency metrics for upstreams. Requires -enable-prometheus-metrics")
+		"Enable collection of upstream latency and cache response metrics. Requires -enable-prometheus-metrics")
 
 	latencyMetricsBuckets = flag.String("latency-metrics-buckets", "",
 		`Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream_server_response_latency_ms histogram, e.g. "5,10,25,50,100,250,500,1000". Requires -enable-latency-metrics. When not set, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.`)

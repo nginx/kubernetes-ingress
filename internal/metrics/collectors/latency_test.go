@@ -293,3 +293,40 @@ func TestNewLatencyMetricsCollectorFallsBackToDefaultBuckets(t *testing.T) {
 		t.Errorf("expected default buckets %v, got %v", defaultLatencyBuckets, got)
 	}
 }
+
+func TestRecordCacheStatus(t *testing.T) {
+	t.Parallel()
+	registry := prometheus.NewRegistry()
+	collector := NewLatencyMetricsCollector(context.Background(), nil, nil, nil, nil)
+	if err := collector.Register(registry); err != nil {
+		t.Fatalf("failed to register collector: %v", err)
+	}
+
+	collector.RecordLatency(`nginx: {"proxyHost":"upstream1","upstreamAddress":"upstream1","upstreamCacheStatus":"MISS, HIT"}`)
+	collector.RecordLatency(`nginx: {"proxyHost":"upstream1","upstreamAddress":"upstream1","upstreamCacheStatus":"MISS"}`)
+	collector.RecordLatency(`nginx: {"proxyHost":"upstream1","upstreamAddress":"upstream1","upstreamCacheStatus":"UNKNOWN"}`)
+
+	metricFamilies, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather metrics: %v", err)
+	}
+
+	cacheResponses := make(map[string]float64)
+	for _, metricFamily := range metricFamilies {
+		if metricFamily.GetName() != "nginx_ingress_controller_upstream_cache_responses_total" {
+			continue
+		}
+		for _, metric := range metricFamily.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "cache_status" {
+					cacheResponses[label.GetValue()] = metric.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+
+	expected := map[string]float64{"HIT": 1, "MISS": 1}
+	if !reflect.DeepEqual(cacheResponses, expected) {
+		t.Errorf("cache response metrics = %v, want %v", cacheResponses, expected)
+	}
+}
