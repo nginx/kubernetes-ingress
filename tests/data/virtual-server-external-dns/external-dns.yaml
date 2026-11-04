@@ -28,25 +28,26 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["list", "watch"]
+    verbs: ["list","watch"]
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "watch", "list"]
+    verbs: ["get","watch","list"]
   - apiGroups: [""]
     resources: ["services"]
-    verbs: ["get", "watch", "list"]
+    verbs: ["get","watch","list"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
-    verbs: ["get", "watch", "list"]
-  - apiGroups: ["extensions", "networking.k8s.io"]
+    verbs: ["get","watch","list"]
+  - apiGroups: ["extensions","networking.k8s.io"]
     resources: ["ingresses"]
-    verbs: ["get", "watch", "list"]
+    verbs: ["get","watch","list"]
   - apiGroups: ["externaldns.k8s.io"]
     resources: ["dnsendpoints"]
-    verbs: ["get", "watch", "list"]
+    verbs: ["get","watch","list"]
   - apiGroups: ["externaldns.k8s.io"]
     resources: ["dnsendpoints/status"]
     verbs: ["update"]
+
 ---
 # Source: external-dns/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -127,7 +128,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
-                - ALL
+              - ALL
             privileged: false
             readOnlyRootFilesystem: true
             runAsGroup: 65532
