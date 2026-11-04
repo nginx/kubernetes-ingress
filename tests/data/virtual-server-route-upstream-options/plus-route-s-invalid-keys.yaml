@@ -9,7 +9,7 @@ spec:
     service: backend2-svc
     port: 80
     healthCheck:
-      enable: True
+      enable: true
       path: "invalid"
       interval: 1.5d
       jitter: invalid
@@ -20,8 +20,8 @@ spec:
       read-timeout: m
       send-timeout: d
       headers:
-        - name: "`=1^&*"
-          value: "$one"
+      - name: "`=1^&*"
+        value: "$one"
       statusMatch: "invalid"
     slow-start: "invalid"
     queue:

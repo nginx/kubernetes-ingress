@@ -11,9 +11,9 @@ spec:
   subroutes:
   - path: "/backend2"
     errorPages:
-      - codes: [502]
-        redirect:
-          code: 307
-          url:
+    - codes: [502]
+      redirect:
+        code: 307
+        url: ""
     action:
       pass: backend2

@@ -3,7 +3,7 @@ controller:
   securityContext:
     allowPrivilegeEscalation: true
     readOnlyRootFilesystem: true
-    runAsUser: 101 #nginx
+    runAsUser: 101 # nginx
     runAsNonRoot: true
     capabilities:
       drop:

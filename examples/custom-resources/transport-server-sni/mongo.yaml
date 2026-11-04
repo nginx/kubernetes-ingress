@@ -26,13 +26,13 @@ spec:
         app: mongodb
     spec:
       containers:
-      - name: mongodb
-        image: mongo:latest
-        ports:
-        - containerPort: 27017
-        volumeMounts:
-        - name: storage
-          mountPath: /data/db
+        - name: mongodb
+          image: mongo:latest
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: storage
+              mountPath: /data/db
       volumes:
-      - name: storage
-        emptyDir: {}
+        - name: storage
+          emptyDir: {}

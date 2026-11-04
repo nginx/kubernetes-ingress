@@ -14,7 +14,7 @@ spec:
     service: backend1-svc
     port: 80
     tls:
-      enable: False
+      enable: false
   routes:
   - path: "/backend1"
     action:

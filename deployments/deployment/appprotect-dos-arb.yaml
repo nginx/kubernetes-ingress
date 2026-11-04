@@ -22,10 +22,10 @@ spec:
             memory: "128Mi"
             cpu: "500m"
         ports:
-          - containerPort: 3000
+        - containerPort: 3000
         securityContext:
           allowPrivilegeEscalation: false
           runAsUser: 1001
           capabilities:
             drop:
-              - ALL
+            - ALL
