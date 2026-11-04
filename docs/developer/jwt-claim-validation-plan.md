@@ -134,6 +134,10 @@ map $jwt_default_shop_vs_scope $authz_r0_c1 {
     "~(^|[ ,])(orders:read|orders:write)([ ,]|\z)" 1;
     default                                       0;
 }
+map $jwt_default_shop_vs_scope $authz_r0_c1_hdr {   # forwarded header value; CR/LF -> empty (not sent)
+    "~[\r\n]"                                      "";
+    default                                       $jwt_default_shop_vs_scope;
+}
 map $jwt_default_shop_vs_realm_access_roles $authz_r0_c2 {
     ""                                            0;   # missing -> fail
     "~(^|[ ,])(guest)([ ,]|\z)"                    0;   # negated
@@ -146,7 +150,7 @@ map $authz_r0 $authz                                { "~^1+$" 1; default 0; }  #
 auth_jwt "orders-api";
 auth_jwt_key_request /_jwks_uri_server_default/orders-api-jwt;
 auth_jwt_require $authz error=403;
-proxy_set_header X-Token-Scope $jwt_default_shop_vs_scope;
+proxy_set_header X-Token-Scope $authz_r0_c1_hdr;
 ```
 
 ### Example 2: Multiple issuers (any-of-all), case-sensitive `Exact`, required-absent claim
@@ -319,7 +323,7 @@ One map per claim check. All value matches compile to a **single case-sensitive 
 
 ### 5. Claim header forwarding (`location` context)
 
-- `{{ $proxyOrGRPC }}_set_header <proxySetHeader> $<claim_var>;` in every proxied location, for both route-level policies and server-level policies inherited by locations. Locations always emit their own `proxy_set_header`, which overrides server-level ones.
+- `{{ $proxyOrGRPC }}_set_header <proxySetHeader> <claim_check_var>_hdr;` in every proxied location, for both route-level policies and server-level policies inherited by locations. Locations always emit their own `proxy_set_header`, which overrides server-level ones. `<claim_check_var>` is the claim-check variable (`$jwt_authz_..._r<i>_c<j>`, see Variable naming) with a `_hdr` suffix. The header value is the claim variable (`$<claim_var>`) passed through a per-claim `map` keyed on it that yields an empty value when the claim contains CR or LF (NGINX does not send empty headers), so a signed claim cannot inject extra upstream headers.
 - Reject duplicate `proxySetHeader` names within a policy.
 - **Merge in Go, not in the template.** Precedence, compared case-insensitively: explicit route `requestHeaders` > policy `proxySetHeader` > NIC defaults. Today the template's default checks (`X-Real-IP`, `X-Forwarded-*`, `nginx-plus.virtualserver.tmpl`) only see `$l.ProxySetHeaders`, and `generateProxySetHeaders` (`internal/configs/virtualserver.go`) puts a fallback `Host` into that same list. A template-side `hasCIKey` check against it would therefore (a) skip a policy `Host` header even when the route sets none, and (b) not see a policy `X-Real-IP`/`X-Forwarded-For`, emitting it twice. So:
   1. Collect the explicit `requestHeaders.Set` names.
@@ -518,7 +522,7 @@ These must be confirmed against a running NGINX Plus in Phase 4 before the desig
 ### Phase 4: Templates & Snapshots
 
 1. **`internal/configs/version2/nginx-plus.virtualserver.tmpl`:**
-   - Extract the existing `server`- and `location`-level `auth_jwt` blocks into one `{{ define "jwtAuth" }}`, and add `{{ if .RequireVariable }}auth_jwt_require {{ .RequireVariable }} error={{ .RequireErrorCode }};{{ end }}` to it. Locations flagged `ResetJWTRequire` instead emit `auth_jwt_require $jwt_authz_none;` (Configuration Design §4). The guard is required: policies without `authorization` leave both fields empty and would otherwise render `auth_jwt_require error=0;`, which NGINX rejects. Call it from `$s.JWTAuth` and `$l.JWTAuth`, passing the indentation (the server and location blocks differ) through a `jwtAuthBlock` helper so existing snapshots stay byte-identical. #11175 calls the same define from `InternalRedirectLocations` for `$jwt_*` match routes, alongside `try_files` (Configuration Design §4, [validate-then-route](#required-validate-then-route)).
+   - Extract the existing `server`- and `location`-level `auth_jwt` blocks into one `{{ define "jwtAuth" }}`, and add `{{ if .RequireVariable }}auth_jwt_require {{ .RequireVariable }} error={{ .RequireErrorCode }};{{ end }}` to it. Locations that need the reset instead emit `auth_jwt_require` with the per-VirtualServer reset variable (Configuration Design §4). The guard is required: policies without `authorization` leave both fields empty and would otherwise render `auth_jwt_require error=0;`, which NGINX rejects. Call it from `$s.JWTAuth` and `$l.JWTAuth`, passing the indentation (the server and location blocks differ) through a `jwtAuthBlock` helper so existing snapshots stay byte-identical. #11175 calls the same define from `InternalRedirectLocations` for `$jwt_*` match routes, alongside `try_files` (Configuration Design §4, [validate-then-route](#required-validate-then-route)).
    - `{{ $proxyOrGRPC }}_set_header` for `ProxySetHeaders` in proxied locations, from `$l.JWTAuth` or the inherited `$s.JWTAuth`, already merged into `$l.ProxySetHeaders` in Go (Configuration Design §5), so the template needs no policy-specific header check.
    - The OSS template is not modified (`spec.jwt` is Plus-only, so the OSS template has no JWT block to share).
 2. **Snapshot fixtures** (`internal/configs/version2/templates_test.go`; `internal/configs` has no snapshot tests, so its coverage stays in the Phase 3 unit tests):
@@ -533,7 +537,7 @@ These must be confirmed against a running NGINX Plus in Phase 4 before the desig
 
 ### Phase 5: E2E Integration Tests
 
-Extend `tests/suite/test_jwt_policies.py` and `tests/suite/test_jwt_policies_vsr.py` (manifests in `tests/data/jwt-policy/policies/`):
+Extend `tests/suite/test_jwt_policies.py`, `tests/suite/test_jwt_policies_vsr.py` and `tests/suite/test_jwt_policies_jwksuri.py` (manifests in `tests/data/jwt-policy/authorization/`):
 
 - missing / invalid / expired JWT → 401;
 - required claim missing → 403; claim allowed → 200; claim rejected → 403;
@@ -582,7 +586,7 @@ flowchart LR
 | :---: | --- | --- | --- |
 | **1** | **Design & Test Plan** | Agree the API (`jwt.authorization`, match types, `negate`, `errorCode`, defaults), the NGINX directive mapping, NGF deviations and the gaps vs #6829. | • [`docs/developer/jwt-claim-validation-plan.md`](jwt-claim-validation-plan.md) |
 | **2** | **Examples & User Contract** | Show the end-user experience (Examples 1 and 2, in place in the existing `jwt` and `jwks` examples) before implementation. | • `examples/custom-resources/jwt/`<br>• `examples/custom-resources/jwks/`<br>• [`hack/secrets.json`](../../hack/secrets.json) and `.gitignore` (example tokens) |
-| **3** | **Types, Codegen & Validation** | CRD types, CEL, regenerated manifests/docs, Go validation and tests. | • [`pkg/apis/configuration/v1/types.go`](../../pkg/apis/configuration/v1/types.go)<br>• [`pkg/apis/configuration/v1/zz_generated.deepcopy.go`](../../pkg/apis/configuration/v1/zz_generated.deepcopy.go)<br>• `pkg/client/**`<br>• [`config/crd/bases/k8s.nginx.org_policies.yaml`](../../config/crd/bases/k8s.nginx.org_policies.yaml)<br>• [`deploy/crds.yaml`](../../deploy/crds.yaml) & [`deploy/crds-nap-dos.yaml`](../../deploy/crds-nap-dos.yaml)<br>• [`docs/crd/k8s.nginx.org_policies.md`](../crd/k8s.nginx.org_policies.md)<br>• [`pkg/apis/configuration/validation/policy.go`](../../pkg/apis/configuration/validation/policy.go)<br>• [`pkg/apis/configuration/validation/policy_test.go`](../../pkg/apis/configuration/validation/policy_test.go) |
+| **3** | **Types, Codegen & Validation** | CRD types, CEL, regenerated manifests/docs, Go validation and tests. | • [`pkg/apis/configuration/v1/types.go`](../../pkg/apis/configuration/v1/types.go)<br>• [`pkg/apis/configuration/v1/zz_generated.deepcopy.go`](../../pkg/apis/configuration/v1/zz_generated.deepcopy.go)<br>• `pkg/client/**`<br>• [`config/crd/bases/k8s.nginx.org_policies.yaml`](../../config/crd/bases/k8s.nginx.org_policies.yaml)<br>• [`deploy/crds.yaml`](../../deploy/crds.yaml)<br>• [`docs/crd/k8s.nginx.org_policies.md`](../crd/k8s.nginx.org_policies.md)<br>• [`pkg/apis/configuration/validation/policy.go`](../../pkg/apis/configuration/validation/policy.go)<br>• [`pkg/apis/configuration/validation/policy_test.go`](../../pkg/apis/configuration/validation/policy_test.go) |
 | **4** | **Config Generation Logic** | Claim extraction, map chain, variable naming, collision handling, header propagation, unit tests. | • [`internal/configs/version2/http.go`](../../internal/configs/version2/http.go)<br>• [`internal/configs/jwt_authorization.go`](../../internal/configs/jwt_authorization.go)<br>• [`internal/configs/jwt_authorization_test.go`](../../internal/configs/jwt_authorization_test.go)<br>• [`internal/configs/policy.go`](../../internal/configs/policy.go)<br>• [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)<br>• [`internal/configs/virtualserver_helpers_test.go`](../../internal/configs/virtualserver_helpers_test.go)<br>• [`internal/configs/virtualserver_jwt_authorization_test.go`](../../internal/configs/virtualserver_jwt_authorization_test.go) |
 | **5** | **Template Rendering & Snapshots** | `auth_jwt_require ... error=`, header forwarding, negative-scope fixtures, verification gates. | • [`internal/configs/version2/nginx-plus.virtualserver.tmpl`](../../internal/configs/version2/nginx-plus.virtualserver.tmpl)<br>• [`internal/configs/version2/template_helper.go`](../../internal/configs/version2/template_helper.go)<br>• [`internal/configs/version2/jwt_authorization_templates_test.go`](../../internal/configs/version2/jwt_authorization_templates_test.go)<br>• `internal/configs/version2/__snapshots__/jwt_authorization_templates_test.snap` |
-| **6** | **End-to-End Tests** | Runtime behaviour per Phase 5. | • [`tests/suite/test_jwt_policies.py`](../../tests/suite/test_jwt_policies.py)<br>• [`tests/suite/test_jwt_policies_vsr.py`](../../tests/suite/test_jwt_policies_vsr.py)<br>• [`tests/data/jwt-policy/policies/`](../../tests/data/jwt-policy/policies/) |
+| **6** | **End-to-End Tests** | Runtime behaviour per Phase 5. | • [`tests/suite/test_jwt_policies.py`](../../tests/suite/test_jwt_policies.py)<br>• [`tests/suite/test_jwt_policies_vsr.py`](../../tests/suite/test_jwt_policies_vsr.py)<br>• [`tests/suite/test_jwt_policies_jwksuri.py`](../../tests/suite/test_jwt_policies_jwksuri.py)<br>• [`tests/suite/utils/jwt_authorization_utils.py`](../../tests/suite/utils/jwt_authorization_utils.py)<br>• [`tests/data/jwt-policy/authorization/`](../../tests/data/jwt-policy/authorization/) |
