@@ -373,7 +373,7 @@ jobs:
   scout-cache:
     name: Docker Scout Cache
     if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
-    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     timeout-minutes: 15
     permissions:
       contents: read
