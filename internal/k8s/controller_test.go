@@ -8045,15 +8045,16 @@ func TestUpdateNumberOfIngressControllerReplicasReportsScaleWarnings(t *testing.
 	lbc, confClient := newVSRStatusTestLBC(t)
 	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
 	lbc.getNamespacedInformer("default").policyLister = policies
-	err := policies.Add(&conf_v1.Policy{
+	pol := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
 		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
 			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
 		}},
-	})
-	if err != nil {
+	}
+	if err := policies.Add(pol); err != nil {
 		t.Fatal(err)
 	}
+	lbc.configuration.AddOrUpdatePolicy(pol)
 	vs := createTestVirtualServer("cafe", "cafe.example.com")
 	vs.Spec.Policies = []conf_v1.PolicyReference{{Name: "cl"}}
 	addVSStatusTest(t, lbc, confClient, vs, nil, nil)

@@ -1007,9 +1007,12 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 
 		// handle virtualservers
 		if lbc.areCustomResourcesEnabled {
+			// Call the configurator directly, as reload_invariant_test.go requires.
 			for _, r := range lbc.findResourcesUsingPolicyScaling() {
-				if _, ok := r.(*VirtualServerConfiguration); ok {
-					lbc.processAddOrUpdate(ResourceChange{Op: AddOrUpdate, Resource: r})
+				if vsConfig, ok := r.(*VirtualServerConfiguration); ok {
+					vsEx := lbc.createVirtualServerEx(vsConfig.VirtualServer, vsConfig.VirtualServerRoutes, vsConfig.VirtualServerRouteSelectors)
+					warnings, err := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
+					lbc.updateVirtualServerStatusAndEvents(vsConfig, warnings, err)
 				}
 			}
 		}
