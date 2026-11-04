@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -155,11 +156,11 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 	if operationErr != nil {
 		eventType = api_v1.EventTypeWarning
 		eventTitle = nl.EventReasonAddedOrUpdatedWithError
-		eventWarningMessage = fmt.Sprintf("%s; but was not applied: %v", eventWarningMessage, operationErr)
+		eventWarningMessage = appendEventDetail(eventWarningMessage, fmt.Sprintf("but was not applied: %v", operationErr))
 		state = conf_v1.StateInvalid
 	}
 
-	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
+	msg := strings.TrimSpace(fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage))
 	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
 	logger := lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, transportServerKind, logNameKey, tsConfig.TransportServer.Name)
 
