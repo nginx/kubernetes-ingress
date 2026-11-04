@@ -60,6 +60,9 @@ controller:
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
 
+  ## Maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn (e.g. a rolling deployment) before flushing it, bounding how stale the running NGINX config can get. 0 disables the bound.
+  batchReloadWindow: 2000
+
   ## Support for App Protect WAF
   appprotect:
     ## Enable the App Protect WAF module in the Ingress Controller.
@@ -92,7 +95,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.16.0"
+        tag: "5.16.1"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -116,7 +119,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.16.0"
+        tag: "5.16.1"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -162,7 +165,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-ip-intelligence
 
         ## The tag of the App Protect WAF v5 IP Intelligence image.
-        tag: "5.16.0"
+        tag: "5.16.1"
         ## The digest of the App Protect WAF v5 IP Intelligence image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"

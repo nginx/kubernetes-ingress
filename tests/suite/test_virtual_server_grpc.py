@@ -307,7 +307,7 @@ class TestVirtualServerGrpc:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
-        vs_event_warning_text = f"Configuration for {text} was added or updated ; with warning(s): "
+        vs_event_warning_text = f"Configuration for {text} was added or updated with warning(s): "
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,

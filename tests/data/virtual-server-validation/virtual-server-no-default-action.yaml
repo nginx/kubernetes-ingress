@@ -19,8 +19,6 @@ spec:
     port: 80
   routes:
   - path: "/backends"
-    # action:
-    #   pass: backend4-stable
     matches:
     - conditions:
       - header: x-version

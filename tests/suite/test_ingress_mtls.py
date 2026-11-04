@@ -350,7 +350,7 @@ class TestIngressMtlsPolicyVS:
                 mtls_secret_crl,
                 404,
                 "Not Found",
-                "added or updated ; with warning(s)",
+                "added or updated with warning(s)",
                 "Invalid",
             ),
         ],

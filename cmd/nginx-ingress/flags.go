@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -180,6 +181,9 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 
 	nginxReloadTimeout = flag.Int("nginx-reload-timeout", 60000,
 		`The timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start. (default 60000)`)
+
+	batchReloadWindow = flag.Int("batch-reload-window", 2000,
+		`The maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn (e.g. a rolling deployment) before flushing it, bounding how stale the running NGINX config can get. A value of 0 disables the bound, restoring unbounded deferral under churn. (default 2000)`)
 
 	wildcardTLSSecret = flag.String("wildcard-tls-secret", "",
 		`A Secret with a TLS certificate and key for TLS termination of every Ingress/VirtualServer host for which TLS termination is enabled but the Secret is not specified.
@@ -446,6 +450,12 @@ func mustValidateFlags(ctx context.Context) {
 	healthProbePortValidationError := internalValidation.ValidateUnprivilegedPort(*serviceInsightListenPort)
 	if healthProbePortValidationError != nil {
 		nl.Fatalf(l, "Invalid value for service-insight-listen-port: %v", metricsPortValidationError)
+	}
+
+	// The upper bound keeps time.Duration(ms) * time.Millisecond from overflowing int64.
+	const maxBatchReloadWindow = math.MaxInt64 / int64(time.Millisecond)
+	if *batchReloadWindow < 0 || int64(*batchReloadWindow) > maxBatchReloadWindow {
+		nl.Fatalf(l, "Invalid value for batch-reload-window: %v, must be between 0 and %d milliseconds", *batchReloadWindow, maxBatchReloadWindow)
 	}
 
 	var err error
