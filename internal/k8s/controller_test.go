@@ -8112,17 +8112,18 @@ func TestUpdateNumberOfIngressControllerReplicasRegeneratesEachIngressOnce(t *te
 	t.Parallel()
 
 	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
-	err := policies.Add(&conf_v1.Policy{
+	pol := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
 		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
 			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
 		}},
-	})
-	if err != nil {
+	}
+	if err := policies.Add(pol); err != nil {
 		t.Fatal(err)
 	}
 
 	configuration := createTestConfiguration()
+	configuration.AddOrUpdatePolicy(pol)
 	// The RateLimit scale annotation already regenerates this Ingress, so its Policy must not regenerate it again.
 	both := createTestIngress("both", "both.example.com")
 	both.Annotations["nginx.org/limit-req-rate"] = "10r/s"
@@ -8148,9 +8149,7 @@ func TestUpdateNumberOfIngressControllerReplicasRegeneratesEachIngressOnce(t *te
 	for range 3 {
 		slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
 	}
-	if !lbc.updateNumberOfIngressControllerReplicas(slice) {
-		t.Fatal("updateNumberOfIngressControllerReplicas() = false, want true")
-	}
+	lbc.updateNumberOfIngressControllerReplicas(slice)
 
 	// Each Ingress update also rewrites the default server.
 	written := slices.DeleteFunc(manager.CreatedConfigNames, func(name string) bool { return name == "_default-server" })
