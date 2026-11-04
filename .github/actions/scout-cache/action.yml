@@ -8,9 +8,10 @@ description: Download the docker/scout-action binary once per workflow run and s
 # matrix starts, turns N downloads into one; every scan job then pulls the
 # binary from the run's artifacts.
 #
-# Artifacts, not the Actions cache: an artifact lives only as long as its run,
-# so this does not add to the repository's 10 GB cache (evicting build layers),
-# does not count against the cache rate limits, and cannot be read by other PRs.
+# Artifacts, not the Actions cache: an artifact is only visible to its own run
+# (including re-runs of failed jobs, for 7 days), so this does not add to the
+# repository's 10 GB cache (evicting build layers), does not count against the
+# cache rate limits, and cannot be read by other PRs.
 #
 # This file is the single home of the contract (artifact name, install
 # location, download fallback). Do not fetch the artifact by hand elsewhere;
@@ -151,7 +152,7 @@ runs:
         name: ${{ steps.name.outputs.artifact }}
         path: ${{ steps.name.outputs.dir }}/${{ steps.name.outputs.asset }}
         if-no-files-found: error
-        retention-days: 1
+        retention-days: 7 # covers re-runs of failed jobs; after a week the base has usually moved and a new run seeds again
         overwrite: true # a re-run of the seed job replaces the artifact instead of failing
 
     # ---- restore ----
