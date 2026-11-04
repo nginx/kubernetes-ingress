@@ -389,8 +389,8 @@ jobs:
         with:
           mode: seed
           # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
-          version: v1.27.0
-          sha: a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # renovate-digest: datasource=github-tags depName=docker/scout-action
+          version: v1.29.0
+          sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
 
   build-artifacts:
     name: Build Artifacts
