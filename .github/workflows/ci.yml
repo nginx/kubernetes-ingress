@@ -373,7 +373,7 @@ jobs:
   build-artifacts:
     name: Build Artifacts
     needs: [checks, unit-tests]
-    if: github.repository == 'nginx/kubernetes-ingress'
+    if: github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginxinc/kubernetes-ingress-internal'
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
