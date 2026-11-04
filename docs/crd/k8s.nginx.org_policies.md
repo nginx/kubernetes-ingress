@@ -58,7 +58,7 @@ The `.spec` object supports the following fields:
 | `connectionLimit` | `object` | The connection limit policy limits the number of requests in progress at the same time per a defined key. |
 | `connectionLimit.connections` | `integer` | The maximum number of requests in progress at the same time for each value of the key. |
 | `connectionLimit.dryRun` | `boolean` | Enables dry-run mode: requests over the limit are logged but not rejected. |
-| `connectionLimit.key` | `string` | The key that decides which requests share a counter: literal text and variables written as ${name}. Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method}, ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. The default is ${binary_remote_addr}. |
+| `connectionLimit.key` | `string` | The key that decides which requests share a counter: literal text and variables written as ${name}. Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method}, ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. It can be at most 255 bytes long, because NGINX does not limit a request whose key value is longer than 255 bytes and logs an error instead. The default is ${binary_remote_addr}. |
 | `connectionLimit.logLevel` | `string` | The level at which rejected requests are logged. The default is error. Allowed values: `"info"`, `"notice"`, `"warn"`, `"error"`. |
 | `connectionLimit.rejectCode` | `integer` | The status code returned for rejected requests. The default is 503. |
 | `connectionLimit.scale` | `boolean` | Divides connections by the number of NGINX Ingress Controller replicas. |

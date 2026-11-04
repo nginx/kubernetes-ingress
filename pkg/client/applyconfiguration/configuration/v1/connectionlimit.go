@@ -11,7 +11,9 @@ type ConnectionLimitApplyConfiguration struct {
 	Connections *int `json:"connections,omitempty"`
 	// The key that decides which requests share a counter: literal text and variables written as ${name}.
 	// Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method},
-	// ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. The default is ${binary_remote_addr}.
+	// ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. It can be at most 255 bytes long, because NGINX
+	// does not limit a request whose key value is longer than 255 bytes and logs an error instead.
+	// The default is ${binary_remote_addr}.
 	Key *string `json:"key,omitempty"`
 	// The size of the shared memory zone, in bytes or with a k, K, m, or M suffix. It must be at least
 	// eight memory pages, for example 32k with 4 KiB pages. The default is 10m.

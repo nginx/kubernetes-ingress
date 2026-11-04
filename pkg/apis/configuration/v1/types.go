@@ -930,10 +930,13 @@ type ConnectionLimit struct {
 	Connections int `json:"connections"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="${binary_remote_addr}"
+	// +kubebuilder:validation:MaxLength=255
 	// +kubebuilder:validation:Pattern=`^(?:[^\s"'\\#;{}$\x60]|\$\{[A-Za-z_][A-Za-z0-9_]*\})+$`
 	// The key that decides which requests share a counter: literal text and variables written as ${name}.
 	// Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method},
-	// ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. The default is ${binary_remote_addr}.
+	// ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. It can be at most 255 bytes long, because NGINX
+	// does not limit a request whose key value is longer than 255 bytes and logs an error instead.
+	// The default is ${binary_remote_addr}.
 	Key string `json:"key,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="10m"

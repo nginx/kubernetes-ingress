@@ -1617,8 +1617,14 @@ func validateConnectionLimit(cl *v1.ConnectionLimit, fieldPath *field.Path, page
 	return allErrs
 }
 
+// connectionLimitKeyMaxLength is the longest key NGINX counts: limit_conn stores a key's length in one byte.
+const connectionLimitKeyMaxLength = 255
+
 // validateConnectionLimitKey accepts one NGINX token made of literal text and allowed ${name} references.
 func validateConnectionLimitKey(key string, fieldPath *field.Path) field.ErrorList {
+	if len(key) > connectionLimitKeyMaxLength {
+		return field.ErrorList{field.TooLong(fieldPath, key, connectionLimitKeyMaxLength)}
+	}
 	if strings.ContainsAny(key, `"'`) {
 		return field.ErrorList{field.Invalid(fieldPath, key, "must not contain quotes")}
 	}
