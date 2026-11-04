@@ -385,7 +385,7 @@ jobs:
 
       - name: Seed Docker Scout cache
         uses: ./.github/actions/scout-cache
-        continue-on-error: true # soft-fail: scans fall back to downloading the binary
+        continue-on-error: true # soft-fail: scans fall back to an authenticated download
         with:
           mode: seed
           # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
