@@ -7,6 +7,7 @@ self-hosted-runner:
     - ubuntu-26.04
     - ubuntu-26.04-amd64
     - aw-ubuntu-26.04-amd64
+    - proxy-ubuntu-24.04-amd64
 # Configuration variables in array of strings defined in your repository or
 # organization. `null` means disabling configuration variables check.
 # Empty array means no configuration variable is allowed.
