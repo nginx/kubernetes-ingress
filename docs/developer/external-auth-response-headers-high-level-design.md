@@ -604,7 +604,6 @@ gets an entry in the configuration injection tests in
 | `auth_request_set` and `proxy_set_header` in each backend location | Maintainer notes | [Rendering Rules](#rendering-rules) |
 | Names restricted to `[A-Za-z0-9-]` | Maintainer notes | [Input Validation](#input-validation) |
 | Auth value wins over client and VirtualServer headers | Maintainer notes | [Policy API](#policy-api) |
-| Plain list, no renaming | Maintainer notes | [Non-Goals](#non-goals) |
 | All five attachment paths | Maintainer notes | [Attachment Points](#attachment-points) |
 
 ## Verification
