@@ -1182,7 +1182,7 @@ spec:
                         If the service doesn’t exist, NGINX will assume the service
                         has zero endpoints and return a 502 response for requests
                         for this upstream. For NGINX Plus only, services of type ExternalName
-                        are also supported in the same namespace.
+                        are also supported, in the same or in a different namespace.
                       type: string
                     sessionCookie:
                       description: The SessionCookie field configures session persistence
