@@ -62,7 +62,7 @@ Rules for using these sources:
 - When a finding rests on upstream behaviour, **cite the source** in the bullet so the author can verify it in one click.
 - If the docs and the diff disagree, prefer the docs -- unless the PR description explains a deliberate deviation, in which case drop it.
 - Do not cite a doc page you did not read. Fabricated citations are worse than no citation.
-- Plus-only directives must appear only in `nginx-plus.*.tmpl`. If one leaks into the OSS template, NGINX OSS fails to start -- always Blocking.
+- Plus-only directives must appear only in `nginx-plus.*.tmpl`. If one leaks into the OSS template, NGINX OSS fails to start -- always Blocking. Before flagging, confirm on <https://nginx.org/en/docs/> that the directive or parameter is still Plus-only: some have been open-sourced (for example, `server ... resolve` and `resolver` in `upstream` since NGINX 1.27.3).
 
 ## Confidence downgrades
 

@@ -6,8 +6,6 @@ The Ingress Controller supports routing requests to services of the type
 An ExternalName service is defined by an external DNS name that is resolved into the IP addresses, typically external to
 the cluster. This enables to use the Ingress Controller to route requests to the destinations outside of the cluster.
 
-**Note:** This feature is only available in NGINX Plus.
-
 ## Prerequisites
 
 We need to run `make secrets` command to generate the necessary secrets for the example.

@@ -1,13 +1,13 @@
 {{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
-    {{ if ne $u.UpstreamZoneSize "0" }}zone {{ $u.Name }} {{ $u.UpstreamZoneSize }};{{ end }}
+    {{ if ne $u.UpstreamZoneSize "0" }}zone {{ $u.Name }} {{ $u.UpstreamZoneSize }};{{ else if $u.Resolve }}zone {{ $u.Name }} 256k;{{ end }}
     {{- if $u.LBMethod }}
     {{ $u.LBMethod }};
     {{- end }}
 
     {{- range $s := $u.Servers }}
-    server {{ $s.Address }} max_fails={{ $u.MaxFails }} fail_timeout={{ $u.FailTimeout }} max_conns={{ $u.MaxConns }};
+    server {{ $s.Address }} max_fails={{ $u.MaxFails }} fail_timeout={{ $u.FailTimeout }} max_conns={{ $u.MaxConns }}{{ if $u.Resolve }} resolve{{ end }};
     {{- end }}
 
     {{- if $u.Keepalive }}
