@@ -51,7 +51,6 @@ change.
   [Input Validation](#input-validation).
 - Keep the change additive: no existing field, default, or behavior changes,
   and Policies without the field render the same configuration as before.
-  See [Compatibility](#compatibility).
 
 ## Background: How NGINX Forwards Auth Response Headers
 
@@ -568,12 +567,6 @@ The shipped CRD, including its CEL rules, is tested through the
 `crdSchemaGate` harness in `internal/k8s/crdschema_test.go`. The field also
 gets an entry in the configuration injection tests in
 `internal/k8s/policy_injection_test.go`.
-
-### Downgrade
-
-An older NIC ignores the field: it forwards nothing, and client-supplied
-headers with the listed names reach backends. Backends must stop trusting
-those headers before a downgrade. The release notes must say this.
 
 ## Observability and Scale
 
