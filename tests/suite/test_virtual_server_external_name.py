@@ -151,7 +151,7 @@ class TestVSWithExternalNameService:
 
         print("Step 2: Remove resolver from ConfigMap to trigger an error")
         config_map_name = ingress_controller_prerequisites.config_map["metadata"]["name"]
-        vs_event_warning_text = f"Configuration for {text} was added or updated ; with warning(s):"
+        vs_event_warning_text = f"Configuration for {text} was added or updated with warning(s):"
         replace_configmap(
             kube_apis.v1,
             config_map_name,
