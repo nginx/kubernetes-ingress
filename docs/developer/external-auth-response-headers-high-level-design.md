@@ -264,6 +264,136 @@ over to it.
 - Existing ExternalAuth warnings, such as several ExternalAuth Policies in
   one context or a duplicate `authURI`, are unchanged.
 
+## Acceptance Scenarios
+
+Each scenario below becomes a test named after it, for example
+`test_client_values_are_replaced`. Unless a scenario says otherwise, it uses
+the [fixtures](#fixtures) and a VirtualServer, sends valid credentials, and
+runs end to end with the NGINX and NGINX Plus images and snippets disabled,
+in `tests/suite/test_external_auth_response_headers_vs.py` or
+`tests/suite/test_external_auth_response_headers_ingress.py`. Two tags mark
+the exceptions:
+
+- *unit*: a Go test of configuration generation, templates, validation, or
+  injection, instead of an end-to-end test.
+- *guard*: the behavior already holds, so the test also passes before the
+  change.
+
+### Fixtures
+
+- **Auth service:** answers 2xx to valid credentials, 401 to invalid ones,
+  and 403 to requests that carry `X-Test-Auth-Reject`. Every response,
+  including 401 and 403, carries `Tenant-UUID: tenant-123`,
+  `User-UUID: user-456`, `X-Session-ID: session-789`, two `X-Group` lines
+  with `a` and `b`, `X-Unlisted: x`, and one header whose name has 46
+  characters. It never returns `Permissions`.
+- **Policy P:** uses the auth service and lists `Tenant-UUID`, `User-UUID`,
+  `X-Session-ID`, `X-Group`, and `Permissions`.
+- **Echo backend:** reports every request header line as it arrives: its
+  name, its value, and how many there are, including names that contain `_`.
+  Reading `$http_*` variables would not do: NGINX merges repeated lines into
+  one value and by default drops names that contain `_`, so a test built on
+  them could pass whether or not NIC leaks a header.
+- **gRPC echo backend:** reports the metadata of each call in the same way.
+
+### Forwarding
+
+- **Every attachment point forwards**: with P on a VirtualServer spec, route,
+  or VirtualServerRoute subroute, on a standard Ingress, or on a mergeable
+  master, minion, or both, the backend receives one line for each listed
+  header that the auth service returned, named as P spells it, with the
+  service's value.
+- **Every generated location forwards** *(unit)*: split and match
+  locations, the subroutes of a delegated VirtualServerRoute without
+  policies, and the Ingress `spec.defaultBackend` location all forward P's
+  list, the same way for NGINX and NGINX Plus.
+- **Unlisted headers stay behind** *(guard)*: the backend receives no
+  `X-Unlisted`.
+- **Repeated lines are joined**: the backend receives one `X-Group: a, b`.
+- **gRPC backends**: on a VirtualServer route with a gRPC upstream and on an Ingress
+  backend listed in `nginx.org/grpc-services`, a call with
+  `tenant-uuid: spoofed` metadata reaches the backend with one
+  `tenant-uuid: tenant-123`.
+- **The closer Policy wins** *(unit)*: with P on the VirtualServer spec and
+  a Policy Q that lists only `X-Session-ID` on a route, or P on a master and
+  Q on a minion, the route and the minion forward only Q's list, and leave
+  names that only P lists untouched.
+- **APIKey on a route** *(unit)*: with P on the VirtualServer spec, a route
+  with an APIKey Policy forwards nothing.
+- **Non-backend locations forward nothing** *(unit)*: the internal auth,
+  OAuth2 sign-in (P with `authSigninURI`), `@external_auth_*`, ACME
+  challenge, `action.redirect`, and `action.return` locations render no
+  `auth_request_set`.
+
+### Precedence and Spoofing
+
+- **Client values are replaced**: on a VirtualServer and on an Ingress, a
+  request with `Tenant-UUID: spoofed` reaches the backend with one
+  `Tenant-UUID: tenant-123`, and the resource reports no warning.
+- **In any letter case**: requests with `tenant-uuid: spoofed` and with
+  `TENANT-UUID: spoofed` also reach the backend with one
+  `Tenant-UUID: tenant-123`.
+- **Underscore variants are dropped** *(guard)*: a request with
+  `Tenant_UUID: spoofed` reaches the backend without it. The test first
+  sends it straight to the echo backend, to show that the backend would
+  report the line.
+- **Omitted headers are removed**: on a VirtualServer and on an Ingress, a
+  request with `Permissions: admin` reaches the backend without it, because
+  the auth service never returns `Permissions`.
+- **Configured values are replaced, with one warning**:
+  `User-UUID: anonymous`, set through `requestHeaders.set` on a route with
+  two splits and through `nginx.org/proxy-set-headers` on an Ingress with two
+  hosts, reaches the backend as `User-UUID: user-456`. The resource that owns
+  the location reports the replacement once: the VirtualServer, the
+  VirtualServerRoute for a subroute, or the minion for a mergeable path.
+- **Legacy OIDC headers are replaced** *(unit, NGINX Plus)*: where P lists
+  `username`, or `Authorization` with `accessTokenEnable`, on a location
+  with the legacy OIDC Policy, the location renders no OIDC line for it, and
+  the resource reports the replacement once.
+
+### Rejection and Fallback
+
+- **Rejections are unchanged** *(guard)*: on a VirtualServer and on an
+  Ingress, invalid credentials get 401 as today, and the request never
+  reaches the backend.
+- **Auth rejection to the default backend**: a minion has P and
+  `nginx.org/custom-http-errors: "403"`, and its master's
+  `spec.defaultBackend` is an echo backend. A request with
+  `X-Test-Auth-Reject` and `Tenant-UUID: spoofed` gets 403 with the default
+  backend's body, and the default backend receives no `Tenant-UUID`,
+  although the rejected auth response and the client both set one.
+- **Backend error to the default backend**: the same, with `"500"` and a
+  minion backend that answers 500. A request with `Tenant-UUID: spoofed`
+  reaches the default backend with none of P's names.
+- **Shared default backend location** *(unit)*: under a master with
+  `spec.defaultBackend`, only minion A references P, and minion B sets
+  `nginx.org/custom-http-errors`. `@custom_default_backend` removes every
+  name that P lists, also from minion B's requests, and reads no
+  `$auth_resp_` variable.
+
+### Validation and Admission
+
+- **Invalid lists are rejected**: a name with `_`, a space, `:`, `$`, `;`, a
+  brace, or a line break; a reserved name in any case; two names that differ
+  only in case; a 47-character name; 33 names; or an empty name. The API
+  server answers 422 naming the rule, and Go validation rejects the same
+  lists. A list of 32 distinct 46-character names is accepted.
+- **A bad edit keeps the working Policy**: adding `host` to a P that a
+  VirtualServer uses is rejected, the stored P is unchanged, and the
+  VirtualServer keeps forwarding.
+- **The longest name loads**: with the 46-character name added to P, NGINX
+  loads the configuration, the VirtualServer is `Valid`, and both an HTTP
+  and a gRPC backend receive the header.
+- **No injection** *(unit)*: no payload of the configuration injection suite
+  reaches the NGINX configuration through the list.
+
+### Compatibility
+
+- **No field, no change** *(unit, guard)*: after the template changes and
+  before any new fixture, every existing snapshot passes unchanged.
+- **Existing tests pass** *(guard)*: the existing ExternalAuth Go tests and
+  `test_external_auth_policies_*.py` pass without modification.
+
 ## Architecture
 
 ```mermaid
@@ -595,65 +725,38 @@ those headers before a downgrade. The release notes must say this.
 | Order | Pull request | Contents |
 | --- | --- | --- |
 | 1 | High-level design | This document |
-| 2 | Implementation | API field and markers, generated code and CRDs, Go validation and CEL rules, configuration generation and resolution for VirtualServer, VirtualServerRoute, and Ingress, all four templates, unit, snapshot, CRD schema, and injection tests, examples, and integration tests |
+| 2 | Implementation | The [acceptance scenario](#acceptance-scenarios) tests and their fixtures first; then the API field and markers, generated code and CRDs, Go validation and CEL rules, configuration generation and resolution for VirtualServer, VirtualServerRoute, and Ingress, all four templates, the remaining unit tests, and examples |
 | 3 | Documentation, in `nginx/documentation` | Policy reference, ExternalAuth guide, and the ingress-nginx migration mapping |
 
 ### Requirements Traceability
 
-| Requirement | Source | Addressed by |
-| --- | --- | --- |
-| Optional allowlist under `spec.externalAuth` | Issue | [Policy API](#policy-api) |
-| Listed headers copied to the backend request only after a 2xx response | Issue | [Rendering Rules](#rendering-rules), [Security Model](#security-model) |
-| Auth values replace client-provided headers, and only listed headers are forwarded | Issue | [Policy API](#policy-api), [Security Model](#security-model) |
-| Works with snippets disabled | Issue, forum | [Goals](#goals) |
-| Policy on a mergeable minion | Forum | [Attachment Points](#attachment-points), [Rendered Examples](#rendered-examples) |
-| Field `authResponseHeaders` as a list of strings | Maintainer notes | [Policy API](#policy-api) |
-| `auth_request_set` and `proxy_set_header` in each backend location | Maintainer notes | [Rendering Rules](#rendering-rules) |
-| Names restricted to `[A-Za-z0-9-]` | Maintainer notes | [Input Validation](#input-validation) |
-| Auth value wins over client and VirtualServer headers | Maintainer notes | [Policy API](#policy-api) |
-| Plain list, no renaming | Maintainer notes | [Non-Goals](#non-goals) |
-| All five attachment paths | Maintainer notes | [Attachment Points](#attachment-points) |
+| Requirement | Source | Design | Scenarios |
+| --- | --- | --- | --- |
+| Optional allowlist under `spec.externalAuth` | Issue | [Policy API](#policy-api) | [Forwarding](#forwarding), [Compatibility](#compatibility) |
+| Listed headers copied to the backend request only after a 2xx response | Issue | [Rendering Rules](#rendering-rules), [Security Model](#security-model) | [Forwarding](#forwarding), [Rejection and Fallback](#rejection-and-fallback) |
+| Auth values replace client-provided headers, and only listed headers are forwarded | Issue | [Policy API](#policy-api), [Security Model](#security-model) | [Forwarding](#forwarding), [Precedence and Spoofing](#precedence-and-spoofing) |
+| Works with snippets disabled | Issue, forum | [Goals](#goals) | Every end-to-end scenario |
+| Policy on a mergeable minion | Forum | [Attachment Points](#attachment-points), [Rendered Examples](#rendered-examples) | [Forwarding](#forwarding), [Rejection and Fallback](#rejection-and-fallback) |
+| Field `authResponseHeaders` as a list of strings | Maintainer notes | [Policy API](#policy-api) | [Validation and Admission](#validation-and-admission) |
+| `auth_request_set` and `proxy_set_header` in each backend location | Maintainer notes | [Rendering Rules](#rendering-rules) | [Forwarding](#forwarding) |
+| Names restricted to `[A-Za-z0-9-]` | Maintainer notes | [Input Validation](#input-validation) | [Validation and Admission](#validation-and-admission) |
+| Auth value wins over client and VirtualServer headers | Maintainer notes | [Policy API](#policy-api) | [Precedence and Spoofing](#precedence-and-spoofing) |
+| Plain list, no renaming | Maintainer notes | [Policy API](#policy-api) | [Forwarding](#forwarding) |
+| All five attachment paths | Maintainer notes | [Attachment Points](#attachment-points) | [Forwarding](#forwarding) |
 
 ## Verification
 
-- **Validation tests** for names with `_`, spaces, `:`, `$`, `;`, braces, and
-  line breaks; 46 characters accepted and 47 rejected; 32 names accepted and
-  33 rejected; duplicates that differ only in case; every reserved name in
-  mixed case; and empty names. The same cases run through `crdSchemaGate`
-  against the shipped CRD.
-- **Configuration generation tests** for every attachment point; split and
-  match locations; VirtualServer route to VirtualServerRoute inheritance;
-  gRPC backends; a route Policy without a list overriding a spec Policy with
-  one; spec-level ExternalAuth with a route-level APIKey Policy; the
-  exclusions; replaced `requestHeaders.set` and `nginx.org/proxy-set-headers`
-  entries with their warnings, including after a master and minion merge;
-  the same and different Policies on a master and a minion; the default
-  backend location; and the `@custom_default_backend` union, which removes
-  names without forwarding values.
-- **Snapshot tests** for the NGINX and NGINX Plus VirtualServer and Ingress
-  templates, with proxy and gRPC backends, the NGINX Plus OIDC case, and
-  `@custom_default_backend`, whose block must not reference any
-  `$auth_resp_` variable.
-- **Additivity check.** After the template changes and before any new
-  fixture, `make test` passes with no snapshot changes. After the fixtures
-  are added, `make test-update-snaps` adds snapshots without modifying
-  existing ones.
-- **Integration tests**, reusing the `policies_external_auth*` markers. The
-  test auth service returns identity headers on both 2xx and 403 responses,
-  and a new backend echoes the request headers it receives:
-  - forwarded headers reach the backend for VirtualServer spec and route
-    Policies, VirtualServerRoute, standard Ingress, and a mergeable minion;
-  - a client-supplied value of a listed header is replaced;
-  - a listed header the auth service does not return reaches the backend
-    from no other source;
-  - rejected requests behave as today;
-  - with `nginx.org/custom-http-errors: "403"` on a minion and a default
-    backend on its master, a request that the auth service rejects with 403
-    reaches the default backend without the listed headers, although both
-    the rejected response and the client set them;
-  - the API server rejects invalid names;
-  - a 46-character name loads on HTTP and gRPC routes;
-  - the existing ExternalAuth suites pass unchanged.
+- **Scenarios.** The first commit of the implementation pull request adds
+  the [scenario](#acceptance-scenarios) tests and their fixtures. On that
+  commit, every end-to-end test that is not a guard must fail at its
+  assertion, not during setup: the fixtures install the Policy CRD from the
+  working tree (`CRDS` in `tests/settings.py`) and create Policies without
+  setting field validation, so the API server drops the unknown field and
+  still creates the Policy. The pull request description lists each scenario
+  with its result on the first and the final commit.
+- **Test changes.** Deleting a scenario test, weakening its assertion, or
+  re-recording a snapshot that this feature does not render needs a written
+  justification in the pull request.
 - **Gates:** `make test`, `make lint`, `make test-update-snaps` with only new
-  snapshots, and `make update-codegen` and `make update-crds` with no further
-  changes.
+  snapshots, and `make update-codegen` and `make update-crds` with no
+  further changes.
