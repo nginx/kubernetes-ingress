@@ -359,14 +359,6 @@ func initValidate(ctx context.Context) {
 func mustValidateInitialChecks(ctx context.Context) {
 	l := nl.LoggerFromContext(ctx)
 
-	if startupCheckFn != nil {
-		err := startupCheckFn()
-		if err != nil {
-			nl.Fatalf(l, "Failed startup check: %v", err)
-		}
-		l.Info("AWS startup check passed")
-	}
-
 	l.Info(fmt.Sprintf("Starting with flags: %+q", os.Args[1:]))
 
 	unparsed := flag.Args()

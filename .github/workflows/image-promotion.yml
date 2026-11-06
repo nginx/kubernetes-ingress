@@ -459,7 +459,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
+            suffix=${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -559,7 +559,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
+            suffix=${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
