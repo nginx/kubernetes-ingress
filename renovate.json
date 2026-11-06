@@ -124,19 +124,6 @@
       "enabled": false
     },
     {
-      "groupName": "AWS SDK v2",
-      "matchPackageNames": [
-        "/^github\\.com\\/aws\\/aws-sdk-go-v2(\\/|$)/"
-      ],
-      "matchDatasources": [
-        "go"
-      ],
-      "addLabels": [
-        "go",
-        "dependencies"
-      ]
-    },
-    {
       "groupName": "Kubernetes ecosystem",
       "matchPackageNames": [
         "/^(k8s\\.io|sigs\\.k8s\\.io)\\//"

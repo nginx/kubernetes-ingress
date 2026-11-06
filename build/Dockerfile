@@ -1022,53 +1022,6 @@ RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp
 USER 101
 
 
-############################################# aws-setcap — sets cap_net_bind_service on AWS binary #############################################
-FROM common AS aws-setcap
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# aws — GoReleaser binary for AWS Marketplace #############################################
-FROM common AS aws
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-LABEL org.nginx.kic.image.build.version="aws"
-
-COPY --link --chown=101:0 --from=aws-setcap /nginx-ingress /
-
-
-############################################# aws-setcap-prebuilt — sets cap_net_bind_service on AWS binary (prebuilt) #############################################
-FROM ${PREBUILT_BASE_IMG} AS aws-setcap-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# aws-prebuilt — AWS Marketplace binary into pre-downloaded base image #############################################
-FROM ${PREBUILT_BASE_IMG} AS aws-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-ARG BUILD_OS
-
-LABEL org.nginx.kic.image.build.version="aws"
-
-COPY --link --chown=101:0 --from=aws-setcap-prebuilt /nginx-ingress /
-USER 0
-RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
-	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
-	&& chown -R 101:0 /*.tmpl \
-	&& chmod -R g=u /*.tmpl
-USER 101
-
-
 ############################################# download — nginx-ingress binary from published image #############################################
 FROM nginx/nginx-ingress:${DOWNLOAD_TAG} AS kic
 
