@@ -128,7 +128,6 @@ jobs:
       gcr_release_registry: true
       nginx_registry: true
       gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_registry: ${{ inputs.source_registry }}
       source_tag: ${{ inputs.nic_version }}
