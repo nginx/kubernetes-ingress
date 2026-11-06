@@ -346,7 +346,7 @@ func baseRateLimit() *conf_v1.RateLimit {
 }
 
 func baseConnectionLimit() *conf_v1.ConnectionLimit {
-	return &conf_v1.ConnectionLimit{Connections: 10}
+	return &conf_v1.ConnectionLimit{Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error"}
 }
 
 func baseCache() *conf_v1.Cache {
