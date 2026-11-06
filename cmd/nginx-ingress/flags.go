@@ -280,8 +280,6 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	Ingress resources without a host across namespaces without conflict, use mergeable Ingress. To configure
 	TLS, use -default-server-tls-secret. To configure listener ports, use -default-http-listener-port or
 	-default-https-listener-port. Default is false.`)
-
-	startupCheckFn func() error
 )
 
 // plmSecretRefs holds the parsed PLM secret refs after mustValidateFlags

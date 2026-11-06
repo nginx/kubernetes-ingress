@@ -12,9 +12,6 @@ on:
       gcr_mktpl_registry:
         required: true
         type: boolean
-      ecr_mktpl_registry:
-        required: true
-        type: boolean
       az_mktpl_registry:
         required: true
         type: boolean
@@ -44,9 +41,6 @@ on:
         required: true
         type: boolean
       gcr_mktpl_registry:
-        required: true
-        type: boolean
-      ecr_mktpl_registry:
         required: true
         type: boolean
       az_mktpl_registry:
