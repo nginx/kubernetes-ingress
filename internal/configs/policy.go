@@ -183,6 +183,7 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 // references for that policy type.
 func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
 	return pol.Spec.AccessControl != nil ||
+		pol.Spec.ConnectionLimit != nil ||
 		pol.Spec.CORS != nil ||
 		pol.Spec.ExternalAuth != nil ||
 		pol.Spec.IngressMTLS != nil ||
