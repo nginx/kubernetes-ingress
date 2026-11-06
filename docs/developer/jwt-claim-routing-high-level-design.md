@@ -658,38 +658,36 @@ in `common.go`), added by whichever of #11174 and #11175 lands first.
 
 Changes needed in the #11174 plan to keep the two consistent are tracked on
 [PR #11187](https://github.com/nginx/kubernetes-ingress/pull/11187), not in
-this document. If step 3 of the stack (validation) lands alone, `authorization`
-from #11174 is accepted but not enforced: fail open. Both stacks merge as one
+this document. If the validation step of #11174's stack lands alone, `authorization`
+is accepted but not enforced: fail open. Both stacks merge as one
 unit.
 
 ## Delivery Plan
 
-Merge the six steps as one unit, for example through a feature branch. If
-validation lands before config generation, `jwtClaim` is accepted but renders
-nothing, and `$jwt_claim_` routes on unvalidated claims. User docs are a separate PR in `nginx/documentation`.
+Merge the four steps as one unit, for example through a feature branch. The
+implementation is one step, so validation never lands without configuration
+generation: if it did, `jwtClaim` would be accepted but render nothing, and
+`$jwt_claim_` would route on unvalidated claims. User docs are a separate PR in `nginx/documentation`.
 
 **Tests first, within each step.** The first commits of a step are the tests
-for its scenarios. They fail against the previous step's code, then pass when
-the implementation commits land. Reviewers check the **Turns green** column
-instead of reading every line.
+for its scenarios. In step 3, each group of commits starts the same way. The
+tests fail against the previous code, then pass when the implementation
+commits land. Reviewers check the **Turns green** column instead of reading
+every line.
 
 ```mermaid
 flowchart LR
     C1["1. Design & Test Plan"] --> C2["2. Examples & User Contract"]
-    C2 --> C3["3. Validation"]
-    C3 --> C4["4. Config Generation Logic"]
-    C4 --> C5["5. Templates & Snapshots"]
-    C5 --> C6["6. E2E Integration Tests"]
+    C2 --> C3["3. Implementation:<br>validation, config generation,<br>templates & snapshots"]
+    C3 --> C4["4. E2E Integration Tests"]
 ```
 
 | Order | Scope | Turns green | Files |
 | :---: | --- | --- | --- |
 | **1** | **Design & Test Plan.** Agree the variables, R1 to R11, the entry location contents, matching semantics, scenarios, and the gaps vs #6829. | None. S1 to S28 are agreed here. | • [`docs/developer/jwt-claim-routing-high-level-design.md`](jwt-claim-routing-high-level-design.md) |
 | **2** | **Examples & User Contract.** Show the user experience before implementation. Include a Policy with #11174 `authorization`, a VS, a VSR with a subroute-level policy, a JWK Secret, apps, and a README with the token outcome table. | None. The README table cites S1 to S4 and S8. | • `examples/custom-resources/jwt-claim-routing/` |
-| **3** | **Validation.** NGINX Plus-only `jwtClaim` and `jwtHeader` condition fields, and `$jwt_claim_` / `$jwt_header_` in `variable`; shared `validateJWTClaimPath`; new fields in `types.go`, then `make update-codegen` and `make update-crds` (check `deploy/crds*.yaml` and `docs/crd/` by hand; CI does not diff them). | S22, S23, S24 | • [`pkg/apis/configuration/validation/virtualserver.go`](../../pkg/apis/configuration/validation/virtualserver.go)<br>• [`pkg/apis/configuration/validation/common.go`](../../pkg/apis/configuration/validation/common.go)<br>• [`pkg/apis/configuration/validation/virtualserver_test.go`](../../pkg/apis/configuration/validation/virtualserver_test.go)<br>• [`pkg/apis/configuration/v1/types.go`](../../pkg/apis/configuration/v1/types.go) (`Condition.JWTClaim`, `Condition.JWTHeader`)<br>• `config/crd/bases/`, `deploy/crds*.yaml`, `docs/crd/` (regenerated) |
-| **4** | **Config Generation Logic.** R11 dotted-name fix (first commit), claim sets, R9 keys, entry location contents, R3 guard, R8, collision handling. | S4, S12, S13, S16, S17, S18, S20 and S21 (config level), S25, S26 (unit level), S27 | • [`internal/configs/version2/http.go`](../../internal/configs/version2/http.go)<br>• [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)<br>• [`internal/configs/policy.go`](../../internal/configs/policy.go)<br>• [`internal/configs/virtualserver_routing_test.go`](../../internal/configs/virtualserver_routing_test.go)<br>• [`internal/configs/virtualserver_policy_test.go`](../../internal/configs/virtualserver_policy_test.go)<br>• [`internal/configs/virtualserver_config_test.go`](../../internal/configs/virtualserver_config_test.go)<br>• [`internal/configs/virtualserver_helpers_test.go`](../../internal/configs/virtualserver_helpers_test.go) |
-| **5** | **Template Rendering & Snapshots.** Shared defines with no change to existing snapshots, entry location rendering, new fixtures, verification gates V1 to V8. | S12, S13, S14, S15, S25, S26 (template fixture), S27 (snapshot) | • [`internal/configs/version2/nginx-plus.virtualserver.tmpl`](../../internal/configs/version2/nginx-plus.virtualserver.tmpl)<br>• [`internal/configs/version2/templates_test.go`](../../internal/configs/version2/templates_test.go)<br>• [`internal/configs/version2/__snapshots__/templates_test.snap`](../../internal/configs/version2/__snapshots__/templates_test.snap) |
-| **6** | **End-to-End Tests.** Runtime behaviour. Scenario IDs go in each test's docstring. | S1 to S3, S5 to S8, S10 to S17, S19 to S21, S26 (reload); S9 once #11174 lands; S28 once V5 decides | • [`tests/suite/test_jwt_policies.py`](../../tests/suite/test_jwt_policies.py)<br>• [`tests/suite/test_jwt_policies_vsr.py`](../../tests/suite/test_jwt_policies_vsr.py)<br>• [`tests/data/jwt-policy/`](../../tests/data/jwt-policy/)<br>• [`hack/secrets.json`](../../hack/secrets.json) |
+| **3** | **Implementation.** Validation, configuration generation, and templates, in three groups of commits, each tests first. (a) NGINX Plus-only `jwtClaim` and `jwtHeader` condition fields, and `$jwt_claim_` / `$jwt_header_` in `variable`; shared `validateJWTClaimPath`; new fields in `types.go`, then `make update-codegen` and `make update-crds` (check `deploy/crds*.yaml` and `docs/crd/` by hand; CI does not diff them). (b) R11 dotted-name fix (its own first commit), claim sets, R9 keys, entry location contents, R3 guard, R8, collision handling. (c) Shared template defines with no change to existing snapshots, entry location rendering, new fixtures, verification gates V1 to V8. | S4, S12 to S18, S20 and S21 (config level), S22 to S24, S25, S26 (unit and template fixture), S27 | • [`pkg/apis/configuration/validation/virtualserver.go`](../../pkg/apis/configuration/validation/virtualserver.go)<br>• [`pkg/apis/configuration/validation/common.go`](../../pkg/apis/configuration/validation/common.go)<br>• [`pkg/apis/configuration/validation/virtualserver_test.go`](../../pkg/apis/configuration/validation/virtualserver_test.go)<br>• [`pkg/apis/configuration/v1/types.go`](../../pkg/apis/configuration/v1/types.go) (`Condition.JWTClaim`, `Condition.JWTHeader`)<br>• `config/crd/bases/`, `deploy/crds*.yaml`, `docs/crd/` (regenerated)<br>• [`internal/configs/version2/http.go`](../../internal/configs/version2/http.go)<br>• [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)<br>• [`internal/configs/policy.go`](../../internal/configs/policy.go)<br>• [`internal/configs/virtualserver_routing_test.go`](../../internal/configs/virtualserver_routing_test.go)<br>• [`internal/configs/virtualserver_policy_test.go`](../../internal/configs/virtualserver_policy_test.go)<br>• [`internal/configs/virtualserver_config_test.go`](../../internal/configs/virtualserver_config_test.go)<br>• [`internal/configs/virtualserver_helpers_test.go`](../../internal/configs/virtualserver_helpers_test.go)<br>• [`internal/configs/version2/nginx-plus.virtualserver.tmpl`](../../internal/configs/version2/nginx-plus.virtualserver.tmpl)<br>• [`internal/configs/version2/templates_test.go`](../../internal/configs/version2/templates_test.go)<br>• [`internal/configs/version2/__snapshots__/templates_test.snap`](../../internal/configs/version2/__snapshots__/templates_test.snap) |
+| **4** | **End-to-End Tests.** Runtime behaviour. Scenario IDs go in each test's docstring. | S1 to S3, S5 to S8, S10 to S17, S19 to S21, S26 (reload); S9 once #11174 lands; S28 once V5 decides | • [`tests/suite/test_jwt_policies.py`](../../tests/suite/test_jwt_policies.py)<br>• [`tests/suite/test_jwt_policies_vsr.py`](../../tests/suite/test_jwt_policies_vsr.py)<br>• [`tests/data/jwt-policy/`](../../tests/data/jwt-policy/)<br>• [`hack/secrets.json`](../../hack/secrets.json) |
 
 The OSS template is not modified: JWT conditions are rejected on NGINX OSS.
 
