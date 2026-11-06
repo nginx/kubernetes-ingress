@@ -334,6 +334,14 @@ common-secrets/premium-jwt-token.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/premium-token.jwt
 common-secrets/default-jwt-token.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/default-token.jwt
+common-secrets/claims-staff-jwt-token.yaml
+examples/custom-resources/jwt/token-staff.jwt
+common-secrets/claims-staff-wrong-case-jwt-token.yaml
+examples/custom-resources/jwt/token-staff-wrong-case.jwt
+common-secrets/claims-partner-jwt-token.yaml
+examples/custom-resources/jwt/token-partner.jwt
+common-secrets/claims-partner-delegated-jwt-token.yaml
+examples/custom-resources/jwt/token-partner-delegated.jwt
 
 # API Key secrets
 common-secrets/apikey-secret-1.yaml
