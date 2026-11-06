@@ -688,6 +688,11 @@ command:
 collector:
   log:
     path: "stdout"
+{{- if .Values.nginxAgent.labels }}
+
+labels:
+{{ toYaml .Values.nginxAgent.labels | indent 2 }}
+{{- end }}
 
 {{- else }}
 log:

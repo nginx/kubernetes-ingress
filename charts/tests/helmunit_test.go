@@ -426,6 +426,18 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			namespace:         "default",
 			expectedErrorMsgs: []string{`label "app.kubernetes.io/name" is managed by the chart and cannot be overridden`},
 		},
+		"agentLabelsInvalid": {
+			valuesFile:  "testdata/agent-labels-invalid.yaml",
+			releaseName: "agent-labels-invalid",
+			namespace:   "default",
+			expectedErrorMsgs: []string{
+				"invalid propertyName 'bad,key'",
+				"'/nginxAgent/labels/comma': 'a,b' does not match pattern",
+				"'/nginxAgent/labels/equals': 'a=b' does not match pattern",
+				"'/nginxAgent/labels/empty': '' does not match pattern",
+				"'/nginxAgent/labels/number': got number, want string",
+			},
+		},
 		"appProtectWAFPLMWithoutPlus": {
 			valuesFile:        "testdata/app-protect-waf-plm-without-plus.yaml",
 			releaseName:       "appprotect-waf-plm-without-plus",

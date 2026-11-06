@@ -2848,6 +2848,23 @@
           "default": "false",
           "title": "skip certificate verification"
         },
+        "labels": {
+          "type": "object",
+          "default": {},
+          "title": "Custom labels to associate with the NGINX instance in NGINX One Console",
+          "propertyNames": {
+            "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-_.]{0,254}[a-zA-Z0-9])?$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-_.]{0,254}[a-zA-Z0-9])?$"
+          },
+          "examples": [
+            {
+              "display-name": "my-instance"
+            }
+          ]
+        },
         "instanceManager": {
           "type": "object",
           "default": {},
