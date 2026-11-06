@@ -270,7 +270,6 @@ jobs:
       nginx_registry: true
       gcr_release_registry: false
       gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       target_tag: "edge"
