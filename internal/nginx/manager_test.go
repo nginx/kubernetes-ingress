@@ -1,8 +1,12 @@
 package nginx
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/nginx/kubernetes-ingress/internal/metadata"
 	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
@@ -213,6 +217,100 @@ REDHAT_SUPPORT_PRODUCT_VERSION="9.7"
 			result := getOSCABundlePath(tt.input)
 			if result != tt.expected {
 				t.Errorf("want %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestExtractAgentConfigLabels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string // empty means the config file does not exist
+		want    map[string]string
+		wantErr bool
+	}{
+		{name: "missing file"},
+		{name: "no labels key", content: "log:\n  level: info\n"},
+		{
+			name:    "mixed scalar labels",
+			content: "labels:\n  display-name: my-nic\n  port: 8080\n  enabled: true\n  unset:\n",
+			want:    map[string]string{"display-name": "my-nic", "port": "8080", "enabled": "true", "unset": ""},
+		},
+		{name: "invalid YAML", content: "labels: [invalid", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfgPath := filepath.Join(t.TempDir(), "nginx-agent.conf")
+			if tc.content != "" {
+				if err := os.WriteFile(cfgPath, []byte(tc.content), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := extractAgentConfigLabels(cfgPath)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("extractAgentConfigLabels() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("extractAgentConfigLabels() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestBuildAgentLabels(t *testing.T) {
+	t.Parallel()
+
+	meta := &metadata.Labels{
+		ProductType:           "nic",
+		ProductVersion:        "5.8.0",
+		ClusterID:             "cluster-123",
+		InstallationID:        "install-456",
+		InstallationName:      "my-nic",
+		InstallationNamespace: "default",
+	}
+	base := "--labels=product-type=nic,product-version=5.8.0,cluster-id=cluster-123,installation-id=install-456," +
+		"installation-name=my-nic,installation-namespace=default,control-id=install-456,control-name=my-nic,control-namespace=default"
+
+	tests := []struct {
+		name         string
+		configLabels map[string]string
+		wantFlag     string
+		wantSkipped  []string
+	}{
+		{name: "no config labels", wantFlag: base},
+		{
+			name:         "custom labels appended sorted",
+			configLabels: map[string]string{"env": "staging", "display-name": "my-nic", "port": "8080"},
+			wantFlag:     base + ",display-name=my-nic,env=staging,port=8080",
+		},
+		{
+			name: "reserved and invalid labels skipped",
+			configLabels: map[string]string{
+				"cluster-id":   "override",
+				"comma":        "a,b",
+				"space":        "my nic",
+				"empty":        "",
+				"bad,key":      "x",
+				"display-name": "my-nic",
+			},
+			wantFlag:    base + ",display-name=my-nic",
+			wantSkipped: []string{"bad,key", "cluster-id", "comma", "empty", "space"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gotFlag, gotSkipped := buildAgentLabels(meta, tc.configLabels)
+			if gotFlag != tc.wantFlag {
+				t.Errorf("buildAgentLabels() flag = %q, want %q", gotFlag, tc.wantFlag)
+			}
+			if diff := cmp.Diff(tc.wantSkipped, gotSkipped); diff != "" {
+				t.Errorf("buildAgentLabels() skipped mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
