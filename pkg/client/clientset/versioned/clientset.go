@@ -9,6 +9,7 @@ import (
 	k8sv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/configuration/v1"
 	appprotectdosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/dos/v1beta1"
 	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldns/v1"
+	externaldnsk8sv1alpha1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/typed/externaldnsk8s/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -19,14 +20,16 @@ type Interface interface {
 	K8sV1() k8sv1.K8sV1Interface
 	AppprotectdosV1beta1() appprotectdosv1beta1.AppprotectdosV1beta1Interface
 	ExternaldnsV1() externaldnsv1.ExternaldnsV1Interface
+	ExternaldnsK8sV1alpha1() externaldnsk8sv1alpha1.ExternaldnsK8sV1alpha1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	k8sV1                *k8sv1.K8sV1Client
-	appprotectdosV1beta1 *appprotectdosv1beta1.AppprotectdosV1beta1Client
-	externaldnsV1        *externaldnsv1.ExternaldnsV1Client
+	k8sV1                  *k8sv1.K8sV1Client
+	appprotectdosV1beta1   *appprotectdosv1beta1.AppprotectdosV1beta1Client
+	externaldnsV1          *externaldnsv1.ExternaldnsV1Client
+	externaldnsK8sV1alpha1 *externaldnsk8sv1alpha1.ExternaldnsK8sV1alpha1Client
 }
 
 // K8sV1 retrieves the K8sV1Client
@@ -42,6 +45,11 @@ func (c *Clientset) AppprotectdosV1beta1() appprotectdosv1beta1.AppprotectdosV1b
 // ExternaldnsV1 retrieves the ExternaldnsV1Client
 func (c *Clientset) ExternaldnsV1() externaldnsv1.ExternaldnsV1Interface {
 	return c.externaldnsV1
+}
+
+// ExternaldnsK8sV1alpha1 retrieves the ExternaldnsK8sV1alpha1Client
+func (c *Clientset) ExternaldnsK8sV1alpha1() externaldnsk8sv1alpha1.ExternaldnsK8sV1alpha1Interface {
+	return c.externaldnsK8sV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -100,6 +108,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.externaldnsK8sV1alpha1, err = externaldnsk8sv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
@@ -124,6 +136,7 @@ func New(c rest.Interface) *Clientset {
 	cs.k8sV1 = k8sv1.New(c)
 	cs.appprotectdosV1beta1 = appprotectdosv1beta1.New(c)
 	cs.externaldnsV1 = externaldnsv1.New(c)
+	cs.externaldnsK8sV1alpha1 = externaldnsk8sv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

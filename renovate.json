@@ -97,6 +97,21 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Bump the scout-cache action's version/sha inputs in the same PR as the docker/scout-action `uses:` pin, so the shared binary always matches the action.",
+      "addLabels": [
+        "github_actions",
+        "skip changelog"
+      ],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "docker/scout-action"
+      ],
+      "groupName": "github actions",
+      "minimumReleaseAge": "3 days"
+    },
+    {
       "matchPackageNames": [
         "/private-registry\\.nginx\\.com/",
         "/registry\\.redhat\\.io/",
@@ -297,16 +312,6 @@
         "**/*.md"
       ],
       "enabled": false
-    },
-    {
-      "description": "Hold external-dns at v0.20.x. From v0.21.0 its CRD source ignores --crd-source-apiversion and only reads externaldns.k8s.io/v1alpha1, which breaks the externaldns.nginx.org/v1 integration used by the example and the e2e fixture. Remove once NIC supports the upstream group - see https://github.com/nginx/kubernetes-ingress/issues/9779.",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "registry.k8s.io/external-dns/external-dns"
-      ],
-      "allowedVersions": "/^v0\\.([0-9]|1[0-9]|20)\\.[0-9]+$/"
     }
   ],
   "kubernetes": {
@@ -321,6 +326,16 @@
     ]
   },
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows (e.g. the scout-cache action inputs in ci.yml)",
+      "managerFilePatterns": [
+        "/.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "version: (?<currentValue>\\S+)\\s+sha: (?<currentDigest>[a-f0-9]{40}) # renovate-digest: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)"
+      ]
+    },
     {
       "customType": "regex",
       "description": "Update env variable version in Github Actions workflow",

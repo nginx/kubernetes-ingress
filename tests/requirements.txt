@@ -185,9 +185,9 @@ attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
     --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32
     # via -r requirements.in
-cachetools==7.2.1 \
-    --hash=sha256:63aa53dfe7473c10cccdd5a01dedf76ef2c4b73a58840d9396e7d0752cbdac3b \
-    --hash=sha256:b1a7537025c06abf96fcc1443e496af9a3fb95e774e70e1f0af226f73f7f2dcc
+cachetools==7.2.2 \
+    --hash=sha256:39b6c9291adde28c5de6622d25329375fadf3e8a678226e7872e2e72854e4549 \
+    --hash=sha256:d521dc98d501ba9efd8d2b1663bbf88163509c0c0a090eea6dc154b421ec5410
     # via
     #   -r requirements.in
     #   google-auth
@@ -694,9 +694,9 @@ frozenlist==1.8.0 \
     # via
     #   aiohttp
     #   aiosignal
-google-auth==2.61.0 \
-    --hash=sha256:37f0815967322e8c32b12bf422531e8b637cafdaae0acbb9141117cfe6a96f23 \
-    --hash=sha256:ca60266a37475ae68b63bac007272f46094b3d571abe92aded329b6cfb568025
+google-auth==2.62.0 \
+    --hash=sha256:0bef0ce54bdf9ce226c5d66e4264413bd918141c31bbe49fb52eac882f513d69 \
+    --hash=sha256:4ff4319aeb4ad128409759d397a9fcafad126d0031d241cc0dd6b9a00b43e3f3
     # via
     #   -r requirements.in
 gprof2dot==2025.4.14 \
@@ -1095,9 +1095,9 @@ mock==5.2.0 \
     --hash=sha256:4e460e818629b4b173f32d08bf30d3af8123afbb8e04bb5707a1fd4799e503f0 \
     --hash=sha256:7ba87f72ca0e915175596069dbbcc7c75af7b5e9b9bc107ad6349ede0819982f
     # via -r requirements.in
-more-itertools==11.1.0 \
-    --hash=sha256:48e8f4d9e7e5878571ecf6f2b4e57634f93cd474cc8cfbd2376f2d11b396e30d \
-    --hash=sha256:4b65538ae22f6fed0ce4874efd317463a7489796a0939fa66824dd542125a192
+more-itertools==11.2.1 \
+    --hash=sha256:35a7377edd1dd6608dcb2cdf534ded55ea32d49448875ad042cd3f879fb1ded0 \
+    --hash=sha256:cbf08fd0af284dc69718b9b76a8e6203df624d70209ea511e4219d350c856f63
     # via -r requirements.in
 multidict==7.1.0 \
     --hash=sha256:0179698c3c913eb64f32397083747fad20ed0f0a2b7469a08cd1a8a95d14d90e \
@@ -1287,19 +1287,19 @@ packaging==26.3 \
     #   -r requirements.in
     #   forcediphttpsadapter
     #   pytest
-playwright==1.63.0 \
-    --hash=sha256:1e4a3a838ce22fb68ad17193fcd142a19610d9d70fb9966d2239f5dddc0cc05b \
-    --hash=sha256:2f9a707a6c6c91157ed77bff2b8caeb04b3c8d46e70d585fc134298cbe4b5cc6 \
-    --hash=sha256:354e15b29503565fc598b89f16fbe070459343bef9d7498a93e304864000c6a7 \
-    --hash=sha256:660c00c62639e31b16700ba5456b351ddba55bb766b7ce8261223aa34928e482 \
-    --hash=sha256:84c540759e8e7f01e690e197e04060f48899d37cea322299f255843273d3385d \
-    --hash=sha256:ad21bc07516b187965a7521c5cf0df0bd657b17482eaad74335272d35a2b07de \
-    --hash=sha256:c89fc4736502a1f0fac2c8ca5d10c0cbc1c669f1f4774a2d8507a43140e4d53f \
-    --hash=sha256:fd1aa00631d44d55e56e0975bf3f3f285fac4a9fd2813183f0c12a488f1a1b24
+playwright==1.64.0 \
+    --hash=sha256:2c14d105548876b15bea5e7eca77bf0d8ff4ba0c607c1ae931067f3d1b010369 \
+    --hash=sha256:5a59af1b230b234008524a5d42b613b233d4256f73bc1dd25bf3f11db0c81b75 \
+    --hash=sha256:61e4e0801bfd76b30e04635aaec45647df707881ccf14382471fcb0eaeb1d16f \
+    --hash=sha256:727d20be6a0884e946b2471774dd960ec95519ba533e61329038526d9aea9a23 \
+    --hash=sha256:8b9f18dc1c23143ac0a5b3c59015db30e9413cc52e1ddddfc2836a7fbad7165a \
+    --hash=sha256:8de42430e9a7c8b04ec963856d484d36ffd452882318ebad2df3e6fb49a8197a \
+    --hash=sha256:97a5c247f1130f3343f097caf3bb1e79358d6b6cfa3550d97ecd721d1905911a \
+    --hash=sha256:d76a501c9930b5a097b00e2448cda2200122a1e8e4be762ff535c1b076277737
     # via -r requirements.in
-pluggy==1.6.0 \
-    --hash=sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3 \
-    --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+pluggy==1.7.0 \
+    --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec \
+    --hash=sha256:d1eaa46ebb595891b860ab086b4d09c8588af65ebd4361b8e8f4bb8920b90ba8
     # via
     #   -r requirements.in
     #   pytest
@@ -1623,9 +1623,9 @@ pydantic-core==2.50.1 \
     --hash=sha256:f77ac30b19221cd9bd3fcfa3d4614eff93140d0572ab730cded17b64adca05f3 \
     --hash=sha256:fe90228920fd8ff2be62622b6bb8a2b11acd65046d50c6b130614b5879605a20
     # via pydantic
-pyee==14.0.0 \
-    --hash=sha256:3ac2d3229a9677f7de2c33d7f52fe25b638a46b19c413fea2edc8c6d0a644e4d \
-    --hash=sha256:76dd0f4314ecd27f02dc73589dea7fd3853f9b6176d8ef9b122860657e3602de
+pyee==16.0.0 \
+    --hash=sha256:34de6fbc4d8f0880bb997efd0eb642ba01f02688e740cbd3aa3bee9db4b1c5ec \
+    --hash=sha256:40253d268c4a18ba9fea94c491d612d7386e9b801221399f4efd437a3d87b829
     # via
     #   -r requirements.in
     #   playwright
@@ -1664,9 +1664,9 @@ pytest-metadata==3.1.1 \
     # via
     #   -r requirements.in
     #   pytest-html
-python-dateutil==2.9.0.post0 \
-    --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
-    --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
+python-dateutil==4.0.0 \
+    --hash=sha256:a5e246f79eb80475e691bf93862cead98decd8a498cf53ba0516fcdc0f50dc1c \
+    --hash=sha256:d7295ff14fdc0f92f662100bfb6c551d160ca090f2939f1ec5b9794265c03f06
     # via
     #   -r requirements.in
     #   kubernetes

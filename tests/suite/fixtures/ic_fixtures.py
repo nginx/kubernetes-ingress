@@ -6,7 +6,7 @@ import time
 
 import pytest
 from kubernetes.client.rest import ApiException
-from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
+from settings import CRDS, CRDS_UPSTREAM, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
     IC_SELECTOR,
@@ -27,6 +27,15 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_name_from_yaml
+
+# DNSEndpoint CRD to install per -external-dns-group-version value. The Ingress Controller ships
+# the nginx.org CRD; the upstream one is generated into config/crd/upstream but not shipped.
+EXTERNAL_DNS_GROUP_VERSION_NGINX = "externaldns.nginx.org/v1"
+EXTERNAL_DNS_GROUP_VERSION_UPSTREAM = "externaldns.k8s.io/v1alpha1"
+EXTERNAL_DNS_CRD_FILES = {
+    EXTERNAL_DNS_GROUP_VERSION_NGINX: f"{CRDS}/externaldns.nginx.org_dnsendpoints.yaml",
+    EXTERNAL_DNS_GROUP_VERSION_UPSTREAM: f"{CRDS_UPSTREAM}/externaldns.k8s.io_dnsendpoints.yaml",
+}
 
 
 @pytest.fixture(scope="class")
@@ -517,30 +526,41 @@ def crd_ingress_controller_with_ed(
     :param ingress_controller_prerequisites
     :param ingress_controller_endpoint:
     :param request: pytest fixture to parametrize this method
-        {type: complete|rbac-without-vs, extra_args: }
+        {type: complete|rbac-without-vs, extra_args: , external_dns_group_version: }
         'type' type of test pre-configuration
         'extra_args' list of IC cli arguments
+        'external_dns_group_version' DNSEndpoint group/version the Ingress Controller writes to;
+            selects the CRD to install. Defaults to the upstream group. The nginx.org value is the
+            Ingress Controller's own default, so it is exercised without passing the flag at all.
     :return:
     """
     namespace = ingress_controller_prerequisites.namespace
     name = "nginx-ingress"
 
+    group_version = request.param.get("external_dns_group_version", EXTERNAL_DNS_GROUP_VERSION_UPSTREAM)
+    external_dns_crd_file = EXTERNAL_DNS_CRD_FILES[group_version]
+
     print("---------------------- Register DNSEndpoint CRD ------------------------------")
-    external_dns_crd_name = get_name_from_yaml(f"{CRDS}/externaldns.nginx.org_dnsendpoints.yaml")
+    external_dns_crd_name = get_name_from_yaml(external_dns_crd_file)
     create_crd_from_yaml(
         kube_apis.api_extensions_v1,
         external_dns_crd_name,
-        f"{CRDS}/externaldns.nginx.org_dnsendpoints.yaml",
+        external_dns_crd_file,
     )
 
     try:
         print("------------------------- Create IC -----------------------------------")
+        extra_args = list(request.param.get("extra_args") or [])
+        if group_version != EXTERNAL_DNS_GROUP_VERSION_NGINX and not any(
+            a.startswith("-external-dns-group-version") for a in extra_args
+        ):
+            extra_args.append(f"-external-dns-group-version={group_version}")
         name = create_ingress_controller(
             kube_apis.v1,
             kube_apis.apps_v1_api,
             cli_arguments,
             namespace,
-            request.param.get("extra_args", None),
+            extra_args,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,

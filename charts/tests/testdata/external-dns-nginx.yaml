@@ -1,0 +1,3 @@
+controller:
+  enableCustomResources: true
+  enableExternalDNS: true

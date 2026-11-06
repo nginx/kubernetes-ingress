@@ -134,7 +134,7 @@ jobs:
   # because its own `if` excludes dry_run and honours skip_step.
   release-gate:
     name: All prerequisites met
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [release-plus-gcr-nginx, publish-helm-chart]
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
@@ -147,7 +147,7 @@ jobs:
 
   tag:
     name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [release-gate]
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
@@ -188,7 +188,7 @@ jobs:
   release-assets:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
     name: Upload binaries GitHub Release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [variables, tag]
     permissions:
       id-token: write
@@ -262,7 +262,7 @@ jobs:
       needs.release-assets.result == 'success'
       )
     name: Publish release to GitHub
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [tag, release-assets]
     permissions:
       contents: write # to modify the release

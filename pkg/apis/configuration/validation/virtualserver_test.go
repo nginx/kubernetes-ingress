@@ -4460,6 +4460,128 @@ func TestValidateActionProxyRequestHeadersFails(t *testing.T) {
 	}
 }
 
+func TestValidateProxySetHeaderValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		value     string
+		isPlus    bool
+		wantError bool
+	}{
+		{
+			name:      "empty value",
+			value:     "",
+			wantError: false,
+		},
+		{
+			name:      "simple value",
+			value:     "my-header-val",
+			wantError: false,
+		},
+		{
+			name:      "valid variable remote_addr",
+			value:     "${remote_addr}",
+			wantError: false,
+		},
+		{
+			name:      "valid variable request_uri",
+			value:     "${request_uri}",
+			wantError: false,
+		},
+		{
+			name:      "valid special variable http_",
+			value:     "${http_host}",
+			wantError: false,
+		},
+		{
+			name:      "valid special variable arg_",
+			value:     "${arg_token}",
+			wantError: false,
+		},
+		{
+			name:      "valid special variable cookie_",
+			value:     "${cookie_session}",
+			wantError: false,
+		},
+		{
+			name:      "valid mixed text and variables",
+			value:     "prefix-${remote_addr}-${request_uri}-suffix",
+			wantError: false,
+		},
+		{
+			name:      "valid Plus jwt_claim when isPlus true",
+			value:     "${jwt_claim_sub}",
+			isPlus:    true,
+			wantError: false,
+		},
+		{
+			name:      "invalid Plus jwt_claim when isPlus false",
+			value:     "${jwt_claim_sub}",
+			isPlus:    false,
+			wantError: true,
+		},
+		{
+			name:      "invalid variable without braces",
+			value:     "$remote_addr",
+			wantError: true,
+		},
+		{
+			name:      "invalid unknown variable",
+			value:     "${unknown_var}",
+			wantError: true,
+		},
+		{
+			name:      "invalid unclosed curly brace",
+			value:     "${remote_addr",
+			wantError: true,
+		},
+		{
+			name:      "invalid trailing dollar sign",
+			value:     "val$",
+			wantError: true,
+		},
+		{
+			name:      "invalid newline",
+			value:     "val\nue",
+			wantError: true,
+		},
+		{
+			name:      "invalid carriage return",
+			value:     "val\rue",
+			wantError: true,
+		},
+		{
+			name:      "invalid unescaped double quote",
+			value:     `"unquoted"`,
+			wantError: true,
+		},
+		{
+			name:      "invalid unescaped trailing backslash",
+			value:     `val\`,
+			wantError: true,
+		},
+		{
+			name:      "valid escaped quote",
+			value:     `\"quoted\"`,
+			wantError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			errs := ValidateProxySetHeaderValue(tc.value, field.NewPath("value"), tc.isPlus)
+			if tc.wantError && len(errs) == 0 {
+				t.Errorf("ValidateProxySetHeaderValue(%q, isPlus=%v) expected errors, got none", tc.value, tc.isPlus)
+			}
+			if !tc.wantError && len(errs) > 0 {
+				t.Errorf("ValidateProxySetHeaderValue(%q, isPlus=%v) expected no errors, got: %v", tc.value, tc.isPlus, errs)
+			}
+		})
+	}
+}
+
 func TestValidateActionProxyResponseHeaders(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

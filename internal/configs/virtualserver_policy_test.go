@@ -2136,6 +2136,218 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 	}
 }
 
+func TestGenerateVirtualServerConfigConnectionLimit(t *testing.T) {
+	t.Parallel()
+
+	policies := map[string]*conf_v1.Policy{
+		"default/per-client": connectionLimitPolicy("per-client", conf_v1.ConnectionLimit{
+			Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error",
+		}),
+		"default/downloads-total": connectionLimitPolicy("downloads-total", conf_v1.ConnectionLimit{
+			Connections: 200, Key: "total", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error",
+		}),
+		"default/scaled": connectionLimitPolicy("scaled", conf_v1.ConnectionLimit{
+			Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}),
+	}
+	perClient := []conf_v1.PolicyReference{{Name: "per-client"}}
+	downloadsTotal := []conf_v1.PolicyReference{{Name: "downloads-total"}}
+	upstreams := []conf_v1.Upstream{
+		{Name: "tea", Service: "tea-svc", Port: 80},
+		{Name: "coffee", Service: "coffee-svc", Port: 80},
+	}
+	vs := func(name string, policies []conf_v1.PolicyReference, routes ...conf_v1.Route) *conf_v1.VirtualServer {
+		return &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec:       conf_v1.VirtualServerSpec{Host: name + ".example.com", Policies: policies, Upstreams: upstreams, Routes: routes},
+		}
+	}
+	vsr := func(name string, policies []conf_v1.PolicyReference) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				Upstreams: upstreams,
+				Subroutes: []conf_v1.Route{{Path: "/tea", Policies: policies, Action: &conf_v1.Action{Pass: "tea"}}},
+			},
+		}
+	}
+	coffee := conf_v1.Route{Path: "/coffee", Action: &conf_v1.Action{Pass: "coffee"}}
+
+	perClientZone := "pol_cl_default_per-client_vs_default_cafe_" + clKeyHashBinaryRemoteAddr
+	totalZone := "pol_cl_default_downloads-total_vs_default_cafe_" + clKeyHashTotal
+	tests := []struct {
+		name     string
+		vs       *conf_v1.VirtualServer
+		vsrs     []*conf_v1.VirtualServerRoute
+		replicas int
+		// wantZones lists zone names in the order they are rendered.
+		wantZones  []string
+		wantServer []version2.LimitConn
+		// wantLocations maps every location path to its limits. wantAllLocations, when set, applies to every location instead.
+		wantLocations    map[string][]version2.LimitConn
+		wantAllLocations []version2.LimitConn
+		wantErrorReturn  bool
+	}{
+		{
+			name:          "Policy in spec.policies",
+			vs:            vs("cafe", perClient, coffee),
+			wantZones:     []string{perClientZone},
+			wantServer:    []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+			wantLocations: map[string][]version2.LimitConn{"/coffee": nil},
+		},
+		{
+			name: "same Policy in spec.policies and on a route",
+			vs: vs("cafe", perClient, conf_v1.Route{
+				Path:     "/downloads",
+				Policies: []conf_v1.PolicyReference{{Name: "per-client"}, {Name: "downloads-total"}},
+				Action:   &conf_v1.Action{Pass: "coffee"},
+			}, coffee),
+			wantZones:  []string{perClientZone, totalZone},
+			wantServer: []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+			wantLocations: map[string][]version2.LimitConn{
+				"/downloads": {{ZoneName: perClientZone, Connections: 10}, {ZoneName: totalZone, Connections: 200}},
+				"/coffee":    nil,
+			},
+		},
+		{
+			name: "route Policy on split and match routes",
+			vs: vs("cafe", nil,
+				conf_v1.Route{
+					Path:     "/split",
+					Policies: downloadsTotal,
+					Splits: []conf_v1.Split{
+						{Weight: 50, Action: &conf_v1.Action{Pass: "tea"}},
+						{Weight: 50, Action: &conf_v1.Action{Pass: "coffee"}},
+					},
+				},
+				conf_v1.Route{
+					Path:     "/match",
+					Policies: downloadsTotal,
+					Matches: []conf_v1.Match{{
+						Conditions: []conf_v1.Condition{{Header: "x-version", Value: "v2"}},
+						Action:     &conf_v1.Action{Pass: "coffee"},
+					}},
+					Action: &conf_v1.Action{Pass: "tea"},
+				},
+			),
+			wantZones:        []string{totalZone},
+			wantAllLocations: []version2.LimitConn{{ZoneName: totalZone, Connections: 200}},
+		},
+		{
+			name:       "subroute with its own Policy, in a VirtualServerRoute named like its VirtualServer",
+			vs:         vs("cafe", perClient, conf_v1.Route{Path: "/tea", Route: "default/cafe"}),
+			vsrs:       []*conf_v1.VirtualServerRoute{vsr("cafe", perClient)},
+			wantZones:  []string{perClientZone, "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr},
+			wantServer: []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+			wantLocations: map[string][]version2.LimitConn{
+				"/tea": {{ZoneName: "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr, Connections: 10}},
+			},
+		},
+		{
+			name:          "subroute without policies inherits the route Policy",
+			vs:            vs("cafe", nil, conf_v1.Route{Path: "/tea", Route: "default/tea-routes", Policies: downloadsTotal}),
+			vsrs:          []*conf_v1.VirtualServerRoute{vsr("tea-routes", nil)},
+			wantZones:     []string{totalZone},
+			wantLocations: map[string][]version2.LimitConn{"/tea": {{ZoneName: totalZone, Connections: 200}}},
+		},
+		{
+			name:      "hostless VirtualServerRoute used by cafe",
+			vs:        vs("cafe", nil, conf_v1.Route{Path: "/tea", Route: "default/shared"}),
+			vsrs:      []*conf_v1.VirtualServerRoute{vsr("shared", downloadsTotal)},
+			wantZones: []string{"pol_cl_default_downloads-total_vs_default_cafe_vsr_default_shared_" + clKeyHashTotal},
+			wantLocations: map[string][]version2.LimitConn{
+				"/tea": {{ZoneName: "pol_cl_default_downloads-total_vs_default_cafe_vsr_default_shared_" + clKeyHashTotal, Connections: 200}},
+			},
+		},
+		{
+			name:      "hostless VirtualServerRoute used by cafe-2",
+			vs:        vs("cafe-2", nil, conf_v1.Route{Path: "/tea", Route: "default/shared"}),
+			vsrs:      []*conf_v1.VirtualServerRoute{vsr("shared", downloadsTotal)},
+			wantZones: []string{"pol_cl_default_downloads-total_vs_default_cafe-2_vsr_default_shared_" + clKeyHashTotal},
+			wantLocations: map[string][]version2.LimitConn{
+				"/tea": {{ZoneName: "pol_cl_default_downloads-total_vs_default_cafe-2_vsr_default_shared_" + clKeyHashTotal, Connections: 200}},
+			},
+		},
+		{
+			name:          "scaled Policy",
+			vs:            vs("cafe", []conf_v1.PolicyReference{{Name: "scaled"}}, coffee),
+			replicas:      3,
+			wantZones:     []string{"pol_cl_default_scaled_vs_default_cafe_" + clKeyHashBinaryRemoteAddr},
+			wantServer:    []version2.LimitConn{{ZoneName: "pol_cl_default_scaled_vs_default_cafe_" + clKeyHashBinaryRemoteAddr, Connections: 3}},
+			wantLocations: map[string][]version2.LimitConn{"/coffee": nil},
+		},
+		{
+			name:            "missing Policy",
+			vs:              vs("cafe", []conf_v1.PolicyReference{{Name: "missing"}}, coffee),
+			wantLocations:   map[string][]version2.LimitConn{"/coffee": nil},
+			wantErrorReturn: true,
+		},
+	}
+
+	wantOptions := version2.LimitConnOptions{LogLevel: "error", RejectCode: 503}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc.IngressControllerReplicas = tc.replicas
+			vsEx := VirtualServerEx{VirtualServer: tc.vs, VirtualServerRoutes: tc.vsrs, Policies: policies}
+
+			cfg, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+			var gotZones []string
+			for _, z := range cfg.LimitConnZones {
+				gotZones = append(gotZones, z.ZoneName)
+			}
+			if diff := cmp.Diff(tc.wantZones, gotZones); diff != "" {
+				t.Errorf("zones mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantServer, cfg.Server.LimitConns); diff != "" {
+				t.Errorf("server limits mismatch (-want +got):\n%s", diff)
+			}
+			if len(tc.wantServer) > 0 && cfg.Server.LimitConnOptions != wantOptions {
+				t.Errorf("server options = %+v, want %+v", cfg.Server.LimitConnOptions, wantOptions)
+			}
+
+			assertConnectionLimitLocations(t, cfg.Server.Locations, tc.wantLocations, tc.wantAllLocations, wantOptions)
+
+			if tc.wantErrorReturn {
+				if cfg.Server.PoliciesErrorReturn == nil || cfg.Server.PoliciesErrorReturn.Code != 500 {
+					t.Errorf("server PoliciesErrorReturn = %+v, want code 500", cfg.Server.PoliciesErrorReturn)
+				}
+			} else if len(warnings) != 0 {
+				t.Errorf("GenerateVirtualServerConfig() returned warnings: %v", warnings)
+			}
+		})
+	}
+}
+
+// assertConnectionLimitLocations checks the limits of every location against want, or against wantAll when it is set,
+// and checks that every location with limits has the default options.
+func assertConnectionLimitLocations(t *testing.T, locations []version2.Location, want map[string][]version2.LimitConn, wantAll []version2.LimitConn, wantOptions version2.LimitConnOptions) {
+	t.Helper()
+
+	if len(locations) == 0 {
+		t.Fatal("no locations generated")
+	}
+	got := make(map[string][]version2.LimitConn)
+	for _, loc := range locations {
+		got[loc.Path] = loc.LimitConns
+		if wantAll != nil {
+			if diff := cmp.Diff(wantAll, loc.LimitConns); diff != "" {
+				t.Errorf("location %s limits mismatch (-want +got):\n%s", loc.Path, diff)
+			}
+		}
+		if len(loc.LimitConns) > 0 && loc.LimitConnOptions != wantOptions {
+			t.Errorf("location %s options = %+v, want %+v", loc.Path, loc.LimitConnOptions, wantOptions)
+		}
+	}
+	if wantAll == nil {
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("location limits mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
 func TestGenerateVirtualServerConfigCache(t *testing.T) {
 	t.Parallel()
 

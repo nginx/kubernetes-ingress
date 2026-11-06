@@ -328,6 +328,7 @@ Build the args for the service binary.
 {{- end }}
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
+- -batch-reload-window={{ .Values.controller.batchReloadWindow }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}
 - -enable-app-protect-ip-intelligence={{ and .Values.controller.appprotect.enable .Values.controller.appprotect.ipIntelligence.enable }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.logLevel }}
@@ -424,6 +425,9 @@ Build the args for the service binary.
 - -enable-cert-manager={{ .Values.controller.enableCertManager }}
 - -enable-oidc={{ .Values.controller.enableOIDC }}
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
+{{- if .Values.controller.enableExternalDNS }}
+- -external-dns-group-version={{ .Values.controller.externalDNSGroupVersion }}
+{{- end }}
 {{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else if .Values.controller.globalConfiguration.customName }}

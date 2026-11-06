@@ -72,6 +72,14 @@ func TestParseProxySetHeaders(t *testing.T) {
 			annotation: "X-Header: val:with:colons",
 			want:       []version2.Header{{Name: "X-Header", Value: "val:with:colons"}},
 		},
+		{
+			name:       "headers with variable values",
+			annotation: "X-Real-IP: ${remote_addr}, X-URI: ${request_uri}",
+			want: []version2.Header{
+				{Name: "X-Real-IP", Value: "${remote_addr}"},
+				{Name: "X-URI", Value: "${request_uri}"},
+			},
+		},
 	}
 
 	for _, tc := range tests {

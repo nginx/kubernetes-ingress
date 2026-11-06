@@ -5,3 +5,4 @@
 - [Image Matrices](./image-matrices.md)
 - [Type-Agnostic Kubernetes Secrets](./opaque-secrets-high-level-design.md)
 - [JWT Claim Routing](./jwt-claim-routing-high-level-design.md)
+- [ConnectionLimit Policy](./connection-limit-policy-high-level-design.md)

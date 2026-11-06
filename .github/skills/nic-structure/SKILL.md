@@ -88,6 +88,7 @@ Every entry below is produced by a command. Regenerate and commit the output aft
 | --- | --- | --- | --- |
 | `pkg/apis/**/zz_generated.deepcopy.go`, `pkg/client/**` | `pkg/apis/**/types.go` | `make update-codegen` | yes (`pkg/**`) |
 | `config/crd/bases/*.yaml` | kubebuilder markers in `pkg/apis/**` | `make update-crds` | yes |
+| `config/crd/upstream/*.yaml` | kubebuilder markers in `pkg/apis/externaldnsk8s/**` | `make update-crds` | yes |
 | `deploy/crds.yaml`, `deploy/crds-nap-*.yaml` | `config/crd/**` via kustomize | `make update-crds` | **no** |
 | `docs/crd/*.md` | `config/crd/bases` via `hack/generate-crd-docs.go` | `make update-crds` (runs `update-crd-docs`) | **no** |
 | `charts/nginx-ingress/crds` | **symlink** to `config/crd/bases/` | nothing — never edit | n/a |
@@ -98,7 +99,7 @@ Every entry below is produced by a command. Regenerate and commit the output aft
 
 Two traps:
 
-- `verify-codegen` diffs only `config/crd/bases` after `make update-crds`. Uncommitted `deploy/crds*.yaml` or `docs/crd/` changes pass CI silently.
+- `verify-codegen` diffs only `config/crd/bases` and `config/crd/upstream` after `make update-crds`. Uncommitted `deploy/crds*.yaml` or `docs/crd/` changes pass CI silently.
 - Snapshot files only re-record the *existing* fixtures. A template change with no matching fixture produces an empty diff and zero coverage — see `nic-testing` for the required sequence.
 
 ---

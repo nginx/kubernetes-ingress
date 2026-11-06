@@ -55,10 +55,10 @@ repos:
 
       - id: validate-workflow-gating
         name: validate workflow gating
-        description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
+        description: Ensures every workflow job is gated to the public repository, the internal repository, or both.
         entry: .github/scripts/validate-workflow-gating.sh
         language: golang
-        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.54.1"]
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.54.2"]
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: false
         require_serial: true
@@ -109,7 +109,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.38.2
+    rev: 0.39.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -118,7 +118,7 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.3
+    rev: v0.24.0
     hooks:
       - id: markdownlint-cli2
         args: [ "**/*.md", "--fix" ]

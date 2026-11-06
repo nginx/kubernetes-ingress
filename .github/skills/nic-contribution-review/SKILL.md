@@ -2,7 +2,6 @@
 name: nic-contribution-review
 description: 'Triage gates for the GitHub Copilot Code Review bot on github.com only: provenance (fork or in-repo), intake checks for fork PRs, a one-logical-change scope check with split proposals and issue drafts, and re-review churn detection when fix commits introduce new defects. Use when acting as GitHub Copilot Code Review on a NIC pull request, before nic-code-review. Never load for local reviews (/pr-review prompt, IDE chat, Copilot CLI, Claude Code).'
 user-invocable: false
-disable-model-invocation: true
 ---
 
 # NIC Contribution Review

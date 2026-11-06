@@ -84,6 +84,11 @@ def pytest_addoption(parser) -> None:
         help="The public IP of a cluster node. Not required if you use the loadbalancer service (see --service argument).",
     )
     parser.addoption(
+        "--lb-ip",
+        action="store",
+        help="The public IP of the LoadBalancer. If not provided, waits for external IP from cluster.",
+    )
+    parser.addoption(
         "--kubeconfig",
         action="store",
         default=os.path.expanduser(KUBE_CONFIG_DEFAULT_LOCATION),
@@ -150,6 +155,7 @@ pytest_plugins = [
     "suite.fixtures.fixtures",
     "suite.fixtures.ic_fixtures",
     "suite.fixtures.custom_resource_fixtures",
+    "suite.fixtures.plm_fixtures",
     "suite.utils.external_auth_utils",
 ]
 
@@ -200,6 +206,10 @@ def pytest_collection_modifyitems(config, items) -> None:
         for item in items:
             if "appprotect_waf_bundle_source" in item.keywords:
                 item.add_marker(appprotect_bundle)
+        appprotect_plm = pytest.mark.skip(reason="Skip WAF PLM test in non-AP WAF v5 image")
+        for item in items:
+            if "appprotect_waf_plm" in item.keywords:
+                item.add_marker(appprotect_plm)
     if "-dos" not in config.getoption("--image"):
         dos = pytest.mark.skip(reason="Skip DOS test in non-DOS image")
         for item in items:

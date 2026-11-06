@@ -9,6 +9,8 @@
 
 The `DNSEndpoint` resource is used to manage DNS records for services exposed through NGINX Ingress Controller. It is typically used in conjunction with ExternalDNS to automatically create and update DNS records.
 
+> **Note (external-dns v0.21.0+):** external-dns v0.21.0 no longer selects the API version with the `--crd-source-apiversion` flag and now only recognizes the upstream `externaldns.k8s.io/v1alpha1` DNSEndpoint. NGINX Ingress Controller still writes `externaldns.nginx.org/v1` by default. To use external-dns v0.21.0 or newer, start NGINX Ingress Controller with `-external-dns-group-version=externaldns.k8s.io/v1alpha1` (or set `controller.externalDNSGroupVersion` in the Helm chart) and install the upstream DNSEndpoint CRD separately from the [external-dns repository](https://github.com/kubernetes-sigs/external-dns). NGINX Ingress Controller does not ship the upstream CRD to avoid ownership conflicts with the external-dns Helm chart.
+
 ## Spec Fields
 
 The `.spec` object supports the following fields:
