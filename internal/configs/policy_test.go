@@ -234,6 +234,138 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "connection-limit-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/connection-limit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "connection-limit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						ConnectionLimit: &conf_v1.ConnectionLimit{
+							Connections: 10,
+							Key:         "total",
+							ZoneSize:    "10m",
+							RejectCode:  new(503),
+							LogLevel:    "error",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ConnectionLimit: connectionLimit{
+					Zones: []version2.LimitConnZone{
+						{
+							Key:      "total",
+							ZoneName: "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashTotal,
+							ZoneSize: "10m",
+						},
+					},
+					Conns: []version2.LimitConn{
+						{
+							ZoneName:    "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashTotal,
+							Connections: 10,
+						},
+					},
+					Options: version2.LimitConnOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+			},
+			msg: "connection limit reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "rateLimit-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "connection-limit-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+						},
+					},
+				},
+				"default/connection-limit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "connection-limit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						ConnectionLimit: &conf_v1.ConnectionLimit{
+							Connections: 10,
+							Key:         "${binary_remote_addr}",
+							ZoneSize:    "10m",
+							RejectCode:  new(503),
+							LogLevel:    "error",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				RateLimit: rateLimit{
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+						},
+					},
+					Zones: []version2.LimitReqZone{
+						{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+						},
+					},
+					Options: version2.LimitReqOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+				ConnectionLimit: connectionLimit{
+					Zones: []version2.LimitConnZone{
+						{
+							Key:      "${binary_remote_addr}",
+							ZoneName: "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashBinaryRemoteAddr,
+							ZoneSize: "10m",
+						},
+					},
+					Conns: []version2.LimitConn{
+						{
+							ZoneName:    "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashBinaryRemoteAddr,
+							Connections: 10,
+						},
+					},
+					Options: version2.LimitConnOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+			},
+			msg: "rate limit and connection limit references",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "rateLimit-policy",
 					Namespace: "default",
 				},
@@ -2683,6 +2815,193 @@ func TestAddHSTSConfig_MultiplePolicy(t *testing.T) {
 	}
 	if config.HSTS.MaxAge != 2592000 {
 		t.Errorf("addHSTSConfig() first policy should be preserved, got MaxAge=%d", config.HSTS.MaxAge)
+	}
+}
+
+const (
+	clKeyHashBinaryRemoteAddr = "666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+	clKeyHashTotal            = "11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7"
+)
+
+func TestConnectionLimitZoneName(t *testing.T) {
+	t.Parallel()
+
+	vsCafe := policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerNamespace: "default", ownerName: "cafe"}
+	tests := []struct {
+		name       string
+		policyName string
+		owner      policyOwnerDetails
+		key        string
+		want       string
+	}{
+		{
+			name:       "VirtualServer",
+			policyName: "per-client",
+			owner:      vsCafe,
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_vs_default_cafe_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "constant key",
+			policyName: "downloads-total",
+			owner:      vsCafe,
+			key:        "total",
+			want:       "pol_cl_default_downloads-total_vs_default_cafe_" + clKeyHashTotal,
+		},
+		{
+			name:       "VirtualServerRoute",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerType: "vsr", ownerNamespace: "tea", ownerName: "tea-routes"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "VirtualServerRoute with the namespace and name of its VirtualServer",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerType: "vsr", ownerNamespace: "default", ownerName: "cafe"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			policy := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: tc.policyName}}
+			if got := connectionLimitZoneName(policy, tc.owner, tc.key); got != tc.want {
+				t.Errorf("connectionLimitZoneName() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func connectionLimitPolicy(name string, cl conf_v1.ConnectionLimit) *conf_v1.Policy {
+	return &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: name},
+		Spec:       conf_v1.PolicySpec{ConnectionLimit: &cl},
+	}
+}
+
+var connectionLimitTestOwner = policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerNamespace: "default", ownerName: "cafe"}
+
+func TestAddConnectionLimitConfig(t *testing.T) {
+	t.Parallel()
+
+	zone := "pol_cl_default_cl_vs_default_cafe_" + clKeyHashTotal
+	want := connectionLimit{
+		Zones:   []version2.LimitConnZone{{Key: "total", ZoneName: zone, ZoneSize: "1m"}},
+		Conns:   []version2.LimitConn{{ZoneName: zone, Connections: 10}},
+		Options: version2.LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+	}
+
+	cfg := newPoliciesConfig(nil)
+	cl := conf_v1.ConnectionLimit{Connections: 10, Key: "total", ZoneSize: "1m", RejectCode: new(429), LogLevel: "warn", DryRun: true}
+	res := cfg.addConnectionLimitConfig(connectionLimitPolicy("cl", cl), connectionLimitTestOwner, 0)
+	if diff := cmp.Diff(want, cfg.ConnectionLimit); diff != "" {
+		t.Errorf("addConnectionLimitConfig() mismatch (-want +got):\n%s", diff)
+	}
+	if len(res.warnings) != 0 || res.isError {
+		t.Errorf("addConnectionLimitConfig() returned warnings %v, isError %v", res.warnings, res.isError)
+	}
+}
+
+func TestAddConnectionLimitConfig_Scale(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		connections int
+		scale       bool
+		replicas    int
+		want        int
+		warnings    []string
+	}{
+		{name: "scale off", connections: 10, replicas: 3, want: 10},
+		{name: "unknown replica count", connections: 10, scale: true, replicas: 0, want: 10},
+		{name: "one replica", connections: 10, scale: true, replicas: 1, want: 10},
+		{name: "rounded down", connections: 10, scale: true, replicas: 3, want: 3},
+		{name: "one per replica", connections: 10, scale: true, replicas: 10, want: 1},
+		{
+			name: "clamped to one", connections: 2, scale: true, replicas: 3, want: 1,
+			warnings: []string{"ConnectionLimit policy default/cl: scaling 2 connections across 3 replicas gives less than one connection per replica; using 1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := newPoliciesConfig(nil)
+			policy := connectionLimitPolicy("cl", conf_v1.ConnectionLimit{Connections: tc.connections, Scale: tc.scale})
+			res := cfg.addConnectionLimitConfig(policy, connectionLimitTestOwner, tc.replicas)
+			if got := cfg.ConnectionLimit.Conns[0].Connections; got != tc.want {
+				t.Errorf("addConnectionLimitConfig() rendered %d connections, want %d", got, tc.want)
+			}
+			if diff := cmp.Diff(tc.warnings, res.warnings); diff != "" {
+				t.Errorf("addConnectionLimitConfig() warnings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestAddConnectionLimitConfig_BlockOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		second   conf_v1.ConnectionLimit
+		warnings []string
+	}{
+		{
+			name:   "same options",
+			second: conf_v1.ConnectionLimit{Connections: 20, Key: "total", LogLevel: "error", RejectCode: new(503)},
+		},
+		{
+			name:   "different options",
+			second: conf_v1.ConnectionLimit{Connections: 20, Key: "total", DryRun: true, LogLevel: "warn", RejectCode: new(429)},
+			warnings: []string{
+				"ConnectionLimit policy default/second with limit connection option dryRun='true' is overridden to dryRun='false' by the first policy reference in this context",
+				"ConnectionLimit policy default/second with limit connection option logLevel='warn' is overridden to logLevel='error' by the first policy reference in this context",
+				"ConnectionLimit policy default/second with limit connection option rejectCode='429' is overridden to rejectCode='503' by the first policy reference in this context",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := newPoliciesConfig(nil)
+			first := conf_v1.ConnectionLimit{Connections: 10, LogLevel: "error", RejectCode: new(503)}
+			cfg.addConnectionLimitConfig(connectionLimitPolicy("first", first), connectionLimitTestOwner, 0)
+			res := cfg.addConnectionLimitConfig(connectionLimitPolicy("second", tc.second), connectionLimitTestOwner, 0)
+
+			if diff := cmp.Diff(tc.warnings, res.warnings); diff != "" {
+				t.Errorf("addConnectionLimitConfig() warnings mismatch (-want +got):\n%s", diff)
+			}
+			if want := (version2.LimitConnOptions{LogLevel: "error", RejectCode: 503}); cfg.ConnectionLimit.Options != want {
+				t.Errorf("block options = %+v, want the first Policy's %+v", cfg.ConnectionLimit.Options, want)
+			}
+			if len(cfg.ConnectionLimit.Conns) != 2 || len(cfg.ConnectionLimit.Zones) != 2 {
+				t.Errorf("got %d limits and %d zones, want 2 of each", len(cfg.ConnectionLimit.Conns), len(cfg.ConnectionLimit.Zones))
+			}
+		})
+	}
+}
+
+func TestAddConnectionLimitConfig_ZoneNameFollowsKey(t *testing.T) {
+	t.Parallel()
+
+	zoneName := func(cl conf_v1.ConnectionLimit) string {
+		cfg := newPoliciesConfig(nil)
+		cfg.addConnectionLimitConfig(connectionLimitPolicy("cl", cl), connectionLimitTestOwner, 0)
+		return cfg.ConnectionLimit.Zones[0].ZoneName
+	}
+
+	base := zoneName(conf_v1.ConnectionLimit{Connections: 10, Key: "total", ZoneSize: "1m"})
+	if got := zoneName(conf_v1.ConnectionLimit{Connections: 10, Key: "total", ZoneSize: "2m"}); got != base {
+		t.Errorf("a zone size change renamed the zone to %q, want %q", got, base)
+	}
+	if got := zoneName(conf_v1.ConnectionLimit{Connections: 10, Key: "total-2", ZoneSize: "1m"}); got == base {
+		t.Errorf("a key change kept the zone name %q", got)
 	}
 }
 
