@@ -366,6 +366,9 @@ Build the args for the service binary.
 - -default-server-tls-secret=$(POD_NAMESPACE)/{{ include "nginx-ingress.defaultTLSName" . }}
 {{- end }}
 - -ingress-class={{ .Values.controller.ingressClass.name }}
+{{- if and .Values.controller.ingressClass.validation (ne .Values.controller.ingressClass.validation "strict") }}
+- -ingress-class-validation={{ .Values.controller.ingressClass.validation }}
+{{- end }}
 {{- if .Values.controller.watchNamespace }}
 - -watch-namespace={{ .Values.controller.watchNamespace }}
 {{- end }}

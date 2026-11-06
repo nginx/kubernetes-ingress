@@ -150,6 +150,32 @@ func TestValidateLogLevel(t *testing.T) {
 	}
 }
 
+func TestValidateIngressClassValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		mode    string
+		wantErr bool
+	}{
+		{mode: "strict"},
+		{mode: "skip"},
+		{mode: "", wantErr: true},
+		{mode: "Strict", wantErr: true},
+		{mode: "SKIP", wantErr: true},
+		{mode: "none", wantErr: true},
+		{mode: "skip;", wantErr: true},
+	}
+	for _, test := range tests {
+		err := validateIngressClassValidation(test.mode)
+		if test.wantErr && err == nil {
+			t.Errorf("validateIngressClassValidation(%q) returned no error when it should have returned an error", test.mode)
+		}
+		if !test.wantErr && err != nil {
+			t.Errorf("validateIngressClassValidation(%q) returned an error when it should have returned no error: %v", test.mode, err)
+		}
+	}
+}
+
 func TestValidateNamespaces(t *testing.T) {
 	badNamespaces := []string{"watchns1, watchns2, watchns%$", "watchns1,watchns2,watchns%$"}
 	for _, badNs := range badNamespaces {
