@@ -306,13 +306,30 @@ func addJWTRequireReset(locations []version2.Location, serverAuth *version2.JWTA
 	return needed
 }
 
-// jwtPolicyProxyHeaders returns the headers of the route's JWT policy, else the spec's, as auth_jwt is inherited.
+// jwtPolicyProxyHeaders returns the headers a location sends for JWT authorization claims.
+//
+// A forwarded claim must come from a token the policy checked. auth_jwt is inherited, so a route
+// without its own JWT policy sends the spec's headers. Where the spec's checks do not run (the route has
+// its own JWT policy, or legacy OIDC, which validates the ID token instead), the spec's headers are
+// kept with an empty value: proxy_set_header then drops any copy the client sent, and an
+// unchecked claim cannot reach the backend.
 func jwtPolicyProxyHeaders(route, spec policiesCfg) []version2.Header {
+	if route.JWTAuth.Auth == nil && route.OIDC == nil {
+		if spec.JWTAuth.Auth != nil {
+			return spec.JWTAuth.Auth.ProxySetHeaders
+		}
+		return nil
+	}
+
+	var headers []version2.Header
 	if route.JWTAuth.Auth != nil {
-		return route.JWTAuth.Auth.ProxySetHeaders
+		headers = append(headers, route.JWTAuth.Auth.ProxySetHeaders...)
 	}
 	if spec.JWTAuth.Auth != nil {
-		return spec.JWTAuth.Auth.ProxySetHeaders
+		// A name the route also sets is dropped later: the first header of a name wins.
+		for _, h := range spec.JWTAuth.Auth.ProxySetHeaders {
+			headers = append(headers, version2.Header{Name: h.Name, Value: ""})
+		}
 	}
-	return nil
+	return headers
 }

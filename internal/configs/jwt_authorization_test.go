@@ -991,8 +991,11 @@ func TestJWTPolicyProxyHeaders(t *testing.T) {
 	}{
 		{"route policy only", withHeaders("X-Route"), policiesCfg{}, []version2.Header{{Name: "X-Route", Value: "$v"}}},
 		{"spec policy inherited when the route has none", policiesCfg{}, withHeaders("X-Spec"), []version2.Header{{Name: "X-Spec", Value: "$v"}}},
-		{"route policy overrides the spec policy", withHeaders("X-Route"), withHeaders("X-Spec"), []version2.Header{{Name: "X-Route", Value: "$v"}}},
-		{"route policy without headers does not inherit the spec headers", withoutHeaders, withHeaders("X-Spec"), nil},
+		{"route policy overrides the spec policy and strips its headers", withHeaders("X-Route"), withHeaders("X-Spec"), []version2.Header{{Name: "X-Route", Value: "$v"}, {Name: "X-Spec"}}},
+		{"route policy without headers strips the spec headers", withoutHeaders, withHeaders("X-Spec"), []version2.Header{{Name: "X-Spec"}}},
+		{"route policy without headers and no spec policy", withoutHeaders, policiesCfg{}, nil},
+		{"OIDC route strips the spec headers", policiesCfg{OIDC: &version2.OIDC{}}, withHeaders("X-Spec"), []version2.Header{{Name: "X-Spec"}}},
+		{"OIDC route without a spec policy", policiesCfg{OIDC: &version2.OIDC{}}, policiesCfg{}, nil},
 		{"no JWT policy", policiesCfg{}, policiesCfg{}, nil},
 	}
 

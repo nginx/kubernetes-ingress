@@ -276,7 +276,9 @@ func TestVirtualServerJWTAuthorization_RoutePolicyWithoutAuthorizationResetsServ
 	if tea.JWTAuth == nil || tea.JWTAuth.RequireVariable != "" {
 		t.Errorf("/tea JWTAuth = %+v, want the route's own policy without a requirement", tea.JWTAuth)
 	}
-	if diff := cmp.Diff([]string{"Host"}, headerNames(tea.ProxySetHeaders)); diff != "" {
+	// The server's checks do not run on /tea, so its claim header is sent empty, not forwarded.
+	wantTea := []version2.Header{{Name: "X-Issuer", Value: ""}, {Name: "Host", Value: "$host"}}
+	if diff := cmp.Diff(wantTea, tea.ProxySetHeaders); diff != "" {
 		t.Errorf("/tea headers mismatch (-want +got):\n%s", diff)
 	}
 
@@ -310,7 +312,8 @@ func TestVirtualServerJWTAuthorization_RouteAuthorizationReplacesServerRequireme
 	if tea.JWTAuth == nil || tea.JWTAuth.RequireVariable != "$jwt_authz_default_cafe_vs_default_route_authz" {
 		t.Errorf("/tea JWTAuth = %+v", tea.JWTAuth)
 	}
-	if diff := cmp.Diff([]string{"X-Tier", "Host"}, headerNames(tea.ProxySetHeaders)); diff != "" {
+	// The spec's X-Issuer is stripped: its check does not run on /tea.
+	if diff := cmp.Diff([]string{"X-Tier", "X-Issuer", "Host"}, headerNames(tea.ProxySetHeaders)); diff != "" {
 		t.Errorf("/tea headers mismatch (-want +got):\n%s", diff)
 	}
 	if mapVariables(cfg)["$jwt_authz_none_default_cafe"] {
@@ -335,10 +338,8 @@ func TestVirtualServerJWTAuthorization_RouteAuthorizationOnly(t *testing.T) {
 	}
 }
 
-func TestVirtualServerJWTAuthorization_OIDCLocationResetsServerRequirement(t *testing.T) {
-	t.Parallel()
-
-	oidcPolicy := &conf_v1.Policy{
+func oidcTestPolicy() *conf_v1.Policy {
+	return &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Name: "oidc", Namespace: "default"},
 		Spec: conf_v1.PolicySpec{
 			OIDC: &conf_v1.OIDC{
@@ -351,13 +352,22 @@ func TestVirtualServerJWTAuthorization_OIDCLocationResetsServerRequirement(t *te
 			},
 		},
 	}
-	vsEx := jwtVS([]string{"spec-jwt"}, map[string][]string{"/tea": {"oidc"}},
-		jwtPolicy("spec-jwt", authzForClaims(claimEq("iss", "a"))), oidcPolicy)
+}
+
+func withOIDCSecret(vsEx VirtualServerEx) VirtualServerEx {
 	vsEx.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{
 		secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 			Secret: &api_v1.Secret{Data: map[string][]byte{"client-secret": []byte("c2VjcmV0")}},
 		},
 	}
+	return vsEx
+}
+
+func TestVirtualServerJWTAuthorization_OIDCLocationResetsServerRequirement(t *testing.T) {
+	t.Parallel()
+
+	vsEx := withOIDCSecret(jwtVS([]string{"spec-jwt"}, map[string][]string{"/tea": {"oidc"}},
+		jwtPolicy("spec-jwt", authzForClaims(claimEq("iss", "a"))), oidcTestPolicy()))
 
 	cfg, warnings := generateJWTTestConfig(t, vsEx)
 	if len(warnings) != 0 {
@@ -370,6 +380,104 @@ func TestVirtualServerJWTAuthorization_OIDCLocationResetsServerRequirement(t *te
 	}
 	if tea.JWTRequireReset != "$jwt_authz_none_default_cafe" {
 		t.Errorf("OIDC location JWTRequireReset = %q: it runs auth_jwt and would inherit the server's claim requirement", tea.JWTRequireReset)
+	}
+}
+
+// OIDC runs auth_jwt on the ID token, so the spec policy's claim is unchecked there. The header
+// is sent empty so proxy_set_header also drops a copy the client sent.
+func TestVirtualServerJWTAuthorization_OIDCRouteStripsPolicyHeaders(t *testing.T) {
+	t.Parallel()
+
+	vsEx := withOIDCSecret(jwtVS([]string{"spec-jwt"}, map[string][]string{"/tea": {"oidc"}},
+		jwtPolicy("spec-jwt", authzForClaims(claimWithHeader("role", "X-Role", "admin"))), oidcTestPolicy()))
+
+	cfg, warnings := generateJWTTestConfig(t, vsEx)
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", warnings)
+	}
+
+	tea := locationByPath(t, cfg, "/tea")
+	if !tea.OIDC {
+		t.Fatalf("the OIDC policy was not applied to /tea, so this test would prove nothing: %+v", tea)
+	}
+	want := []version2.Header{{Name: "X-Role", Value: ""}, {Name: "Host", Value: "$host"}}
+	if diff := cmp.Diff(want, tea.ProxySetHeaders); diff != "" {
+		t.Errorf("/tea headers mismatch (-want +got):\n%s", diff)
+	}
+
+	coffee := locationByPath(t, cfg, "/coffee")
+	if got := coffee.ProxySetHeaders[0]; got.Name != "X-Role" || got.Value == "" {
+		t.Errorf("/coffee must still forward the checked claim, got %+v", got)
+	}
+}
+
+func TestVirtualServerJWTAuthorization_OIDCRequestHeadersWinOverStrippedHeader(t *testing.T) {
+	t.Parallel()
+
+	vsEx := withOIDCSecret(jwtVS([]string{"spec-jwt"}, map[string][]string{"/tea": {"oidc"}},
+		jwtPolicy("spec-jwt", authzForClaims(claimWithHeader("role", "X-Role", "admin"))), oidcTestPolicy()))
+	vsEx.VirtualServer.Spec.Routes[0].Action = &conf_v1.Action{Proxy: &conf_v1.ActionProxy{
+		Upstream:       "tea",
+		RequestHeaders: &conf_v1.ProxyRequestHeaders{Set: []conf_v1.Header{{Name: "x-role", Value: "from-route"}}},
+	}}
+
+	cfg, _ := generateJWTTestConfig(t, vsEx)
+
+	want := []version2.Header{{Name: "x-role", Value: "from-route"}, {Name: "Host", Value: "$host"}}
+	if diff := cmp.Diff(want, locationByPath(t, cfg, "/tea").ProxySetHeaders); diff != "" {
+		t.Errorf("/tea headers mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestVirtualServerJWTAuthorization_OIDCVSRSubrouteStripsPolicyHeaders(t *testing.T) {
+	t.Parallel()
+
+	vsEx := withOIDCSecret(jwtVS([]string{"spec-jwt"}, nil,
+		jwtPolicy("spec-jwt", authzForClaims(claimWithHeader("role", "X-Role", "admin"))), oidcTestPolicy()))
+	vsEx.VirtualServer.Spec.Routes = []conf_v1.Route{{Path: "/tea", Route: "default/tea-vsr"}}
+	vsEx.VirtualServerRoutes = []*conf_v1.VirtualServerRoute{{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "tea-vsr", Namespace: "default"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+			Subroutes: []conf_v1.Route{{
+				Path:     "/tea",
+				Action:   &conf_v1.Action{Pass: "tea"},
+				Policies: []conf_v1.PolicyReference{{Name: "oidc", Namespace: "default"}},
+			}},
+		},
+	}}
+
+	cfg, _ := generateJWTTestConfig(t, vsEx)
+
+	tea := locationByPath(t, cfg, "/tea")
+	if !tea.OIDC {
+		t.Fatalf("the OIDC policy was not applied to the subroute, so this test would prove nothing: %+v", tea)
+	}
+	want := []version2.Header{{Name: "X-Role", Value: ""}, {Name: "Host", Value: "$host"}}
+	if diff := cmp.Diff(want, tea.ProxySetHeaders); diff != "" {
+		t.Errorf("subroute headers mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// A route's own authorization replaces the spec's, so the spec's header names must not pass an
+// unchecked client value, but the route's own headers are forwarded.
+func TestVirtualServerJWTAuthorization_RouteAuthorizationStripsOnlyTheSpecsOtherHeaders(t *testing.T) {
+	t.Parallel()
+
+	spec := jwtPolicy("spec-jwt", authzForClaims(claimWithHeader("role", "X-Role", "admin"), claimWithHeader("tier", "X-Tier", "Gold")))
+	route := jwtPolicy("route-jwt", authzForClaims(claimWithHeader("tier", "X-Tier", "Gold")))
+
+	cfg, _ := generateJWTTestConfig(t, jwtVS([]string{"spec-jwt"}, map[string][]string{"/tea": {"route-jwt"}}, spec, route))
+
+	got := locationByPath(t, cfg, "/tea").ProxySetHeaders
+	want := []version2.Header{
+		{Name: "X-Tier", Value: "$jwt_authz_default_cafe_vs_default_route_jwt_r0_c0_hdr"},
+		{Name: "X-Role", Value: ""},
+		{Name: "Host", Value: "$host"},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("/tea headers mismatch (-want +got):\n%s", diff)
 	}
 }
 
