@@ -635,6 +635,7 @@ jobs:
     needs: [checks]
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -660,4 +661,11 @@ jobs:
             - Configuration examples -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/examples
             - Helm Chart -- https://github.com/nginx/kubernetes-ingress/tree/{{version}}/charts/nginx-ingress
             - Operator -- https://github.com/nginx/nginx-ingress-helm-operator
+        if: ${{ github.event_name == 'push' && contains(github.ref_name, 'release-') }}
+
+      - name: Fix release note attribution
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.release-notes.outputs.release-id }}
+        run: python3 .github/scripts/release-notes-attribution.py
         if: ${{ github.event_name == 'push' && contains(github.ref_name, 'release-') }}

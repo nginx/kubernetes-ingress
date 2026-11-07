@@ -57,8 +57,8 @@ golang_pr_strings = [
 # Setup regex's
 # Matches:
 # My new change by @gihubhandle in https://github.com/<org>/<repo>/pull/<number>
-# Captures change title and PR URL
-change_regex = r"^(.*) by @.* in (.*)$"
+# Captures change title, optional credit (e.g. "@a & @b (cherry-picked by @c)") and PR URL
+change_regex = r"^(.*?)(?: by (@.+?))? in (https://\S+.*)$"
 # Matches:
 # https://github.com/<org>/<repo>/pull/<number>
 # Captures PR number
@@ -162,8 +162,9 @@ for title, changes in sections.items():
         if not change:
             print(f"WARNING: Skipping unrecognized line: {line}")
             continue
-        change_title = change.group(1)
-        pr_link = change.group(2)
+        change_title = re.sub(r"^\[cherry-pick to [^\]]+\]\s*", "", change.group(1))
+        credit = re.sub(r"@([\w-]+)(\[bot\])?", r"[@\1\2](https://github.com/\1)", change.group(2) or "")
+        pr_link = change.group(3)
         pr_links = re.findall(r"https://github\.com/\S+/pull/\d+", pr_link)
         if pr_links:
             pr_link = pr_links[-1]
@@ -172,7 +173,8 @@ for title, changes in sections.items():
             print(f"WARNING: Could not extract PR number from: {pr_link}")
             continue
         pr_number = pr_match.group(1)
-        pr = {"details": f"[{pr_number}]({pr_link})", "title": change_title.capitalize()}
+        credit = f" by {credit}" if credit else ""
+        pr = {"details": f"[{pr_number}]({pr_link})", "title": change_title.capitalize() + credit}
         if "Dependencies" in title:
             # save section title for later use as lookup key to categories dict
             dependencies_title = title
