@@ -1,0 +1,54 @@
+name: Azure Blob Upload
+description: Log in to Azure with OIDC and upload one file to Azure Blob Storage (e.g. SARIF scan results).
+
+# The calling job needs `permissions: id-token: write` for the OIDC login.
+
+inputs:
+  client-id:
+    description: Azure client ID used for the OIDC login
+    required: true
+  tenant-id:
+    description: Azure tenant ID
+    required: true
+  subscription-id:
+    description: Azure subscription ID
+    required: true
+  storage-account:
+    description: Azure storage account name
+    required: true
+  container-name:
+    description: Blob container name
+    required: true
+  file:
+    description: Path of the local file to upload
+    required: true
+  blob-name:
+    description: Name of the blob in the container (overwritten if it exists)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Azure login for upload
+      uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+
+    - name: Azure upload
+      uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
+      env:
+        FILE: ${{ inputs.file }}
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        STORAGE_ACCOUNT: ${{ inputs.storage-account }}
+        BLOB_NAME: ${{ inputs.blob-name }}
+      with:
+        inlineScript: |
+          az storage blob upload \
+            --auth-mode=login \
+            -f "$FILE" \
+            -c "$CONTAINER_NAME" \
+            --account-name "$STORAGE_ACCOUNT" \
+            --overwrite \
+            -n "$BLOB_NAME"
