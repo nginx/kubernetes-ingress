@@ -22,6 +22,7 @@ jobs:
     outputs:
       generate: ${{ steps.filter.outputs.generate }}
       helm: ${{ steps.filter.outputs.helm }}
+      k8s: ${{ steps.filter.outputs.k8s }}
     permissions:
       pull-requests: read
     if: github.repository == 'nginx/kubernetes-ingress' && (github.actor == 'renovate[bot]')
@@ -39,6 +40,8 @@ jobs:
             - go.sum
             helm:
             - '.github/workflows/*.yml'
+            k8s:
+            - 'tests/Makefile'
 
   build:
     name: Build for renovate PRs
@@ -49,7 +52,7 @@ jobs:
       id-token: write
     if: >-
       github.repository == 'nginx/kubernetes-ingress' &&
-      (needs.check.outputs.generate == 'true' || needs.check.outputs.helm == 'true')
+      (needs.check.outputs.generate == 'true' || needs.check.outputs.helm == 'true' || needs.check.outputs.k8s == 'true')
     steps:
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
@@ -115,6 +118,10 @@ jobs:
           make update-crds
           make update-codegen
         if: needs.check.outputs.generate == 'true'
+
+      - name: Update Helm values schema for Kubernetes version changes
+        run: make update-helm-schema
+        if: needs.check.outputs.k8s == 'true'
 
       - name: Check for Helm version changes
         id: helm-diff
