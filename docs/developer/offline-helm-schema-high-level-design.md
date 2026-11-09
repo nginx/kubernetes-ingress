@@ -116,6 +116,7 @@ caused an earlier release-Secret size failure
 - Validation rejects exactly what it rejects today. The Kubernetes definitions
   are the same, only their location changes.
 - Kubernetes version bumps stay automated through Renovate.
+- CI fails if the schema has a remote `$ref` or a `$ref` that doesn't resolve.
 - CI fails if the bundled definitions are stale, missing, or edited by hand.
 - The operator ships one copy of the chart and needs no schema-specific steps
   in its sync workflow.
@@ -135,9 +136,10 @@ caused an earlier release-Secret size failure
 - In the same setup, `controller.image.pullPolicy=Bogus` and
   `controller.resources.requests=notamap` are rejected.
 - `values.schema.json` has no `$ref` with an `http`, `https`, or `file` scheme,
-  and every `#/...` reference resolves. A test enforces both.
+  and every `#/...` reference resolves. A Go test in `charts/tests/` enforces
+  both, and it runs on chart-only changes.
 - Running the generator on a clean checkout produces no diff, and CI enforces
-  this.
+  this, including on chart-only changes.
 - A Renovate Kubernetes version bump produces a PR with the regenerated block,
   without manual steps.
 - The operator image contains the chart once and the operator installs
@@ -193,8 +195,18 @@ Size, measured on the current chart:
 | With bundled definitions, without `description` fields | 176 KiB | 17 KiB |
 | For comparison: full upstream `_definitions.json` | 1,381 KiB | 243 KiB |
 
-The packaged chart with bundled definitions is about 88 KiB, well below the
-1 MiB release Secret limit.
+**Release Secret size.** Helm stores each release as a Kubernetes Secret that
+holds the whole chart (JSON, gzipped, base64), and Kubernetes limits a Secret to
+1 MiB (1,024 KiB). Measured with Helm v3.18.6's encoding, rendered manifest
+excluded:
+
+| Chart | Before | After |
+| --- | --- | --- |
+| NIC chart | 161 KiB | 270 KiB |
+| Operator chart, which includes the 1.6 MiB `_definitions.json` | 733 KiB | 269 KiB |
+
+The NIC chart grows by about 109 KiB, to 26% of the limit. The operator chart
+shrinks because `_definitions.json` leaves it.
 
 The bundled definitions include their `description` fields. Artifact Hub's
 Values Schema tab and editors display them. Helm does not.
@@ -237,8 +249,9 @@ Output requirements:
 
 | Where | Change |
 | --- | --- |
+| `charts/tests/` (helmunit tag) | New Go test: reads `values.schema.json` and fails if any `$ref` doesn't start with `#/`, or if a `#/definitions/...` target doesn't exist. It needs no Helm binary and no network. |
 | `ci.yml`, `verify-codegen` job | New step: `make update-helm-schema && git diff --exit-code charts/nginx-ingress/values.schema.json`, the same pattern as the CRD and telemetry checks. |
-| `charts/tests/` (helmunit tag, run by `make test`) | New test that the schema is self-contained: every `$ref` starts with `#/` and resolves. New test that renders the packaged chart from a temporary directory with `HTTP_PROXY` and `HTTPS_PROXY` set to a closed port, expects defaults to pass, and expects an invalid `pullPolicy` to be rejected. |
+| `ci.yml`, `verify-codegen` and `unit-tests` jobs | Run when files under `charts/` or `tests/Makefile` changed, as well as on a binary-cache miss. The cache key hashes only Go code, templates and `version.txt`, so a change that touches only the chart or the Kubernetes version skips both jobs. Add a `charts_changed` output to the `checks` job using `dorny/paths-filter`, as `renovate-build.yml` does. |
 | `renovate-build.yml` | Add a `tests/Makefile` path filter; run `make update-helm-schema` and commit. `main` only. |
 
 Unchanged: `.pre-commit-config.yaml` (`check-jsonschema` also stops needing
@@ -268,17 +281,17 @@ branches use it to bump their schema URLs).
 - Keep `COPY helm-charts  ${HOME}/helm-charts`, because `watches.yaml` loads
   `chart: helm-charts/nginx-ingress` relative to `WORKDIR /opt/helm`.
 
-This addresses the purpose of #709. The chart in the image drops from two
-copies of about 2.2 MiB, 1.6 MiB of which is `_definitions.json`, to one copy of
-about 0.95 MiB. The Helm release Secrets the operator creates shrink by the same
-proportion, which also removes the risk behind #529.
+This addresses the purpose of #709. The image drops from two copies of the
+chart, about 2.2 MiB each, to one copy of about 0.95 MiB, because the 1.6 MiB
+`_definitions.json` is no longer in the chart. The operator's release Secret
+shrinks as well; see [Schema layout](#schema-layout).
 
 **Repository contents.** `helm-charts/nginx-ingress/v1.37.0/` disappears
 when the sync replaces the chart directory.
 
 ### Rollout
 
-1. **NIC PR on `main`.** Schema, generator, Makefile target, tests, CI,
+1. **NIC PR on `main`.** Schema, generator, Makefile target, test, CI,
    Renovate, and removing `k8s_version` from `release-publish.yml`. Ships in
    the next NIC release.
 2. **Operator PR A, before that release is synced.** Make `k8s_version`
@@ -340,7 +353,7 @@ requirements, CI wiring, or the operator.
   gap would only show up when users install, so this is an improvement.
 - **Formatting churn.** If the generator and `jq` format differently, each
   release reformats the file. The CI drift check catches this, and the
-  formatting requirement prevents it.
+  generator's output requirements prevent it.
 
 ## Security Impact
 
@@ -357,8 +370,8 @@ chart.
 | kubernetes-ingress | `charts/nginx-ingress/values.schema.json` | `$ref` rewrite and generated `definitions` |
 | kubernetes-ingress | `hack/` | New generator |
 | kubernetes-ingress | `Makefile` | `update-helm-schema` target |
-| kubernetes-ingress | `charts/tests/` | Self-contained and offline tests |
-| kubernetes-ingress | `.github/workflows/ci.yml` | Drift check |
+| kubernetes-ingress | `charts/tests/` | Self-contained schema test |
+| kubernetes-ingress | `.github/workflows/ci.yml` | Schema drift check; run `verify-codegen` and `unit-tests` on chart changes |
 | kubernetes-ingress | `.github/workflows/renovate-build.yml` | Regenerate on Kubernetes bumps |
 | kubernetes-ingress | `.github/workflows/release-publish.yml` | Stop sending `k8s_version` |
 | nginx-ingress-helm-operator | `.github/workflows/sync-chart.yml` | Remove schema steps and `k8s_version`, add guard |
