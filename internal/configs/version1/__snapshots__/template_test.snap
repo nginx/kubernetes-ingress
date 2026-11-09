@@ -6786,6 +6786,238 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressWithAuthResponseHeaders/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    http2 on;
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    proxy_intercept_errors on;
+    error_page 403 @custom_default_backend;
+    location "/tea" {
+        set $service "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;
+        proxy_set_header X-Session-ID $auth_resp_x_session_id;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/helloworld.Greeter" {
+        set $service "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location "/coffee" {
+        set $service "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+    location @custom_default_backend {
+        internal;
+        proxy_intercept_errors off;
+        proxy_set_header Tenant-UUID "";
+        proxy_set_header X-Session-ID "";
+        proxy_pass http://ing_default_cafe-ingress_default-svc_80;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithAuthResponseHeaders/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    http2 on;
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone "cafe.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    proxy_intercept_errors on;
+    error_page 403 @custom_default_backend;
+    location "/tea" {
+        set $service "";
+        status_zone "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;
+        proxy_set_header X-Session-ID $auth_resp_x_session_id;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/helloworld.Greeter" {
+        set $service "";
+        status_zone "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location "/coffee" {
+        set $service "";
+        status_zone "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+    location @custom_default_backend {
+        internal;
+        proxy_intercept_errors off;
+        proxy_set_header Tenant-UUID "";
+        proxy_set_header X-Session-ID "";
+        proxy_pass http://ing_default_cafe-ingress_default-svc_80;
+    }
+}
+
+---
+
 [TestExecuteTemplate_ForIngressWithCORS/nginx - 1]
 # configuration for default/cafe-ingress
 upstream test {

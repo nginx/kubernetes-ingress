@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -5616,4 +5617,187 @@ func TestVirtualServerForNginxRedirectNoChallengeUnchanged(t *testing.T) {
 func TestVirtualServerForNginxPlusRedirectNoChallengeUnchanged(t *testing.T) {
 	t.Parallel()
 	testVirtualServerRedirectNoChallengeUnchanged(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
+}
+
+// TestVirtualServerWithAuthResponseHeaders covers the rendering of the ExternalAuth response headers design: a pair of
+// directives per listed name, grpc_set_header for gRPC backends, nothing for unlisted names or locations without a
+// list, and unchanged auth_request handling.
+func TestVirtualServerWithAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	extAuth := &ExternalAuth{
+		URI: &AuthURI{
+			Service:      "auth-svc",
+			Upstream:     "vs_exauth_default_p",
+			Path:         "/auth",
+			InternalPath: "/_external_auth/auth",
+		},
+	}
+	tenantUUID := AuthResponseHeader{Name: "Tenant-UUID", Variable: "$auth_resp_tenant_uuid", Source: "$upstream_http_tenant_uuid"}
+	sessionID := AuthResponseHeader{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"}
+	cfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "vs_default_cafe_tea", Servers: []UpstreamServer{{Address: "10.0.0.20:80"}}},
+			{Name: "vs_default_cafe_coffee", Servers: []UpstreamServer{{Address: "10.0.0.30:80"}}},
+			{Name: "vs_default_cafe_grpc", Servers: []UpstreamServer{{Address: "10.0.0.50:50051"}}},
+			{Name: "vs_exauth_default_p", Servers: []UpstreamServer{{Address: "10.0.0.40:80"}}},
+		},
+		Server: Server{
+			ServerName: "cafe.example.com",
+			StatusZone: "cafe.example.com",
+			Locations: []Location{
+				{
+					Path:         "/tea",
+					ProxyPass:    "http://vs_default_cafe_tea",
+					ServiceName:  "tea-svc",
+					ExternalAuth: extAuth,
+					AuthResponseHeaders: &AuthResponseHeaders{
+						Policy:  "default/p",
+						Headers: []AuthResponseHeader{tenantUUID, sessionID},
+					},
+				},
+				{
+					Path:                "/helloworld.Greeter",
+					GRPCPass:            "grpc://vs_default_cafe_grpc",
+					ServiceName:         "grpc-svc",
+					ExternalAuth:        extAuth,
+					AuthResponseHeaders: &AuthResponseHeaders{Policy: "default/p", Headers: []AuthResponseHeader{tenantUUID}},
+				},
+				{
+					Path:         "/coffee",
+					ProxyPass:    "http://vs_default_cafe_coffee",
+					ServiceName:  "coffee-svc",
+					ExternalAuth: extAuth,
+				},
+				{
+					Path:                 "/_external_auth/auth",
+					Internal:             true,
+					DisableWAF:           true,
+					ProxyPass:            "http://vs_exauth_default_p/auth",
+					ProxyPassRequestBody: "off",
+					ServiceName:          "auth-svc",
+				},
+			},
+		},
+	}
+
+	authLines := func(block string) []string {
+		var lines []string
+		for _, line := range strings.Split(block, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "auth_request ") || strings.HasPrefix(line, "error_page 401") {
+				lines = append(lines, line)
+			}
+		}
+		return lines
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+			conf := string(data)
+
+			tea := locationBlock(t, conf, `"/tea"`)
+			assertCount(t, tea, "auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;", 1)
+			assertCount(t, tea, "proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;", 1)
+			assertCount(t, tea, "auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;", 1)
+			assertCount(t, tea, "proxy_set_header X-Session-ID $auth_resp_x_session_id;", 1)
+
+			grpc := locationBlock(t, conf, `"/helloworld.Greeter"`)
+			assertCount(t, grpc, "auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;", 1)
+			assertCount(t, grpc, "grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;", 1)
+			assertCount(t, grpc, "proxy_set_header Tenant-UUID", 0)
+
+			// Unlisted headers stay behind: only listed names render, and only where a list applies.
+			coffee := locationBlock(t, conf, `"/coffee"`)
+			assertCount(t, coffee, "auth_request_set", 0)
+			assertCount(t, locationBlock(t, conf, `"/_external_auth/auth"`), "auth_request_set", 0)
+			assertCount(t, conf, "auth_request_set", 3)
+
+			// Rejections are unchanged: a list does not change the auth_request and 401 handling.
+			if want, got := authLines(coffee), authLines(tea); len(want) == 0 || !slices.Equal(want, got) {
+				t.Errorf("auth_request lines with a list %q, want %q", got, want)
+			}
+
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+// TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders covers the scenario "Legacy OIDC headers are replaced":
+// a location that forwards username or Authorization renders no legacy OIDC line for it.
+func TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	cfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "vs_default_cafe_tea", Servers: []UpstreamServer{{Address: "10.0.0.20:80"}}},
+			{Name: "vs_default_cafe_coffee", Servers: []UpstreamServer{{Address: "10.0.0.30:80"}}},
+		},
+		Server: Server{
+			ServerName: "cafe.example.com",
+			StatusZone: "cafe.example.com",
+			OIDC: &OIDC{
+				AuthEndpoint:          "https://idp.example.com/auth",
+				ClientID:              "test-client",
+				ClientSecret:          "test-secret",
+				JwksURI:               "https://idp.example.com/jwks",
+				TokenEndpoint:         "https://idp.example.com/token",
+				EndSessionEndpoint:    "https://idp.example.com/logout",
+				PostLogoutRedirectURI: "https://example.com/logout",
+				Scope:                 "openid+profile+email",
+				AccessTokenEnable:     true,
+			},
+			Locations: []Location{
+				{
+					Path:        "/tea",
+					ProxyPass:   "http://vs_default_cafe_tea",
+					ServiceName: "tea-svc",
+					OIDC:        true,
+					AuthResponseHeaders: &AuthResponseHeaders{
+						Policy: "default/p",
+						Headers: []AuthResponseHeader{
+							{Name: "username", Variable: "$auth_resp_username", Source: "$upstream_http_username"},
+							{Name: "Authorization", Variable: "$auth_resp_authorization", Source: "$upstream_http_authorization"},
+						},
+					},
+				},
+				{
+					Path:        "/coffee",
+					ProxyPass:   "http://vs_default_cafe_coffee",
+					ServiceName: "coffee-svc",
+					OIDC:        true,
+				},
+			},
+		},
+	}
+
+	data, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	tea := locationBlock(t, conf, `"/tea"`)
+	assertCount(t, tea, "username $jwt_claim_sub;", 0)
+	assertCount(t, tea, "$access_token", 0)
+	assertCount(t, tea, "proxy_set_header username $auth_resp_username;", 1)
+	assertCount(t, tea, "proxy_set_header Authorization $auth_resp_authorization;", 1)
+
+	coffee := locationBlock(t, conf, `"/coffee"`)
+	assertCount(t, coffee, "proxy_set_header username $jwt_claim_sub;", 1)
+	assertCount(t, coffee, "$access_token", 1)
+	assertCount(t, coffee, "auth_request_set", 0)
+
+	snaps.MatchSnapshot(t, conf)
 }

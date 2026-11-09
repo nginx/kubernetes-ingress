@@ -1204,6 +1204,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 	}
 
+	vsc.resolveAuthResponseHeaders(vsEx, policiesCfg.ExternalAuth, policiesCfg.OIDC, locations)
+
 	for mapName, apiKeyClients := range policiesCfg.APIKey.ClientMap {
 		maps = append(maps, *generateAPIKeyClientMap(mapName, apiKeyClients))
 	}

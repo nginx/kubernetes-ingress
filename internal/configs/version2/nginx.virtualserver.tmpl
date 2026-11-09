@@ -562,6 +562,12 @@ server {
         {{- range $h := $l.ProxySetHeaders }}
         {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ printf "%q" $h.Value }};
         {{- end }}
+        {{- with $l.AuthResponseHeaders }}
+        {{- range $h := .Headers }}
+        auth_request_set {{ $h.Variable }} {{ $h.Source }};
+        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ $h.Variable }};
+        {{- end }}
+        {{- end }}
 
             {{- range $h := $l.ProxyHideHeaders }}
         {{ $proxyOrGRPC }}_hide_header {{ $h }};

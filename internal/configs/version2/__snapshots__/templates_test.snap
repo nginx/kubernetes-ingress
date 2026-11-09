@@ -8761,6 +8761,120 @@ server {
 
 ---
 
+[TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_coffee {
+    zone vs_default_cafe_coffee ;
+    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+keyval $idp_sid $client_sid              zone=oidc_sids;
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    include oidc-conf.d/oidc__.conf;
+
+    set $oidc_pkce_enable 0;
+    set $oidc_client_auth_method "client_secret_post";
+    set $oidc_logout_redirect "https://example.com/logout";
+    set $oidc_hmac_key "";
+    set $zone_sync_leeway 0;
+
+    set $oidc_authz_endpoint "https://idp.example.com/auth";
+    set $oidc_authz_extra_args "";
+    set $oidc_token_endpoint "https://idp.example.com/token";
+    set $oidc_end_session_endpoint "https://idp.example.com/logout";
+    set $oidc_jwt_keyfile "https://idp.example.com/jwks";
+    set $oidc_scopes "openid+profile+email";
+    set $oidc_client "test-client";
+    set $oidc_client_secret "test-secret";
+
+    server_tokens "";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+
+        
+        auth_oidc off;
+        auth_jwt "" token=$session_jwt;
+        error_page 401 = @do_oidc_flow;
+        auth_jwt_key_request /_jwks_uri;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_username $upstream_http_username;
+        proxy_set_header username $auth_resp_username;
+        auth_request_set $auth_resp_authorization $upstream_http_authorization;
+        proxy_set_header Authorization $auth_resp_authorization;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        auth_oidc off;
+        auth_jwt "" token=$session_jwt;
+        error_page 401 = @do_oidc_flow;
+        auth_jwt_key_request /_jwks_uri;proxy_set_header username $jwt_claim_sub;
+        proxy_set_header Authorization "Bearer $access_token";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxPlusWithOIDCNative - 1]
 
 upstream test-upstream {
@@ -10261,6 +10375,357 @@ server {
     location @external_auth_signin {
         auth_request off;
         return 302 $external_auth_signin_uri;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestVirtualServerWithAuthResponseHeaders/nginx - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_coffee {
+    zone vs_default_cafe_coffee ;
+    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_grpc {
+    zone vs_default_cafe_grpc ;
+    server 10.0.0.50:50051 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_exauth_default_p {
+    zone vs_exauth_default_p ;
+    server 10.0.0.40:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+        auth_request "/_external_auth/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;
+        proxy_set_header X-Session-ID $auth_resp_x_session_id;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/helloworld.Greeter" {
+        set $service "grpc-svc";
+        auth_request "/_external_auth/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        grpc_pass grpc://vs_default_cafe_grpc;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+        auth_request "/_external_auth/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/_external_auth/auth" {
+        set $service "auth-svc";
+        internal;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_exauth_default_p/auth;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestVirtualServerWithAuthResponseHeaders/nginx-plus - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_coffee {
+    zone vs_default_cafe_coffee ;
+    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_grpc {
+    zone vs_default_cafe_grpc ;
+    server 10.0.0.50:50051 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_exauth_default_p {
+    zone vs_exauth_default_p ;
+    server 10.0.0.40:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        auth_request "/_external_auth/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;
+        proxy_set_header X-Session-ID $auth_resp_x_session_id;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/helloworld.Greeter" {
+        set $service "grpc-svc";
+        status_zone "grpc-svc";
+        auth_request "/_external_auth/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;
+        grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;
+        grpc_pass grpc://vs_default_cafe_grpc;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        auth_request "/_external_auth/auth";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/_external_auth/auth" {
+        set $service "auth-svc";
+        status_zone "auth-svc";
+        internal;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_exauth_default_p/auth;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
     }
     location @external_auth_unauthorized {
         auth_request off;
