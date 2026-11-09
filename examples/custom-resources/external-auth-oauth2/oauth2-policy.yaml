@@ -12,3 +12,6 @@ spec:
     sslVerifyDepth: 2
     sniName: "external-auth-tls"
     trustedCertSecret: "external-auth-ca-secret"
+    authResponseHeaders:
+    - X-Auth-Request-User
+    - X-Auth-Request-Email

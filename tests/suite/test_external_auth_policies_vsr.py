@@ -4,9 +4,13 @@ from kubernetes.client.rest import ApiException
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_valid_vsr, assert_vsr_status
 from suite.utils.external_auth_utils import (
+    RETURNED_HEADERS,
+    delete_headers_echo,
+    deploy_headers_echo,
     ext_auth_backend_src,
     ext_auth_pol_invalid_src,
     ext_auth_pol_invalid_svc_src,
+    ext_auth_pol_response_headers_src,
     ext_auth_pol_tls_bad_sni_src,
     ext_auth_pol_tls_basic_src,
     ext_auth_pol_tls_full_multi_src,
@@ -19,10 +23,12 @@ from suite.utils.external_auth_utils import (
     ext_auth_tls_backend_src,
     ext_auth_tls_missing_ca_crt_src,
     invalid_credentials,
+    lines_named,
     setup_ext_auth,
     teardown_ext_auth,
     valid_auth_headers,
     valid_credentials,
+    wait_and_request_lines,
 )
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy, read_policy
 from suite.utils.resources_utils import (
@@ -48,6 +54,9 @@ ext_auth_vsr_invalid_svc_src = (
 ext_auth_vsr_override_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-override-subroute.yaml"
 ext_auth_vs_override_spec_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-vsr-spec-override.yaml"
 ext_auth_vs_override_route_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-vsr-route-override.yaml"
+ext_auth_vsr_response_headers_src = (
+    f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-response-headers-subroute.yaml"
+)
 
 # TLS VSR specs
 ext_auth_vsr_tls_src = f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-tls-subroute.yaml"
@@ -501,6 +510,47 @@ class TestExternalAuthPoliciesVsr:
         # Both reference the same backend, so request succeeds with valid creds.
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
+
+    # authResponseHeaders acceptance scenarios (docs/developer/external-auth-response-headers-high-level-design.md)
+
+    def test_every_attachment_point_forwards(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        v_s_route_app_setup,
+        v_s_route_setup,
+        test_namespace,
+        e2e_run_id,
+    ):
+        """
+        With Policy P on a VirtualServerRoute subroute, the backend receives one line for each listed header
+        that the auth service returned, as P spells it.
+        """
+        namespace = v_s_route_setup.route_m.namespace
+        req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+        secret_names, policy_names, _ = setup_ext_auth(
+            kube_apis,
+            namespace,
+            valid_credentials,
+            [ext_auth_pol_response_headers_src],
+            v_s_route_setup.vs_host,
+        )
+        deploy_headers_echo(kube_apis, namespace, e2e_run_id)
+        try:
+            patch_v_s_route_from_yaml(
+                kube_apis.custom_objects,
+                v_s_route_setup.route_m.name,
+                ext_auth_vsr_response_headers_src,
+                namespace,
+            )
+            wait_before_test()
+            lines = wait_and_request_lines(f"{req_url}{v_s_route_setup.route_m.paths[0]}", v_s_route_setup.vs_host)
+        finally:
+            self.teardown(kube_apis, namespace, secret_names, policy_names, v_s_route_setup)
+            delete_headers_echo(kube_apis, namespace)
+
+        for name, value in RETURNED_HEADERS:
+            assert lines_named(lines, name) == [(name, value)]
 
 
 @pytest.mark.policies

@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -252,6 +253,66 @@ func TestCRDSchemaGateJWTClaimValues(t *testing.T) {
 			}
 			if !tc.admit && err == nil {
 				t.Error("the CRD admitted a policy that must be rejected")
+			}
+		})
+	}
+}
+
+// TestCRDSchemaGateAuthResponseHeaders covers the scenario "Invalid lists are
+// rejected" of the ExternalAuth response headers design at the API server: the
+// shipped CRD admits valid lists, and rejects invalid ones naming the rule that
+// each breaks.
+func TestCRDSchemaGateAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	gate := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_policies.yaml")
+	longest := "X-" + strings.Repeat("a", 44)
+	distinct := func(count, length int) []string {
+		names := make([]string, count)
+		for i := range names {
+			prefix := fmt.Sprintf("X-%02d-", i)
+			names[i] = prefix + strings.Repeat("a", length-len(prefix))
+		}
+		return names
+	}
+
+	tests := []struct {
+		name    string
+		headers []string
+		// want is part of the expected error, or empty when the CRD admits the list.
+		want string
+	}{
+		{name: "names that other configuration also sets", headers: []string{"Tenant-UUID", "Authorization"}},
+		{name: "one 46-character name", headers: []string{longest}},
+		{name: "32 distinct 46-character names", headers: distinct(32, 46)},
+		{name: "Invalid lists are rejected: a name with _", headers: []string{"X_User"}, want: "should match"},
+		{name: "Invalid lists are rejected: an empty name", headers: []string{""}, want: "should match"},
+		{name: "Invalid lists are rejected: a 47-character name", headers: []string{longest + "a"}, want: "Too long"},
+		{name: "Invalid lists are rejected: 33 names", headers: distinct(33, 10), want: "Too many"},
+		{name: "Invalid lists are rejected: names that differ only in case", headers: []string{"X-User", "x-user"}, want: "must be unique, ignoring case"},
+		{name: "Invalid lists are rejected: reserved name host", headers: []string{"host"}, want: "managed by NGINX"},
+		{name: "Invalid lists are rejected: reserved name CONTENT-LENGTH", headers: []string{"CONTENT-LENGTH"}, want: "managed by NGINX"},
+		{name: "Invalid lists are rejected: reserved name X-Forwarded-For", headers: []string{"X-Forwarded-For"}, want: "managed by NGINX"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := &conf_v1.Policy{
+				Spec: conf_v1.PolicySpec{
+					ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc", AuthResponseHeaders: tc.headers},
+				},
+			}
+			err := gate.admits(policy)
+			if tc.want == "" {
+				if err != nil {
+					t.Errorf("the CRD rejected %q: %v", tc.headers, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("the CRD admitted %q, want an error containing %q", tc.headers, tc.want)
+			}
+			if !strings.Contains(err.Error(), "authResponseHeaders") || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("the CRD rejected %q with %q, want an error on authResponseHeaders containing %q", tc.headers, err, tc.want)
 			}
 		})
 	}
