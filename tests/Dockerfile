@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.28
-FROM python:3.15-trixie@sha256:f34e3385a59fd8de7919d46db4a38ab14c0e46928a11b59036a7ee206ac0c129
+FROM python:3.15-trixie@sha256:ce323fb792e0c3c6de88daab1a714542c6be2d4b14177aae410d0294c50b3d90
 ARG ARCH=amd64
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=v4.3.1
