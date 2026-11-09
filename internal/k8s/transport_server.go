@@ -51,6 +51,9 @@ func createTransportServerHandlers(lbc *LoadBalancerController) cache.ResourceEv
 
 func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().TransportServers().Informer()
+	if err := nsi.setWatchErrorHandler(informer, conf_v1.Resource("transportservers")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add TransportServer event handler: %w", err)
 	}

@@ -128,6 +128,9 @@ func (a portSort) Less(i, j int) bool {
 // addServiceHandler adds the handler for services to the controller
 func (nsi *namespacedInformer) addServiceHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Core().V1().Services().Informer()
+	if err := nsi.setWatchErrorHandler(informer, v1.Resource("services")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add Service event handler: %w", err)
 	}

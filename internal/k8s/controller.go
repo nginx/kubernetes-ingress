@@ -59,6 +59,7 @@ import (
 	api_v1 "k8s.io/api/core/v1"
 	discovery_v1 "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -94,7 +95,8 @@ const (
 )
 
 var (
-	ingressLinkGVR = schema.GroupVersionResource{
+	// IngressLinkGVR is the group version resource of the F5 CIS IngressLink that NIC watches.
+	IngressLinkGVR = schema.GroupVersionResource{
 		Group:    "cis.f5.com",
 		Version:  "v1",
 		Resource: "ingresslinks",
@@ -213,6 +215,7 @@ type LoadBalancerController struct {
 	globalConfigurationLister     cache.Store
 	ingressLinkLister             cache.Store
 	namespaceLabeledLister        cache.Store
+	watchErrors                   *watchErrorTracker
 	syncQueue                     *taskQueue
 	ctx                           context.Context
 	Logger                        *slog.Logger
@@ -383,6 +386,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		restConfig:                   input.RestConfig,
 		recorder:                     input.Recorder,
 		Logger:                       nl.LoggerFromContext(input.LoggerContext),
+		watchErrors:                  newWatchErrorTracker(nl.LoggerFromContext(input.LoggerContext)),
 		configurator:                 input.NginxConfigurator,
 		specialSecrets:               specialSecrets,
 		appProtectEnabled:            input.AppProtectEnabled,
@@ -664,6 +668,7 @@ type namespacedInformer struct {
 	areCustomResourcesEnabled    bool
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
+	watchErrors                  *watchErrorTracker
 	stopCh                       chan struct{}
 	stopOnce                     sync.Once
 	cacheSyncs                   []cache.InformerSynced
@@ -673,6 +678,7 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespaced
 	nsi := &namespacedInformer{}
 	nsi.stopCh = make(chan struct{})
 	nsi.namespace = ns
+	nsi.watchErrors = lbc.watchErrors
 	nsi.sharedInformerFactory = informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(ns))
 
 	// create handlers for resources we care about
@@ -685,7 +691,9 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespaced
 	if err := nsi.addEndpointSliceHandler(createEndpointSliceHandlers(lbc)); err != nil {
 		return nil, fmt.Errorf("failed to add endpoint slice handler for namespace %s: %w", ns, err)
 	}
-	nsi.addPodHandler()
+	if err := nsi.addPodHandler(); err != nil {
+		return nil, fmt.Errorf("failed to add pod handler for namespace %s: %w", ns, err)
+	}
 
 	secretsTweakListOptionsFunc := func(options *meta_v1.ListOptions) {
 		// Filter for helm release secrets.
@@ -792,6 +800,9 @@ func (lbc *LoadBalancerController) AddSyncQueue(item interface{}) {
 // addSecretHandler adds the handler for secrets to the controller
 func (nsi *namespacedInformer) addSecretHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.secretInformerFactory.Core().V1().Secrets().Informer()
+	if err := nsi.setWatchErrorHandler(informer, api_v1.Resource("secrets")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add Secret event handler: %w", err)
 	}
@@ -804,6 +815,9 @@ func (nsi *namespacedInformer) addSecretHandler(handlers cache.ResourceEventHand
 // addIngressHandler adds the handler for ingresses to the controller
 func (nsi *namespacedInformer) addIngressHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Networking().V1().Ingresses().Informer()
+	if err := nsi.setWatchErrorHandler(informer, networking.Resource("ingresses")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add Ingress event handler: %w", err)
 	}
@@ -813,15 +827,32 @@ func (nsi *namespacedInformer) addIngressHandler(handlers cache.ResourceEventHan
 	return nil
 }
 
-func (nsi *namespacedInformer) addPodHandler() {
+func (nsi *namespacedInformer) addPodHandler() error {
 	informer := nsi.sharedInformerFactory.Core().V1().Pods().Informer()
+	if err := nsi.setWatchErrorHandler(informer, api_v1.Resource("pods")); err != nil {
+		return err
+	}
 	nsi.podLister = indexerToPodLister{Indexer: informer.GetIndexer()}
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
+}
+
+// setWatchErrorHandler sets the controller's watch error handler on an informer
+// of this namespace, so forbidden list and watch errors name the missing permission.
+// It must be called before the informer starts.
+func (nsi *namespacedInformer) setWatchErrorHandler(informer cache.SharedIndexInformer, resource schema.GroupResource) error {
+	if err := nsi.watchErrors.setWatchErrorHandler(informer, resource, nsi.namespace); err != nil {
+		return fmt.Errorf("failed to set watch error handler for %s: %w", resource.String(), err)
+	}
+	return nil
 }
 
 func (nsi *namespacedInformer) addVirtualServerHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().VirtualServers().Informer()
+	if err := nsi.setWatchErrorHandler(informer, conf_v1.Resource("virtualservers")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add VirtualServer event handler: %w", err)
 	}
@@ -833,6 +864,9 @@ func (nsi *namespacedInformer) addVirtualServerHandler(handlers cache.ResourceEv
 
 func (nsi *namespacedInformer) addVirtualServerRouteHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().VirtualServerRoutes().Informer()
+	if err := nsi.setWatchErrorHandler(informer, conf_v1.Resource("virtualserverroutes")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add VirtualServerRoute event handler: %w", err)
 	}
@@ -5547,4 +5581,76 @@ func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
 	}
 
 	return false
+}
+
+// watchErrorKey identifies one informer: a resource in a namespace.
+type watchErrorKey struct {
+	resource  schema.GroupResource
+	namespace string
+}
+
+// watchErrorTracker logs forbidden list and watch errors from informers once
+// per resource and namespace, so a missing RBAC rule produces one named error
+// instead of a log line on every informer retry.
+type watchErrorTracker struct {
+	logger *slog.Logger
+
+	mu sync.Mutex
+	// reported maps each informer to the resource version it had last synced
+	// when its forbidden error was logged. A forbidden error is logged again
+	// only after the resource version changes, which means a list succeeded
+	// since the last report.
+	reported map[watchErrorKey]string
+}
+
+func newWatchErrorTracker(logger *slog.Logger) *watchErrorTracker {
+	return &watchErrorTracker{
+		logger:   logger,
+		reported: make(map[watchErrorKey]string),
+	}
+}
+
+// handler returns a watch error handler for the informer of resource in
+// namespace. Forbidden errors are logged once with the missing permission.
+// Other errors go to client-go's default handler.
+func (t *watchErrorTracker) handler(resource schema.GroupResource, namespace string) cache.WatchErrorHandlerWithContext {
+	key := watchErrorKey{resource: resource, namespace: namespace}
+	return func(ctx context.Context, r *cache.Reflector, err error) {
+		if !apierrors.IsForbidden(err) {
+			cache.DefaultWatchErrorHandler(ctx, r, err)
+			return
+		}
+		if t.shouldReport(key, r.LastSyncResourceVersion()) {
+			nl.Errorf(t.logger, "missing permission: list and watch %s in %s; check the Role or ClusterRole bound to the NIC ServiceAccount: %v",
+				resource.String(), namespaceDescription(namespace), err)
+		}
+	}
+}
+
+// shouldReport records a forbidden error for key and reports whether it should be logged.
+func (t *watchErrorTracker) shouldReport(key watchErrorKey, resourceVersion string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if lastVersion, ok := t.reported[key]; ok && lastVersion == resourceVersion {
+		return false
+	}
+	t.reported[key] = resourceVersion
+	return true
+}
+
+// setWatchErrorHandler sets the tracker's handler on informer. It must be called
+// before the informer starts. A nil tracker leaves client-go's default handler in place.
+func (t *watchErrorTracker) setWatchErrorHandler(informer cache.SharedIndexInformer, resource schema.GroupResource, namespace string) error {
+	if t == nil {
+		return nil
+	}
+	return informer.SetWatchErrorHandlerWithContext(t.handler(resource, namespace))
+}
+
+func namespaceDescription(namespace string) string {
+	if namespace == "" {
+		return "all namespaces"
+	}
+	return "namespace " + namespace
 }

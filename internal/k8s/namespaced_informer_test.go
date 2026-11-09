@@ -1,13 +1,29 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	k8s_nginx_fake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
+	"github.com/stretchr/testify/assert"
+	networking "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestAddCustomResourceHandlers_Disabled(t *testing.T) {
@@ -219,5 +235,188 @@ func TestAddAppProtectHandlers_BothEnabled(t *testing.T) {
 	const wantAdditionalCacheSyncs = 6
 	if got := len(nsi.cacheSyncs) - initialCacheSyncs; got != wantAdditionalCacheSyncs {
 		t.Errorf("expected %d additional cacheSyncs when both enabled, got %d", wantAdditionalCacheSyncs, got)
+	}
+}
+
+func newTestWatchErrorTracker() (*watchErrorTracker, *bytes.Buffer) {
+	var buf bytes.Buffer
+	return newWatchErrorTracker(slog.New(slog.NewTextHandler(&buf, nil))), &buf
+}
+
+func newTestReflector() *cache.Reflector {
+	return cache.NewReflector(&cache.ListWatch{}, &networking.Ingress{}, cache.NewStore(cache.MetaNamespaceKeyFunc), 0)
+}
+
+func forbiddenListError(gr schema.GroupResource, namespace string) error {
+	return k8serrors.NewForbidden(gr, "", errors.New(`User "system:serviceaccount:`+namespace+`:nic" cannot list resource`))
+}
+
+func TestWatchErrorTrackerLogsForbiddenOnce(t *testing.T) {
+	t.Parallel()
+
+	tracker, buf := newTestWatchErrorTracker()
+	gr := networking.Resource("ingresses")
+	handler := tracker.handler(gr, "team-a-apps")
+	reflector := newTestReflector()
+
+	for range 3 {
+		handler(context.Background(), reflector, forbiddenListError(gr, "team-a-apps"))
+	}
+
+	got := buf.String()
+	if n := strings.Count(got, "missing permission"); n != 1 {
+		t.Fatalf("logged %d missing permission errors, want 1; log:\n%s", n, got)
+	}
+	want := "missing permission: list and watch ingresses.networking.k8s.io in namespace team-a-apps"
+	if !strings.Contains(got, want) {
+		t.Errorf("log does not contain %q; log:\n%s", want, got)
+	}
+	if !strings.Contains(got, "level=ERROR") {
+		t.Errorf("log is not at error level; log:\n%s", got)
+	}
+}
+
+func TestWatchErrorTrackerSeparatesResourcesAndNamespaces(t *testing.T) {
+	t.Parallel()
+
+	tracker, buf := newTestWatchErrorTracker()
+	ingresses := networking.Resource("ingresses")
+	services := schema.GroupResource{Resource: "services"}
+	reflector := newTestReflector()
+
+	tracker.handler(ingresses, "team-a")(context.Background(), reflector, forbiddenListError(ingresses, "team-a"))
+	tracker.handler(ingresses, "team-a-apps")(context.Background(), reflector, forbiddenListError(ingresses, "team-a-apps"))
+	tracker.handler(services, "team-a")(context.Background(), reflector, forbiddenListError(services, "team-a"))
+	tracker.handler(ingresses, "")(context.Background(), reflector, forbiddenListError(ingresses, ""))
+
+	got := buf.String()
+	for _, want := range []string{
+		"list and watch ingresses.networking.k8s.io in namespace team-a;",
+		"list and watch ingresses.networking.k8s.io in namespace team-a-apps;",
+		"list and watch services in namespace team-a;",
+		"list and watch ingresses.networking.k8s.io in all namespaces;",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("log does not contain %q; log:\n%s", want, got)
+		}
+	}
+	if n := strings.Count(got, "missing permission"); n != 4 {
+		t.Errorf("logged %d missing permission errors, want 4; log:\n%s", n, got)
+	}
+}
+
+func TestWatchErrorTrackerReportsAgainAfterSuccessfulList(t *testing.T) {
+	t.Parallel()
+
+	tracker, _ := newTestWatchErrorTracker()
+	key := watchErrorKey{resource: networking.Resource("ingresses"), namespace: "team-a"}
+
+	tests := []struct {
+		resourceVersion string
+		want            bool
+	}{
+		{resourceVersion: "", want: true},     // first forbidden error
+		{resourceVersion: "", want: false},    // retry, still forbidden
+		{resourceVersion: "100", want: true},  // a list succeeded in between, then forbidden again
+		{resourceVersion: "100", want: false}, // retry, still forbidden
+		{resourceVersion: "250", want: true},  // another successful list, then forbidden again
+	}
+	for i, test := range tests {
+		if got := tracker.shouldReport(key, test.resourceVersion); got != test.want {
+			t.Errorf("call %d: shouldReport(%q) = %v, want %v", i, test.resourceVersion, got, test.want)
+		}
+	}
+}
+
+func TestWatchErrorTrackerIgnoresOtherErrors(t *testing.T) {
+	t.Parallel()
+
+	tracker, buf := newTestWatchErrorTracker()
+	gr := networking.Resource("ingresses")
+	handler := tracker.handler(gr, "team-a")
+	reflector := newTestReflector()
+
+	handler(context.Background(), reflector, k8serrors.NewInternalError(errors.New("etcd unavailable")))
+	handler(context.Background(), reflector, k8serrors.NewUnauthorized("token expired"))
+
+	if got := buf.String(); got != "" {
+		t.Errorf("tracker logged non-forbidden errors; log:\n%s", got)
+	}
+	if len(tracker.reported) != 0 {
+		t.Errorf("tracker recorded non-forbidden errors: %v", tracker.reported)
+	}
+}
+
+func TestWatchErrorTrackerNilIsNoop(t *testing.T) {
+	t.Parallel()
+
+	var tracker *watchErrorTracker
+	informer := cache.NewSharedIndexInformer(&cache.ListWatch{}, &networking.Ingress{}, 0, cache.Indexers{})
+	if err := tracker.setWatchErrorHandler(informer, networking.Resource("ingresses"), "team-a"); err != nil {
+		t.Errorf("setWatchErrorHandler() on nil tracker returned %v, want nil", err)
+	}
+}
+
+// syncBuffer is a bytes.Buffer that is safe for concurrent writes from informer goroutines.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// TestNamespacedInformerLogsForbiddenList runs a real namespaced informer against a
+// fake clientset that forbids listing Ingresses, and checks that the forbidden error
+// is logged once with the missing permission while the informer keeps retrying.
+func TestNamespacedInformerLogsForbiddenList(t *testing.T) {
+	t.Parallel()
+
+	var ingressLists atomic.Int32
+	client := fake.NewClientset()
+	client.PrependReactor("list", "ingresses", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		ingressLists.Add(1)
+		return true, nil, k8serrors.NewForbidden(networking.Resource("ingresses"), "",
+			fmt.Errorf(`User "system:serviceaccount:team-a:nic" cannot list resource "ingresses" in API group "networking.k8s.io" in the namespace %q`, action.GetNamespace()))
+	})
+
+	var buf syncBuffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	lbc := &LoadBalancerController{
+		client:              client,
+		Logger:              logger,
+		watchErrors:         newWatchErrorTracker(logger),
+		namespacedInformers: nsregistry.New[namespacedInformer](),
+		syncQueue:           newTaskQueue(logger, func(task) {}),
+	}
+
+	nsi, err := lbc.newNamespacedInformer("team-a-apps")
+	if err != nil {
+		t.Fatalf("newNamespacedInformer() returned error: %v", err)
+	}
+	nsi.start()
+	t.Cleanup(nsi.stop)
+
+	// The reflector retries with backoff starting at 800ms; wait for at least one retry.
+	if !assert.Eventually(t, func() bool { return ingressLists.Load() >= 2 }, 10*time.Second, 50*time.Millisecond) {
+		t.Fatalf("informer listed Ingresses %d times, want at least 2", ingressLists.Load())
+	}
+
+	got := buf.String()
+	want := "missing permission: list and watch ingresses.networking.k8s.io in namespace team-a-apps"
+	if n := strings.Count(got, want); n != 1 {
+		t.Errorf("logged %q %d times, want 1; log:\n%s", want, n, got)
+	}
+	if n := strings.Count(got, "missing permission"); n != 1 {
+		t.Errorf("logged %d missing permission errors, want 1 (only Ingresses are forbidden); log:\n%s", n, got)
 	}
 }
