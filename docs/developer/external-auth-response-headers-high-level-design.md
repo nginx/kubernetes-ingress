@@ -267,28 +267,33 @@ over to it.
 ## Acceptance Scenarios
 
 Each scenario below becomes a test named after it, for example
-`test_client_values_are_replaced`. Unless a scenario says otherwise, it uses
-the [fixtures](#fixtures) and a VirtualServer, sends valid credentials, and
-runs end to end with the NGINX and NGINX Plus images and snippets disabled,
-in `tests/suite/test_external_auth_response_headers_vs.py` or
-`tests/suite/test_external_auth_response_headers_ingress.py`. Two tags mark
-the exceptions:
+`test_client_values_are_replaced`. What NIC decides, such as the rendered
+configuration, warnings, and admission, is tested in Go and tagged *unit*.
+End-to-end tests cover what NGINX does with that configuration, plus one base
+case for each attachment point. Unless a scenario says otherwise, an
+end-to-end test uses the [fixtures](#fixtures) and a VirtualServer, sends
+valid credentials, and runs with the NGINX and NGINX Plus images and
+snippets disabled. The end-to-end tests join the existing ExternalAuth suites
+in `tests/suite`, next to their current cases:
+`test_external_auth_policies_vs.py`, `test_external_auth_policies_vsr.py`,
+and `test_external_auth_policies_ingress.py`. Their data joins the existing
+`tests/data/external-auth/` folders. Two tags qualify a scenario:
 
-- *unit*: a Go test of configuration generation, templates, validation, or
-  injection, instead of an end-to-end test.
+- *unit*: a Go test of configuration generation, templates, validation, the
+  CRD schema, or injection. It is a case of an existing table-driven
+  ExternalAuth test, or a sibling test in the same file.
 - *guard*: the behavior already holds, so the test also passes before the
   change.
 
 ### Fixtures
 
-- **Auth service:** answers 2xx to valid credentials, 401 to invalid ones,
-  and 403 to requests that carry `X-Test-Auth-Reject`. Every response,
-  including 401 and 403, carries `Tenant-UUID: tenant-123`,
+- **Auth service:** the test auth service answers 2xx to valid credentials
+  and 401 to invalid ones. A 2xx response carries `Tenant-UUID: tenant-123`,
   `User-UUID: user-456`, `X-Session-ID: session-789`, two `X-Group` lines
-  with `a` and `b`, `X-Unlisted: x`, and one header whose name has 46
-  characters. It never returns `Permissions`.
+  with `a` and `b`, and one header whose name has 46 characters. It never
+  returns `Permissions`.
 - **Policy P:** uses the auth service and lists `Tenant-UUID`, `User-UUID`,
-  `X-Session-ID`, `X-Group`, and `Permissions`.
+  `X-Session-ID`, `X-Group`, `Permissions`, and the 46-character name.
 - **Echo backend:** reports every request header line as it arrives: its
   name, its value, and how many there are, including names that contain `_`.
   Reading `$http_*` variables would not do: NGINX merges repeated lines into
@@ -300,19 +305,20 @@ the exceptions:
 
 - **Every attachment point forwards**: with P on a VirtualServer spec, route,
   or VirtualServerRoute subroute, on a standard Ingress, or on a mergeable
-  master, minion, or both, the backend receives one line for each listed
-  header that the auth service returned, named as P spells it, with the
-  service's value.
+  minion, the backend receives one line for each listed header that the auth
+  service returned, named as P spells it, with the service's value.
 - **Every generated location forwards** *(unit)*: split and match
   locations, the subroutes of a delegated VirtualServerRoute without
-  policies, and the Ingress `spec.defaultBackend` location all forward P's
-  list, the same way for NGINX and NGINX Plus.
-- **Unlisted headers stay behind** *(guard)*: the backend receives no
-  `X-Unlisted`.
+  policies, the Ingress `spec.defaultBackend` location, the locations under a
+  mergeable master with P or with P on both master and minion, Ingress
+  backends listed in `nginx.org/grpc-services`, and locations whose P sets
+  `sslEnabled` and `sslVerify` all forward P's list, the same way for NGINX
+  and NGINX Plus.
+- **Unlisted headers stay behind** *(unit)*: a location renders
+  `auth_request_set` only for the names that its Policy lists.
 - **Repeated lines are joined**: the backend receives one `X-Group: a, b`.
-- **gRPC backends**: on a VirtualServer route with a gRPC upstream and on an Ingress
-  backend listed in `nginx.org/grpc-services`, a call with
-  `tenant-uuid: spoofed` metadata reaches the backend with one
+- **gRPC backends**: on a VirtualServer route with a gRPC upstream, a call
+  with `tenant-uuid: spoofed` metadata reaches the backend with one
   `tenant-uuid: tenant-123`.
 - **The closer Policy wins** *(unit)*: with P on the VirtualServer spec and
   a Policy Q that lists only `X-Session-ID` on a route, or P on a master and
@@ -327,9 +333,9 @@ the exceptions:
 
 ### Precedence and Spoofing
 
-- **Client values are replaced**: on a VirtualServer and on an Ingress, a
-  request with `Tenant-UUID: spoofed` reaches the backend with one
-  `Tenant-UUID: tenant-123`, and the resource reports no warning.
+- **Client values are replaced**: a request with `Tenant-UUID: spoofed`
+  reaches the backend with one `Tenant-UUID: tenant-123`, and the
+  VirtualServer reports no warning.
 - **In any letter case**: requests with `tenant-uuid: spoofed` and with
   `TENANT-UUID: spoofed` also reach the backend with one
   `Tenant-UUID: tenant-123`.
@@ -337,15 +343,16 @@ the exceptions:
   `Tenant_UUID: spoofed` reaches the backend without it. The test first
   sends it straight to the echo backend, to show that the backend would
   report the line.
-- **Omitted headers are removed**: on a VirtualServer and on an Ingress, a
-  request with `Permissions: admin` reaches the backend without it, because
-  the auth service never returns `Permissions`.
-- **Configured values are replaced, with one warning**:
+- **Omitted headers are removed**: a request with `Permissions: admin`
+  reaches the backend without it, because the auth service never returns
+  `Permissions`.
+- **Configured values are replaced, with one warning** *(unit)*:
   `User-UUID: anonymous`, set through `requestHeaders.set` on a route with
   two splits and through `nginx.org/proxy-set-headers` on an Ingress with two
-  hosts, reaches the backend as `User-UUID: user-456`. The resource that owns
-  the location reports the replacement once: the VirtualServer, the
-  VirtualServerRoute for a subroute, or the minion for a mergeable path.
+  hosts, is removed from those locations, which forward the auth service's
+  `User-UUID` instead. The resource that owns the location reports the
+  replacement once: the VirtualServer, the VirtualServerRoute for a
+  subroute, or the minion for a mergeable path.
 - **Legacy OIDC headers are replaced** *(unit, NGINX Plus)*: where P lists
   `username`, or `Authorization` with `accessTokenEnable`, on a location
   with the legacy OIDC Policy, the location renders no OIDC line for it, and
@@ -353,37 +360,29 @@ the exceptions:
 
 ### Rejection and Fallback
 
-- **Rejections are unchanged** *(guard)*: on a VirtualServer and on an
-  Ingress, invalid credentials get 401 as today, and the request never
-  reaches the backend.
-- **Auth rejection to the default backend**: a minion has P and
-  `nginx.org/custom-http-errors: "403"`, and its master's
-  `spec.defaultBackend` is an echo backend. A request with
-  `X-Test-Auth-Reject` and `Tenant-UUID: spoofed` gets 403 with the default
-  backend's body, and the default backend receives no `Tenant-UUID`,
-  although the rejected auth response and the client both set one.
-- **Backend error to the default backend**: the same, with `"500"` and a
-  minion backend that answers 500. A request with `Tenant-UUID: spoofed`
-  reaches the default backend with none of P's names.
+- **Rejections are unchanged** *(unit)*: a location that forwards a list
+  renders the same `auth_request` and 401 handling as one without it. The
+  existing credential tests cover the runtime behavior.
 - **Shared default backend location** *(unit)*: under a master with
   `spec.defaultBackend`, only minion A references P, and minion B sets
   `nginx.org/custom-http-errors`. `@custom_default_backend` removes every
   name that P lists, also from minion B's requests, and reads no
-  `$auth_resp_` variable.
+  `$auth_resp_` variable. So the default backend receives neither client
+  copies nor values from a rejected auth response, whether the auth service
+  or the backend failed.
 
 ### Validation and Admission
 
-- **Invalid lists are rejected**: a name with `_`, a space, `:`, `$`, `;`, a
-  brace, or a line break; a reserved name in any case; two names that differ
-  only in case; a 47-character name; 33 names; or an empty name. The API
-  server answers 422 naming the rule, and Go validation rejects the same
-  lists. A list of 32 distinct 46-character names is accepted.
-- **A bad edit keeps the working Policy**: adding `host` to a P that a
-  VirtualServer uses is rejected, the stored P is unchanged, and the
-  VirtualServer keeps forwarding.
-- **The longest name loads**: with the 46-character name added to P, NGINX
-  loads the configuration, the VirtualServer is `Valid`, and both an HTTP
-  and a gRPC backend receive the header.
+- **Invalid lists are rejected** *(unit)*: a name with `_`, a space, `:`,
+  `$`, `;`, a brace, or a line break; a reserved name in any case; two names
+  that differ only in case; a 47-character name; 33 names; or an empty name.
+  The shipped CRD rejects them as the API server applies it, naming the rule,
+  and Go validation rejects the same lists. A list of 32 distinct
+  46-character names is accepted. So an edit that adds a bad name to a
+  Policy in use fails at admission, and the working Policy stays in place.
+- **The longest name loads**: with P, NGINX loads the configuration, the
+  VirtualServer is `Valid`, and both an HTTP and a gRPC backend receive the
+  46-character header.
 - **No injection** *(unit)*: no payload of the configuration injection suite
   reaches the NGINX configuration through the list.
 
@@ -391,8 +390,9 @@ the exceptions:
 
 - **No field, no change** *(unit, guard)*: after the template changes and
   before any new fixture, every existing snapshot passes unchanged.
-- **Existing tests pass** *(guard)*: the existing ExternalAuth Go tests and
-  `test_external_auth_policies_*.py` pass without modification.
+- **Existing tests pass** *(guard)*: the existing cases of the ExternalAuth
+  Go tests and of `test_external_auth_policies_*.py` pass unchanged; the
+  scenario cases are only added next to them.
 
 ## Architecture
 
@@ -500,6 +500,11 @@ pass follows existing post-processing such as
       proxy_pass http://...;
   }
   ```
+
+  NGINX inherits `proxy_set_header` only into a location that sets none, so
+  these lines stop `@custom_default_backend` from inheriting any that a
+  server or http snippet sets. No template sets them at those levels, and a
+  server without a list renders the location as today.
 
 - The NGINX Plus VirtualServer template omits the legacy OIDC `username` and
   `Authorization` headers when the location lists them.
