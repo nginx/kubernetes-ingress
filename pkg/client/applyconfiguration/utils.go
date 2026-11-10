@@ -88,6 +88,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.CertManagerApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Condition"):
 		return &applyconfigurationconfigurationv1.ConditionApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("ConnectionLimit"):
+		return &applyconfigurationconfigurationv1.ConnectionLimitApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("CORS"):
 		return &applyconfigurationconfigurationv1.CORSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("EgressMTLS"):

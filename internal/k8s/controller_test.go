@@ -2712,30 +2712,24 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 		Spec: conf_v1.PolicySpec{},
 	}
 
-	policyLister := &fakeStore{cache.FakeCustomStore{
-		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
-			switch key {
-			case "default/valid-policy":
-				return validPolicy, true, nil
-			case "default/valid-policy-ingress-class":
-				return validPolicyIngressClass, true, nil
-			case "default/invalid-policy":
-				return invalidPolicy, true, nil
-			case "nginx-ingress/valid-policy":
-				return nil, false, nil
-			default:
-				return nil, false, errors.New("GetByKey error")
-			}
-		},
-	}}
+	// getPolicies reads Configuration.policies (a task-ordered store written by
+	// syncPolicy), not the policy informer cache, so seeding happens via
+	// AddOrUpdatePolicy rather than a fake lister GetByKeyFunc. nsi[""] is still
+	// needed: getNamespacedInformer's nil check ("is this namespace watched?")
+	// is independent of where the policy data itself comes from.
+	conf := NewConfiguration(func(interface{}) bool { return true }, false, false, false, nil, nil, nil, false, false, false, false, false, false)
+	conf.AddOrUpdatePolicy(validPolicy)
+	conf.AddOrUpdatePolicy(validPolicyIngressClass)
+	conf.AddOrUpdatePolicy(invalidPolicy)
 
 	nsi := make(map[string]*namespacedInformer)
-	nsi[""] = &namespacedInformer{policyLister: policyLister}
+	nsi[""] = &namespacedInformer{}
 
 	lbc := LoadBalancerController{
 		isNginxPlus:         true,
 		namespacedInformers: registryFrom(nsi),
 		Logger:              nl.LoggerFromContext(context.Background()),
+		configuration:       conf,
 	}
 
 	policyRefs := []conf_v1.PolicyReference{
@@ -2752,8 +2746,8 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 			Namespace: "nginx-ingress",
 		},
 		{
-			Name:      "some-policy", // will make lister return error
-			Namespace: "nginx-ingress",
+			Name:      "some-policy",   // doesn't exist either; Configuration.policies is a
+			Namespace: "nginx-ingress", // plain map lookup, so there's no distinct lister-error path anymore
 		},
 		{
 			Name:      "valid-policy-ingress-class",
@@ -2763,9 +2757,9 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `connectionLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
-		errors.New("failed to get policy nginx-ingress/some-policy: GetByKey error"),
+		errors.New("policy nginx-ingress/some-policy doesn't exist"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
 
@@ -2813,31 +2807,23 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 		Spec: conf_v1.PolicySpec{},
 	}
 
-	policyLister := &fakeStore{cache.FakeCustomStore{
-		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
-			switch key {
-			case "default/valid-policy":
-				return validPolicy, true, nil
-			case "default/valid-policy-ingress-class":
-				return validPolicyIngressClass, true, nil
-			case "default/invalid-policy":
-				return invalidPolicy, true, nil
-			case "nginx-ingress/valid-policy":
-				return nil, false, nil
-			default:
-				return nil, false, errors.New("GetByKey error")
-			}
-		},
-	}}
+	// getPolicies reads Configuration.policies (a task-ordered store written by
+	// syncPolicy), not the policy informer cache — see the matching comment in
+	// TestGetPoliciesGlobalWatch.
+	conf := NewConfiguration(func(interface{}) bool { return true }, false, false, false, nil, nil, nil, false, false, false, false, false, false)
+	conf.AddOrUpdatePolicy(validPolicy)
+	conf.AddOrUpdatePolicy(validPolicyIngressClass)
+	conf.AddOrUpdatePolicy(invalidPolicy)
 
 	nsi := make(map[string]*namespacedInformer)
 	// simulate a watch of the default namespace
-	nsi["default"] = &namespacedInformer{policyLister: policyLister}
+	nsi["default"] = &namespacedInformer{}
 
 	lbc := LoadBalancerController{
 		isNginxPlus:         true,
 		namespacedInformers: registryFrom(nsi),
 		Logger:              nl.LoggerFromContext(context.Background()),
+		configuration:       conf,
 	}
 
 	policyRefs := []conf_v1.PolicyReference{
@@ -2861,7 +2847,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `connectionLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -2872,6 +2858,155 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 	}
 	if diff := cmp.Diff(expectedErrors, errors, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("lbc.getPolicies() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// noopServiceLister is a fakeStore that always reports "not found", used by the
+// TestCreate{VirtualServer,Ingress}ExIgnoresUnprocessedPolicyChange tests below so
+// generateExternalAuthEndpoints's Service lookup for the ExternalAuth policy fails
+// gracefully (and is recorded as a warning) instead of nil-panicking on a namespacedInformer
+// with no svcLister configured.
+func noopServiceLister() cache.Store {
+	return &fakeStore{cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}}
+}
+
+// TestCreateVirtualServerExIgnoresUnprocessedPolicyChange pins the fix for the mixed
+// VirtualServer/EndpointSlice hazard Copilot flagged on the PR introducing
+// Configuration.policies (see its field doc): createVirtualServerEx must read a
+// referenced Policy from the task-ordered Configuration.policies store, not the
+// policy informer cache (policyLister) directly.
+//
+// Without that store, an EndpointSlice-triggered VirtualServer resync (via
+// syncEndpointSlices -> UpdateEndpointsForVirtualServers -> createExtendedResources ->
+// createVirtualServerEx) could observe a Policy edit the instant the watch delivered
+// it — before the Policy's own syncPolicy task, possibly still queued behind this
+// resync, has processed it. For an ExternalAuth policy that repoints AuthServiceName,
+// that reproduces the same wrong-Service hazard as a VirtualServer upstream edit: the
+// Plus upstream name (vs_exauth_<ns>_<pol>) doesn't encode the service, so a live API
+// write computed from the new auth service would rebind an upstream still reachable
+// under the old auth URI/TLS config.
+//
+// This simulates that race directly: the policy informer cache (policyLister) holds
+// the new, not-yet-processed edit (auth-v2); Configuration.policies holds the value as
+// of the last completed syncPolicy run (auth-v1). createVirtualServerEx must return
+// auth-v1.
+func TestCreateVirtualServerExIgnoresUnprocessedPolicyChange(t *testing.T) {
+	t.Parallel()
+
+	polApplied := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-v1"},
+		},
+	}
+	polWatchedNotYetProcessed := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-v2"},
+		},
+	}
+
+	policyLister := &fakeStore{cache.FakeCustomStore{
+		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
+			if key == "default/auth-pol" {
+				return polWatchedNotYetProcessed, true, nil
+			}
+			return nil, false, nil
+		},
+	}}
+
+	conf := NewConfiguration(func(interface{}) bool { return true }, false, false, false, nil, nil, nil, false, false, false, false, false, false)
+	conf.AddOrUpdatePolicy(polApplied)
+
+	lbc := LoadBalancerController{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
+			"default": {policyLister: policyLister, svcLister: noopServiceLister()},
+		}),
+		areCustomResourcesEnabled: true,
+		configuration:             conf,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+		Spec: conf_v1.VirtualServerSpec{
+			Host:     "cafe.example.com",
+			Policies: []conf_v1.PolicyReference{{Name: "auth-pol"}},
+		},
+	}
+
+	vsEx := lbc.createVirtualServerEx(vs, nil, nil)
+
+	got, ok := vsEx.Policies["default/auth-pol"]
+	if !ok {
+		t.Fatalf("VirtualServerEx.Policies missing default/auth-pol; got %+v", vsEx.Policies)
+	}
+	if want := "auth-v1"; got.Spec.ExternalAuth.AuthServiceName != want {
+		t.Fatalf("createVirtualServerEx read an unprocessed Policy change from the informer cache: "+
+			"AuthServiceName = %q, want %q (the last value applied by syncPolicy). A live Plus API write "+
+			"computed from this would rebind vs_exauth_default_auth-pol to the new service while the "+
+			"old route table is still live.", got.Spec.ExternalAuth.AuthServiceName, want)
+	}
+}
+
+// TestCreateIngressExIgnoresUnprocessedPolicyChange is the Ingress counterpart to
+// TestCreateVirtualServerExIgnoresUnprocessedPolicyChange — same hazard, same fix,
+// via createIngressEx and the ing_<ns>_<ing>_exauth_<ns>_<pol> upstream name.
+func TestCreateIngressExIgnoresUnprocessedPolicyChange(t *testing.T) {
+	t.Parallel()
+
+	polApplied := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-v1"},
+		},
+	}
+	polWatchedNotYetProcessed := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-pol", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-v2"},
+		},
+	}
+
+	policyLister := &fakeStore{cache.FakeCustomStore{
+		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
+			if key == "default/auth-pol" {
+				return polWatchedNotYetProcessed, true, nil
+			}
+			return nil, false, nil
+		},
+	}}
+
+	conf := NewConfiguration(func(interface{}) bool { return true }, false, false, false, nil, nil, nil, false, false, false, false, false, false)
+	conf.AddOrUpdatePolicy(polApplied)
+
+	lbc := LoadBalancerController{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
+			"default": {policyLister: policyLister, svcLister: noopServiceLister()},
+		}),
+		areCustomResourcesEnabled: true,
+		configuration:             conf,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	ing := createTestIngress("cafe-ingress", "cafe.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "auth-pol"
+
+	ingEx := lbc.createIngressEx(ing, map[string]bool{"cafe.example.com": true}, nil)
+
+	got, ok := ingEx.Policies["default/auth-pol"]
+	if !ok {
+		t.Fatalf("IngressEx.Policies missing default/auth-pol; got %+v", ingEx.Policies)
+	}
+	if want := "auth-v1"; got.Spec.ExternalAuth.AuthServiceName != want {
+		t.Fatalf("createIngressEx read an unprocessed Policy change from the informer cache: "+
+			"AuthServiceName = %q, want %q (the last value applied by syncPolicy). A live Plus API write "+
+			"computed from this would rebind ing_default_cafe-ingress_exauth_default_auth-pol to the new "+
+			"service while the old route table is still live.", got.Spec.ExternalAuth.AuthServiceName, want)
 	}
 }
 
@@ -2937,17 +3072,15 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 	ing := createTestIngress("ing-with-missing-policy", "example.com")
 	ing.Annotations[configs.PoliciesAnnotation] = "missing-policy"
 
-	policyLister := &fakeStore{cache.FakeCustomStore{
-		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
-			return nil, false, nil
-		},
-	}}
-
+	// getPolicies reads Configuration.policies, not the policy informer cache — see
+	// TestGetPoliciesGlobalWatch. An empty store is enough: "missing-policy" was
+	// never added, so GetPolicy returns nil and getPolicies reports "doesn't exist".
 	lbc := LoadBalancerController{
 		namespacedInformers: registryFrom(map[string]*namespacedInformer{
-			"default": {policyLister: policyLister},
+			"default": {},
 		}),
 		areCustomResourcesEnabled: true,
+		configuration:             NewConfiguration(func(interface{}) bool { return true }, false, false, false, nil, nil, nil, false, false, false, false, false, false),
 		Logger:                    nl.LoggerFromContext(context.Background()),
 	}
 
@@ -7849,5 +7982,185 @@ func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
 	}
 	if lbc.virtualServerRequiresEndpointsUpdate(vsEx, "other", "cm-acme-http-solver-abcde") {
 		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
+	}
+}
+
+func TestFindResourcesUsingPolicyScaling(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	for _, policy := range []*conf_v1.Policy{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10, Scale: true}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "unscaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-rl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M", Scale: true}},
+		},
+	} {
+		if err := store.Add(policy); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	configuration := createTestConfiguration()
+	for name, policies := range map[string][]string{
+		"vs-scaled-cl":   {"scaled-cl"},
+		"vs-unscaled-cl": {"unscaled-cl"},
+		"vs-scaled-rl":   {"scaled-rl"},
+		"vs-scaled-both": {"scaled-cl", "scaled-rl"},
+	} {
+		vs := createTestVirtualServer(name, name+".example.com")
+		for _, policy := range policies {
+			vs.Spec.Policies = append(vs.Spec.Policies, conf_v1.PolicyReference{Name: policy})
+		}
+		configuration.AddOrUpdateVirtualServer(vs)
+	}
+
+	ing := createTestIngress("ing-scaled-cl", "ing-scaled-cl.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "scaled-cl"
+	configuration.AddOrUpdateIngress(ing)
+
+	ing = createTestIngress("ing-unscaled-cl", "ing-unscaled-cl.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "unscaled-cl"
+	configuration.AddOrUpdateIngress(ing)
+
+	// A minion that references a scaled Policy makes its master's configuration need an update.
+	configuration.AddOrUpdateIngress(createTestIngressMaster("master", "master.example.com"))
+	minion := createTestIngressMinion("minion-scaled-cl", "master.example.com", "/coffee")
+	minion.Annotations[configs.PoliciesAnnotation] = "scaled-cl"
+	configuration.AddOrUpdateIngress(minion)
+
+	lbc := &LoadBalancerController{
+		configuration:       configuration,
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": {policyLister: store}}),
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	var got []string
+	for _, r := range lbc.findResourcesUsingPolicyScaling() {
+		got = append(got, r.GetKeyWithKind())
+	}
+	sort.Strings(got)
+	want := []string{
+		"Ingress/default/ing-scaled-cl",
+		"Ingress/default/master",
+		"VirtualServer/default/vs-scaled-both",
+		"VirtualServer/default/vs-scaled-cl",
+		"VirtualServer/default/vs-scaled-rl",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("findResourcesUsingPolicyScaling() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateNumberOfIngressControllerReplicasReportsScaleWarnings(t *testing.T) {
+	t.Parallel()
+
+	lbc, confClient := newVSRStatusTestLBC(t)
+	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	lbc.getNamespacedInformer("default").policyLister = policies
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
+			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}},
+	}
+	if err := policies.Add(pol); err != nil {
+		t.Fatal(err)
+	}
+	lbc.configuration.AddOrUpdatePolicy(pol)
+	vs := createTestVirtualServer("cafe", "cafe.example.com")
+	vs.Spec.Policies = []conf_v1.PolicyReference{{Name: "cl"}}
+	addVSStatusTest(t, lbc, confClient, vs, nil, nil)
+
+	for _, tc := range []struct {
+		replicas    int
+		wantState   string
+		wantWarning bool
+	}{
+		{replicas: 3, wantState: conf_v1.StateWarning, wantWarning: true},
+		{replicas: 2, wantState: conf_v1.StateValid},
+	} {
+		var slice discovery_v1.EndpointSlice
+		for range tc.replicas {
+			slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
+		}
+		lbc.updateNumberOfIngressControllerReplicas(slice)
+
+		got, err := confClient.K8sV1().VirtualServers("default").Get(context.Background(), "cafe", meta_v1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		hasWarning := strings.Contains(got.Status.Message, "scaling 2 connections across 3 replicas")
+		if got.Status.State != tc.wantState || hasWarning != tc.wantWarning {
+			t.Errorf("replicas=%d: got state %q, message %q; want state %q, warning %v", tc.replicas, got.Status.State, got.Status.Message, tc.wantState, tc.wantWarning)
+		}
+		// The status updater compares the new status with the informer copy.
+		if err := lbc.getNamespacedInformer("default").virtualServerLister.Update(got); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestUpdateNumberOfIngressControllerReplicasRegeneratesEachIngressOnce(t *testing.T) {
+	t.Parallel()
+
+	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
+			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}},
+	}
+	if err := policies.Add(pol); err != nil {
+		t.Fatal(err)
+	}
+
+	configuration := createTestConfiguration()
+	configuration.AddOrUpdatePolicy(pol)
+	// The RateLimit scale annotation already regenerates this Ingress, so its Policy must not regenerate it again.
+	both := createTestIngress("both", "both.example.com")
+	both.Annotations["nginx.org/limit-req-rate"] = "10r/s"
+	both.Annotations["nginx.org/limit-req-scale"] = "true"
+	both.Annotations[configs.PoliciesAnnotation] = "cl"
+	configuration.AddOrUpdateIngress(both)
+	policyOnly := createTestIngress("policy-only", "policy-only.example.com")
+	policyOnly.Annotations[configs.PoliciesAnnotation] = "cl"
+	configuration.AddOrUpdateIngress(policyOnly)
+
+	manager := newTestNginxManager()
+	recorder := record.NewFakeRecorder(10)
+	lbc := &LoadBalancerController{
+		configuration:             configuration,
+		configurator:              createTestPolicySyncConfigurator(t, manager),
+		recorder:                  recorder,
+		namespacedInformers:       registryFrom(map[string]*namespacedInformer{"default": {policyLister: policies}}),
+		areCustomResourcesEnabled: true,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	var slice discovery_v1.EndpointSlice
+	for range 3 {
+		slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
+	}
+	lbc.updateNumberOfIngressControllerReplicas(slice)
+
+	// Each Ingress update also rewrites the default server.
+	written := slices.DeleteFunc(manager.CreatedConfigNames, func(name string) bool { return name == "_default-server" })
+	if diff := cmp.Diff([]string{"default-both", "default-policy-only"}, written); diff != "" {
+		t.Errorf("configs written on replica change mismatch (-want +got):\n%s", diff)
+	}
+	// Only the Policy path reports events, so the Ingress without the annotation gets the new scale warning.
+	if len(recorder.Events) != 1 {
+		t.Fatalf("want 1 event, got %d", len(recorder.Events))
+	}
+	if event := <-recorder.Events; !strings.Contains(event, "default/policy-only") || !strings.Contains(event, "scaling 2 connections across 3 replicas") {
+		t.Errorf("want a scale warning event for default/policy-only, got %q", event)
 	}
 }

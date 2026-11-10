@@ -21,7 +21,7 @@ jobs:
   checks:
     name: Checks and variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
@@ -46,7 +46,7 @@ jobs:
   build-oss:
     name: Build OSS base images
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: checks
     permissions:
       contents: read
@@ -85,7 +85,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -122,7 +122,7 @@ jobs:
   build-plus:
     name: Build Plus base images
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: checks
     permissions:
       contents: read
@@ -175,7 +175,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -220,7 +220,7 @@ jobs:
   build-plus-nap:
     name: Build Plus NAP base images
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: checks
     permissions:
       contents: read
@@ -268,7 +268,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken

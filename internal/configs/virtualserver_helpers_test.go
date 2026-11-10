@@ -349,6 +349,38 @@ func TestRemoveDuplicateLimitReqZones(t *testing.T) {
 	}
 }
 
+func TestRemoveDuplicateLimitConnZones(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		zones    []version2.LimitConnZone
+		expected []version2.LimitConnZone
+	}{
+		{
+			name: "duplicates keep the first zone",
+			zones: []version2.LimitConnZone{
+				{ZoneName: "a", Key: "total"},
+				{ZoneName: "b"},
+				{ZoneName: "a", Key: "total"},
+			},
+			expected: []version2.LimitConnZone{
+				{ZoneName: "a", Key: "total"},
+				{ZoneName: "b"},
+			},
+		},
+		{
+			name:     "no zones",
+			zones:    nil,
+			expected: nil,
+		},
+	}
+	for _, test := range tests {
+		if result := removeDuplicateLimitConnZones(test.zones); !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("removeDuplicateLimitConnZones() for %s returned %#v, expected %#v", test.name, result, test.expected)
+		}
+	}
+}
+
 func TestRemoveDuplicateMaps(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -643,6 +675,10 @@ func TestAddPoliciesCfgToLocations(t *testing.T) {
 	cfg := policiesCfg{
 		Allow: []string{"127.0.0.1"},
 		Deny:  []string{"127.0.0.2"},
+		ConnectionLimit: connectionLimit{
+			Conns:   []version2.LimitConn{{ZoneName: "zone", Connections: 10}},
+			Options: version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
+		},
 		ErrorReturn: &version2.Return{
 			Code: 400,
 		},
@@ -656,9 +692,11 @@ func TestAddPoliciesCfgToLocations(t *testing.T) {
 
 	expectedLocations := []version2.Location{
 		{
-			Path:  "/",
-			Allow: []string{"127.0.0.1"},
-			Deny:  []string{"127.0.0.2"},
+			Path:             "/",
+			Allow:            []string{"127.0.0.1"},
+			Deny:             []string{"127.0.0.2"},
+			LimitConns:       []version2.LimitConn{{ZoneName: "zone", Connections: 10}},
+			LimitConnOptions: version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
 			PoliciesErrorReturn: &version2.Return{
 				Code: 400,
 			},

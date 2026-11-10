@@ -677,7 +677,7 @@ class TestOptionsSpecificForPlus:
     ):
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"
-        vs_event_text = f"Configuration for {text} was added or updated ; with warning(s): Slow start will be disabled"
+        vs_event_text = f"Configuration for {text} was added or updated with warning(s): Slow start will be disabled"
         print(f"Case 0: verify a warning")
         new_body = generate_item_with_upstream_options(
             f"{TEST_DATA}/virtual-server-upstream-options/standard/virtual-server.yaml", options

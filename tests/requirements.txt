@@ -1623,9 +1623,9 @@ pydantic-core==2.50.1 \
     --hash=sha256:f77ac30b19221cd9bd3fcfa3d4614eff93140d0572ab730cded17b64adca05f3 \
     --hash=sha256:fe90228920fd8ff2be62622b6bb8a2b11acd65046d50c6b130614b5879605a20
     # via pydantic
-pyee==15.0.0 \
-    --hash=sha256:48be57d58b2db456a779590c88f7e50b2a33c88e59a6bfdc9a8ab25b13a5576b \
-    --hash=sha256:ea2264fe4b47e0b2edc5badcd5d1bffcef68b70f9c0224ffb08f76992491da9b
+pyee==16.0.0 \
+    --hash=sha256:34de6fbc4d8f0880bb997efd0eb642ba01f02688e740cbd3aa3bee9db4b1c5ec \
+    --hash=sha256:40253d268c4a18ba9fea94c491d612d7386e9b801221399f4efd437a3d87b829
     # via
     #   -r requirements.in
     #   playwright
@@ -1664,9 +1664,9 @@ pytest-metadata==3.1.1 \
     # via
     #   -r requirements.in
     #   pytest-html
-python-dateutil==2.9.0.post0 \
-    --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
-    --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
+python-dateutil==4.0.0 \
+    --hash=sha256:a5e246f79eb80475e691bf93862cead98decd8a498cf53ba0516fcdc0f50dc1c \
+    --hash=sha256:d7295ff14fdc0f92f662100bfb6c551d160ca090f2939f1ec5b9794265c03f06
     # via
     #   -r requirements.in
     #   kubernetes

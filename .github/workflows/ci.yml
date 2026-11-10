@@ -35,7 +35,7 @@ jobs:
   checks:
     name: Checks and variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -125,7 +125,7 @@ jobs:
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -193,7 +193,7 @@ jobs:
 
   verify-codegen:
     name: Verify generated code
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -237,7 +237,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -308,7 +308,7 @@ jobs:
 
   staticcheck:
     name: Static Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -342,7 +342,7 @@ jobs:
 
   govulncheck:
     name: Vulnerability Check
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     needs: checks
@@ -370,9 +370,31 @@ jobs:
           repo-checkout: false
           cache: true
 
+  scout-cache:
+    name: Docker Scout Cache
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/scout-cache
+
+      - name: Seed Docker Scout cache
+        uses: ./.github/actions/scout-cache
+        continue-on-error: true # soft-fail: scans fall back to an authenticated download
+        with:
+          mode: seed
+          # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
+          version: v1.29.0
+          sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
+
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests]
+    needs: [checks, unit-tests, scout-cache]
     if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-artifacts.yml
     with:
@@ -428,7 +450,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Package Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     permissions:
       contents: read
@@ -464,7 +486,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -502,7 +524,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Helm Tests ${{ matrix.base-os }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [checks, build-artifacts]
     strategy:
       fail-fast: false
@@ -564,7 +586,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -683,7 +705,7 @@ jobs:
       needs.checks.outputs.docker_build == 'true'
       )
     name: Setup Matrix for Smoke Tests
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [build-artifacts, checks]
     permissions:
       contents: read
@@ -726,7 +748,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -734,7 +756,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -880,7 +902,7 @@ jobs:
       )
   final-results:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: Final CI Results
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
     steps:

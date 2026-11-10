@@ -188,6 +188,17 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		lbc.configuration.DeletePolicyServiceRef(namespace, name)
 	}
 
+	// Snapshot the Policy into a task-ordered store so getPolicies never
+	// observes this change before this task runs — see the policies field
+	// doc on Configuration. Gated on existence only, unlike the service-ref
+	// tracking above: a wrong-IngressClass policy must still be visible to
+	// getPolicies as "incorrect ingress class", not "doesn't exist".
+	if polExists {
+		lbc.configuration.AddOrUpdatePolicy(obj.(*conf_v1.Policy))
+	} else {
+		lbc.configuration.DeletePolicy(key)
+	}
+
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 
 	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.

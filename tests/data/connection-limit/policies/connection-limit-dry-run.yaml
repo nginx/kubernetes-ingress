@@ -1,0 +1,10 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: connection-limit-dry-run
+spec:
+  connectionLimit:
+    key: total
+    connections: 1
+    dryRun: true
+    logLevel: warn

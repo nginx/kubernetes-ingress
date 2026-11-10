@@ -35,7 +35,7 @@ jobs:
   copy-to-gcr-dev-registry:
     name: Re-tag images in GCR Dev Registry
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       id-token: write
@@ -61,7 +61,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
