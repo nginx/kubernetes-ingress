@@ -2,6 +2,7 @@ package configs
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -153,4 +154,25 @@ func TestHeaderWarningsAddsOnce(t *testing.T) {
 	if len(warnings) != 2 {
 		t.Errorf("got warnings for %d resources, want 2", len(warnings))
 	}
+}
+
+// describeAuthResponseHeaders returns the Policy and the names of a forwarded list, for example
+// "default/p: Tenant-UUID, User-UUID".
+func describeAuthResponseHeaders(headers *version2.AuthResponseHeaders) string {
+	names := make([]string, 0, len(headers.Headers))
+	for _, h := range headers.Headers {
+		names = append(names, h.Name)
+	}
+	return headers.Policy + ": " + strings.Join(names, ", ")
+}
+
+// authResponseHeaderWarnings returns the warnings of a resource about headers that auth response headers replace.
+func authResponseHeaderWarnings(warnings Warnings, owner runtime.Object) []string {
+	var msgs []string
+	for _, w := range warnings[owner] {
+		if strings.Contains(w, "is replaced by the auth response header") {
+			msgs = append(msgs, w)
+		}
+	}
+	return msgs
 }

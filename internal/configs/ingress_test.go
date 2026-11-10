@@ -7501,27 +7501,11 @@ func withIngressPolicies(ingEx *IngressEx, policies ...*conf_v1.Policy) {
 func authResponseHeadersByPath(server version1.Server) map[string]string {
 	got := map[string]string{}
 	for _, loc := range server.Locations {
-		if loc.AuthResponseHeaders == nil {
-			continue
+		if loc.AuthResponseHeaders != nil {
+			got[loc.Path] = describeAuthResponseHeaders(loc.AuthResponseHeaders)
 		}
-		names := make([]string, 0, len(loc.AuthResponseHeaders.Headers))
-		for _, h := range loc.AuthResponseHeaders.Headers {
-			names = append(names, h.Name)
-		}
-		got[loc.Path] = loc.AuthResponseHeaders.Policy + ": " + strings.Join(names, ", ")
 	}
 	return got
-}
-
-// replacedHeaderWarnings returns the warnings of an Ingress about headers that auth response headers replace.
-func replacedHeaderWarnings(warnings Warnings, owner *networking.Ingress) []string {
-	var msgs []string
-	for _, w := range warnings[owner] {
-		if strings.Contains(w, "is replaced by the auth response header") {
-			msgs = append(msgs, w)
-		}
-	}
-	return msgs
 }
 
 // TestGenerateNginxCfgAuthResponseHeaders covers the standard Ingress scenarios of the ExternalAuth response headers
@@ -7665,11 +7649,7 @@ func TestGenerateNginxCfgAuthResponseHeaders(t *testing.T) {
 					if !ok {
 						continue
 					}
-					var names []string
-					for _, h := range loc.ProxySetHeaders {
-						names = append(names, h.Name)
-					}
-					if diff := cmp.Diff(want, names); diff != "" {
+					if diff := cmp.Diff(want, headerNames(loc.ProxySetHeaders)); diff != "" {
 						t.Errorf("ProxySetHeaders of %s %s mismatch (-want +got):\n%s", server.Name, loc.Path, diff)
 					}
 				}
@@ -7677,7 +7657,7 @@ func TestGenerateNginxCfgAuthResponseHeaders(t *testing.T) {
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("forwarding locations mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(tc.wantWarnings, replacedHeaderWarnings(warnings, ingEx.Ingress)); diff != "" {
+			if diff := cmp.Diff(tc.wantWarnings, authResponseHeaderWarnings(warnings, ingEx.Ingress)); diff != "" {
 				t.Errorf("warnings mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -7796,13 +7776,13 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 			if got := server.CustomHTTPErrorBackend != ""; got != tc.wantDefaultBackend {
 				t.Errorf("server renders @custom_default_backend: got %v, want %v", got, tc.wantDefaultBackend)
 			}
-			if diff := cmp.Diff(tc.wantCoffeeWarnings, replacedHeaderWarnings(warnings, coffee)); diff != "" {
+			if diff := cmp.Diff(tc.wantCoffeeWarnings, authResponseHeaderWarnings(warnings, coffee)); diff != "" {
 				t.Errorf("coffee minion warnings mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(tc.wantTeaWarnings, replacedHeaderWarnings(warnings, tea)); diff != "" {
+			if diff := cmp.Diff(tc.wantTeaWarnings, authResponseHeaderWarnings(warnings, tea)); diff != "" {
 				t.Errorf("tea minion warnings mismatch (-want +got):\n%s", diff)
 			}
-			if got := replacedHeaderWarnings(warnings, master); len(got) > 0 {
+			if got := authResponseHeaderWarnings(warnings, master); len(got) > 0 {
 				t.Errorf("header warnings keyed by the master, want none: %v", got)
 			}
 		})
