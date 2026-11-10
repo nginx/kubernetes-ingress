@@ -238,6 +238,12 @@ func TestExtractAgentConfigLabels(t *testing.T) {
 			content: "labels:\n  display-name: my-nic\n  port: 8080\n  enabled: true\n  unset:\n",
 			want:    map[string]string{"display-name": "my-nic", "port": "8080", "enabled": "true", "unset": ""},
 		},
+		{
+			// Must match NGINX Agent 3 (YAML 1.2 via viper): yes/on stay strings, not booleans.
+			name:    "YAML 1.2 scalars match agent",
+			content: "labels:\n  a: yes\n  b: on\n  c: off\n  d: 1.50\n  e: 1e21\n  f: 0x1F\n",
+			want:    map[string]string{"a": "yes", "b": "on", "c": "off", "d": "1.5", "e": "1000000000000000000000", "f": "31"},
+		},
 		{name: "invalid YAML", content: "labels: [invalid", wantErr: true},
 	}
 

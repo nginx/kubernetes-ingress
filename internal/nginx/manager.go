@@ -2,7 +2,6 @@ package nginx
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -20,7 +19,7 @@ import (
 	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/metadata"
-	"sigs.k8s.io/yaml"
+	"go.yaml.in/yaml/v3"
 
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -730,7 +729,8 @@ var agentLabelRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-_.]{0,254}[a-z
 
 // extractAgentConfigLabels reads the labels map from the NGINX Agent config file.
 // The agent ignores config-file labels when --labels is passed, so NIC merges them into the flag.
-// Non-string scalars (numbers, booleans) are returned as their literal text.
+// It parses with YAML 1.2 (go.yaml.in/yaml/v3) and stringifies values the way NGINX Agent 3 does
+// (viper + spf13/cast), so unquoted values such as yes, on or 0755 resolve to the same label text.
 func extractAgentConfigLabels(configPath string) (map[string]string, error) {
 	data, err := os.ReadFile(filepath.Clean(configPath))
 	if err != nil {
@@ -740,7 +740,7 @@ func extractAgentConfigLabels(configPath string) (map[string]string, error) {
 		return nil, err
 	}
 	var cfg struct {
-		Labels map[string]json.RawMessage `json:"labels"`
+		Labels map[string]any `yaml:"labels"`
 	}
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
@@ -749,12 +749,15 @@ func extractAgentConfigLabels(configPath string) (map[string]string, error) {
 		return nil, nil
 	}
 	labels := make(map[string]string, len(cfg.Labels))
-	for k, raw := range cfg.Labels {
-		var s string
-		if json.Unmarshal(raw, &s) != nil {
-			s = string(raw)
+	for k, v := range cfg.Labels {
+		switch val := v.(type) {
+		case nil:
+			labels[k] = ""
+		case float64:
+			labels[k] = strconv.FormatFloat(val, 'f', -1, 64)
+		default:
+			labels[k] = fmt.Sprint(val)
 		}
-		labels[k] = s
 	}
 	return labels, nil
 }
