@@ -60,7 +60,7 @@ repos:
         description: Ensures every workflow job is gated to the public repository, the internal repository, or both.
         entry: .github/scripts/validate-workflow-gating.sh
         language: golang
-        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.54.2"]
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.54.3"]
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: false
         require_serial: true
