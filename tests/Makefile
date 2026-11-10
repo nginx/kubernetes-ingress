@@ -130,6 +130,7 @@ run-tests-in-kind: secrets ## Run tests in Kind
 		-v $(ROOT_DIR)/tests:/workspace/tests \
 		-v $(ROOT_DIR)/common-secrets:/workspace/common-secrets \
 		-v $(ROOT_DIR)/deployments:/workspace/deployments \
+		-v $(ROOT_DIR)/charts:/workspace/charts \
 		-v $(ROOT_DIR)/config:/workspace/config \
 		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \
 		$(TEST_PREFIX):$(TEST_TAG) \
