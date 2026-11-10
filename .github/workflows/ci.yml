@@ -278,8 +278,7 @@ jobs:
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true' ||
-          needs.checks.outputs.charts_changed == 'true'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Setup secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
@@ -302,8 +301,7 @@ jobs:
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true' ||
-          needs.checks.outputs.charts_changed == 'true'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Generate secrets for tests
         run: |
@@ -311,16 +309,14 @@ jobs:
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true' ||
-          needs.checks.outputs.charts_changed == 'true'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Run Tests
         run: make cover
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true' ||
-          needs.checks.outputs.charts_changed == 'true'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
