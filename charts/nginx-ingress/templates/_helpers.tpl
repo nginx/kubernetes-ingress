@@ -312,6 +312,7 @@ Build the args for the service binary.
 
 {{- define "nginx-ingress.args" -}}
 {{- include "nginx-ingress.appprotect.plmStorage.validate" . -}}
+{{- include "nginx-ingress.validateInstallMode" . -}}
 {{- if and .Values.controller.debug .Values.controller.debug.enable }}
 - --listen=:2345
 - --headless=true
@@ -369,6 +370,12 @@ Build the args for the service binary.
 {{- if and .Values.controller.ingressClass.validation (ne .Values.controller.ingressClass.validation "strict") }}
 - -ingress-class-validation={{ .Values.controller.ingressClass.validation }}
 {{- end }}
+{{- if include "nginx-ingress.isTenant" . }}
+- -watch-namespace={{ include "nginx-ingress.tenantWatchNamespaces" . }}
+{{- if include "nginx-ingress.cleanList" .Values.controller.watchSecretNamespace }}
+- -watch-secret-namespace={{ include "nginx-ingress.cleanList" .Values.controller.watchSecretNamespace }}
+{{- end }}
+{{- else }}
 {{- if .Values.controller.watchNamespace }}
 - -watch-namespace={{ .Values.controller.watchNamespace }}
 {{- end }}
@@ -377,6 +384,7 @@ Build the args for the service binary.
 {{- end }}
 {{- if .Values.controller.watchSecretNamespace }}
 - -watch-secret-namespace={{ .Values.controller.watchSecretNamespace }}
+{{- end }}
 {{- end }}
 - -health-status={{ .Values.controller.healthStatus }}
 - -health-status-uri={{ .Values.controller.healthStatusURI }}
@@ -739,3 +747,326 @@ nap_monitoring:
 
 {{- end }}
 {{ end }}
+
+{{/*
+Install mode helpers. See installMode in values.yaml.
+*/}}
+{{- define "nginx-ingress.isFull" -}}
+{{- if eq (.Values.installMode | default "full") "full" }}true{{ end -}}
+{{- end -}}
+
+{{- define "nginx-ingress.isPlatform" -}}
+{{- if eq .Values.installMode "platform" }}true{{ end -}}
+{{- end -}}
+
+{{- define "nginx-ingress.isTenant" -}}
+{{- if eq .Values.installMode "tenant" }}true{{ end -}}
+{{- end -}}
+
+{{/*
+Whether namespaced resources are rendered: every mode except platform.
+*/}}
+{{- define "nginx-ingress.rendersNamespaced" -}}
+{{- if not (include "nginx-ingress.isPlatform" .) }}true{{ end -}}
+{{- end -}}
+
+{{/*
+Split a comma-separated list, trim each entry, and drop empty entries and duplicates.
+Takes the list as a string and returns it as a comma-separated string.
+*/}}
+{{- define "nginx-ingress.cleanList" -}}
+{{- $out := list -}}
+{{- range splitList "," (. | default "") -}}
+{{- $ns := trim . -}}
+{{- if and $ns (not (has $ns $out)) -}}
+{{- $out = append $out $ns -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $out -}}
+{{- end -}}
+
+{{/*
+The namespaces watched in installMode tenant: the release namespace first, then controller.watchNamespace,
+each once. Returns a comma-separated string.
+*/}}
+{{- define "nginx-ingress.tenantWatchNamespaces" -}}
+{{- include "nginx-ingress.cleanList" (printf "%s,%s" .Release.Namespace (.Values.controller.watchNamespace | default "")) -}}
+{{- end -}}
+
+{{/*
+Whether Secrets are watched in the namespace passed as .namespace (with .root as the chart context).
+With no watchSecretNamespace, Secrets are watched in every watched namespace.
+*/}}
+{{- define "nginx-ingress.tenantWatchesSecrets" -}}
+{{- $secretNamespaces := include "nginx-ingress.cleanList" .root.Values.controller.watchSecretNamespace -}}
+{{- if or (not $secretNamespaces) (has .namespace (splitList "," $secretNamespaces)) }}true{{ end -}}
+{{- end -}}
+
+{{/*
+Validate installMode and its settings. Fails the render on an invalid combination.
+*/}}
+{{- define "nginx-ingress.validateInstallMode" -}}
+{{- $mode := .Values.installMode | default "full" -}}
+{{- if and (eq .Chart.Name "nginx-ingress-tenant") (ne $mode "tenant") }}
+{{- fail (printf "the nginx-ingress-tenant chart only supports installMode \"tenant\", got %q; use the nginx-ingress chart for installMode %q" $mode $mode) }}
+{{- end }}
+{{- if eq $mode "tenant" }}
+{{- if .Values.controller.watchNamespaceLabel }}
+{{- fail "installMode \"tenant\" does not support controller.watchNamespaceLabel, because it needs a cluster-wide Namespace watch; list the namespaces in controller.watchNamespace instead" }}
+{{- end }}
+{{- if not .Values.controller.serviceAccount.name }}
+{{- fail "installMode \"tenant\" requires controller.serviceAccount.name, and the platform release for this tenant must use the same name" }}
+{{- end }}
+{{- $watched := splitList "," (include "nginx-ingress.tenantWatchNamespaces" .) }}
+{{- range splitList "," (include "nginx-ingress.cleanList" .Values.controller.watchSecretNamespace) }}
+{{- if and . (not (has . $watched)) }}
+{{- fail (printf "installMode \"tenant\": controller.watchSecretNamespace entry %q is not a watched namespace; add it to controller.watchNamespace" .) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if eq $mode "platform" }}
+{{- if not .Values.platform.tenantNamespace }}
+{{- fail "installMode \"platform\" requires platform.tenantNamespace, the namespace of the tenant release" }}
+{{- end }}
+{{- if and .Values.platform.tenantReader.create (not .Values.controller.serviceAccount.name) }}
+{{- fail "installMode \"platform\" with platform.tenantReader.create requires controller.serviceAccount.name, the ServiceAccount name used by the tenant release" }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Rules a tenant Role grants in every watched namespace. Takes a dict with .root (the chart context)
+and .secrets (whether Secrets are watched in the namespace).
+Keep in sync with the custom-resource and feature rules in clusterrole.yaml and with
+deployments/rbac/nic-tenant-aggregate.yaml; helm unit tests check both.
+*/}}
+{{- define "nginx-ingress.rbac.tenantWatchedRules" -}}
+{{- $v := .root.Values.controller -}}
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+{{- if .secrets }}
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+{{- if $v.reportIngressStatus.enable }}
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+{{- end }}
+{{- if $v.enableCustomResources }}
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+{{- end }}
+{{- if $v.appprotect.enable }}
+- apiGroups:
+  - appprotect.f5.com
+  resources:
+  - appolicies
+  - aplogconfs
+  - apusersigs
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+{{- if $v.appprotectdos.enable }}
+- apiGroups:
+  - appprotectdos.f5.com
+  resources:
+  - apdospolicies
+  - apdoslogconfs
+  - dosprotectedresources
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+{{- if and $v.enableCustomResources $v.enableCertManager }}
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+{{- end }}
+{{- if and $v.enableCustomResources $v.enableExternalDNS }}
+- apiGroups:
+  - externaldns.nginx.org
+  resources:
+  - dnsendpoints
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - delete
+- apiGroups:
+  - externaldns.nginx.org
+  resources:
+  - dnsendpoints/status
+  verbs:
+  - update
+{{- end }}
+{{- end -}}
+
+{{/*
+Extra rules the tenant Role grants in the release namespace only: the startup Secrets, the Services NIC
+creates (external Service status, zone sync), its own Pod, its owner (installation ID), and leader election.
+Mirrors controller-role.yaml.
+*/}}
+{{- define "nginx-ingress.rbac.tenantReleaseNamespaceRules" -}}
+{{- $v := .Values.controller -}}
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - {{ include "nginx-ingress.leaderElectionName" . }}
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+{{- if $v.reportIngressStatus.ingressLink }}
+- apiGroups:
+  - cis.f5.com
+  resources:
+  - ingresslinks
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+{{- end -}}
+
+{{/*
+Rules of the tenant reader ClusterRole rendered by installMode platform.
+*/}}
+{{- define "nginx-ingress.rbac.tenantReaderRules" -}}
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  resourceNames:
+  - kube-system
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+{{- end -}}

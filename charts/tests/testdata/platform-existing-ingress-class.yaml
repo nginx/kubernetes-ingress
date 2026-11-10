@@ -1,0 +1,9 @@
+installMode: platform
+platform:
+  tenantNamespace: team-a
+controller:
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a
+    create: false

@@ -153,6 +153,27 @@ jobs:
       id-token: write
     secrets: inherit
 
+  # The same chart, repackaged for tenant installs: no CRDs and installMode tenant.
+  # Runs after publish-helm-chart so the two never push to the Helm Charts repository at the same time.
+  publish-helm-chart-tenant:
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'publish-helm-chart-tenant'))
+    name: Publish Tenant Helm Chart
+    needs: [variables, publish-helm-chart]
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      branch: ${{ inputs.release_branch }}
+      ic_version: ${{ inputs.nic_version }}
+      chart_version: ${{ needs.variables.outputs.chart_version }}
+      chart_name: "nginx-ingress-tenant"
+      tenant: true
+      nginx_helm_repo: true
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: write # for pushing to Helm Charts repository
+      packages: write # for helm to push to GHCR
+      id-token: write
+    secrets: inherit
+
   certify-openshift-images:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images'))
     name: Certify OpenShift UBI images
@@ -252,8 +273,10 @@ jobs:
   # Every primary artifact has to be published before the GitHub release is made
   # public. github-release does not depend on publish-helm-chart directly, so a
   # Helm failure would be invisible to !failure() there -- this gate makes each
-  # prerequisite explicit instead. publish-helm-chart must tolerate 'skipped'
-  # because its own `if` excludes dry_run and honours skip_step.
+  # prerequisite explicit instead. publish-helm-chart and publish-helm-chart-tenant
+  # must tolerate 'skipped' because their own `if` excludes dry_run and honours
+  # skip_step (skip_step is matched with contains(), so skipping
+  # publish-helm-chart also skips publish-helm-chart-tenant).
   release-gate:
     name: All prerequisites met
     runs-on: ubuntu-26.04
@@ -263,7 +286,8 @@ jobs:
       !cancelled() &&
       (needs.release-oss.result == 'success' || contains(inputs.skip_step, 'release-oss')) &&
       (needs.release-plus-gcr-nginx.result == 'success' || contains(inputs.skip_step, 'release-plus')) &&
-      (needs.publish-helm-chart.result == 'success' || needs.publish-helm-chart.result == 'skipped')
+      (needs.publish-helm-chart.result == 'success' || needs.publish-helm-chart.result == 'skipped') &&
+      (needs.publish-helm-chart-tenant.result == 'success' || needs.publish-helm-chart-tenant.result == 'skipped')
       )
     steps:
       - run: echo "All prerequisites met"

@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if .Values.prometheus.serviceMonitor.create }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -18,4 +19,5 @@ spec:
       {{- include "nginx-ingress.selectorLabels" . | nindent 6 }}
   endpoints:
   {{- toYaml .Values.prometheus.serviceMonitor.endpoints | nindent 4 }}
+{{- end }}
 {{- end }}

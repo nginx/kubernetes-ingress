@@ -162,6 +162,10 @@ update-crds: ## Update CRDs
 update-helm-schema: ## Regenerate the bundled Kubernetes definitions in the Helm chart values schema
 	./hack/generate-helm-schema.sh
 
+.PHONY: update-rbac-manifests
+update-rbac-manifests: ## Regenerate deployments/rbac/tenant-role.yaml and platform-tenant-reader.yaml from the Helm chart
+	UPDATE_RBAC_MANIFESTS=true go test -tags=helmunit -run TestHelmNICStaticRBACManifests ./charts/tests/
+
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go

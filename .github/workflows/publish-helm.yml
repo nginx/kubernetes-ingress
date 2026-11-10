@@ -19,6 +19,10 @@ on:
         description: "Helm Chart name (default: nginx-ingress)"
         default: "nginx-ingress"
         type: string
+      tenant:
+        description: "Package the chart for tenant installs: no CRDs and installMode tenant (use with chart_name: nginx-ingress-tenant)"
+        default: false
+        type: boolean
       oci_registries:
         description: "Publish to OCI registries, must include the oci:// prefix, comma separated list"
         default: "oci://ghcr.io/nginx/charts,oci://registry-1.docker.io/nginxcharts"
@@ -49,6 +53,10 @@ on:
         description: "Helm Chart name (default: nginx-ingress)"
         default: "nginx-ingress"
         type: string
+      tenant:
+        description: "Package the chart for tenant installs: no CRDs and installMode tenant (use with chart_name: nginx-ingress-tenant)"
+        default: false
+        type: boolean
       oci_registries:
         description: "Publish to OCI registries, must include the oci:// prefix, comma separated list"
         default: "oci://ghcr.io/nginx/charts,oci://registry-1.docker.io/nginxcharts"
@@ -67,7 +75,8 @@ defaults:
     shell: bash
 
 concurrency:
-  group: ${{ github.ref_name }}-publish-helm
+  # chart_name keeps calls that publish different charts from the same ref from cancelling each other.
+  group: ${{ github.ref_name }}-publish-helm-${{ inputs.chart_name }}
   cancel-in-progress: true
 
 permissions:
@@ -164,6 +173,17 @@ jobs:
             sed -i "s|^  nginxplus: false|  nginxplus: true|" kic/charts/nginx-ingress/values.yaml
             sed -E -i "s|^(    )repository:.*|\1repository: ${IMAGE_REPOSITORY}|" kic/charts/nginx-ingress/values.yaml
             sed -E -i "s|^(    )(# *)?tag:.*|\1tag: \"${{ inputs.ic_version }}\"|" kic/charts/nginx-ingress/values.yaml
+          fi
+          if [[ "${{ inputs.tenant }}" == "true" ]]; then
+            # Tenant installers have no CRD rights: package without CRDs, pinned to installMode tenant.
+            # Keep in sync with TestHelmNICTenantChartPackaging in charts/tests/helmunit_test.go.
+            rm kic/charts/nginx-ingress/crds
+            sed -i "s|^installMode: full$|installMode: tenant|" kic/charts/nginx-ingress/values.yaml
+            grep -qx "installMode: tenant" kic/charts/nginx-ingress/values.yaml || { echo "Failed to set installMode: tenant in values.yaml" >&2; exit 1; }
+            if [[ -n "$(helm show crds kic/charts/nginx-ingress)" ]]; then
+              echo "Tenant chart must not contain CRDs" >&2
+              exit 1
+            fi
           fi
           output=$(helm package ${helm_versions} kic/charts/nginx-ingress)
           echo "path=$(basename -- $(echo $output | cut -d: -f2))" >> $GITHUB_OUTPUT

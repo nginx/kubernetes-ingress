@@ -1,0 +1,210 @@
+# Applied once per cluster by a cluster admin, before any tenant installs NGINX Ingress Controller
+# with the nginx-ingress-tenant chart (or installMode "tenant").
+#
+# The label rbac.authorization.k8s.io/aggregate-to-admin merges these rules into the built-in "admin"
+# ClusterRole, so every namespace admin can:
+# - create the Role that a tenant install renders in each watched namespace (RBAC only lets a user
+#   create a Role whose permissions they already hold), and
+# - author NGINX Ingress Controller resources and the resources of its optional features in their namespaces.
+#
+# It covers every rule a tenant Role can contain, for every feature. Rules that a tenant Role limits
+# with resourceNames (the leader election Lease) are granted here without resourceNames. Rules for
+# resources whose CRDs aren't installed have no effect.
+#
+# Upgrade this manifest before upgrading tenant releases: a newer tenant Role can contain rules that
+# an older version of this manifest doesn't, and the tenant's helm upgrade then fails with "forbidden".
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nginx-ingress-tenant-aggregate
+  labels:
+    app.kubernetes.io/name: nginx-ingress
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+# Core resources the tenant Role grants to NIC. The built-in admin role already grants most of these;
+# they are listed so this manifest is complete on its own.
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - services
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - update
+  - create
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+# NGINX Ingress Controller resources: authoring by namespace admins, and status updates by NIC.
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+# App Protect WAF.
+- apiGroups:
+  - appprotect.f5.com
+  resources:
+  - appolicies
+  - aplogconfs
+  - apusersigs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+# App Protect DoS.
+- apiGroups:
+  - appprotectdos.f5.com
+  resources:
+  - apdospolicies
+  - apdoslogconfs
+  - dosprotectedresources
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+# cert-manager Certificates, which NIC creates for VirtualServers.
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+# ExternalDNS DNSEndpoints, which NIC creates for VirtualServers.
+- apiGroups:
+  - externaldns.nginx.org
+  resources:
+  - dnsendpoints
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+- apiGroups:
+  - externaldns.nginx.org
+  resources:
+  - dnsendpoints/status
+  verbs:
+  - update
+# F5 BIG-IP Container Ingress Services IngressLinks.
+- apiGroups:
+  - cis.f5.com
+  resources:
+  - ingresslinks
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection

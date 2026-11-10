@@ -297,6 +297,26 @@ jobs:
       id-token: write
     secrets: inherit
 
+  # The same chart, repackaged for tenant installs: no CRDs and installMode tenant. OCI registries only.
+  publish-helm-chart-tenant:
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && github.ref_name == github.event.repository.default_branch)
+    name: Publish Tenant Helm Chart
+    needs: [checks, publish-helm-chart]
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      branch: ${{ github.ref_name }}
+      ic_version: edge
+      chart_version: 0.0.0-edge
+      chart_name: "nginx-ingress-tenant"
+      tenant: true
+      nginx_helm_repo: false
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: write # for pushing to Helm Charts repository
+      packages: write # for helm to push to GHCR
+      id-token: write
+    secrets: inherit
+
   certify-openshift-images:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && github.ref_name == github.event.repository.default_branch)
     name: Certify OpenShift UBI images

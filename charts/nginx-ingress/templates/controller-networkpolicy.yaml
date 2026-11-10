@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- $np := default (dict) .Values.controller.networkPolicy -}}
 {{- if $np.enabled }}
 {{- $ingress := $np.ingress }}
@@ -30,4 +31,5 @@ spec:
   egress:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- end }}
 {{- end }}

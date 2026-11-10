@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- range $name, $service := .Values.controller.service.additionalServices }}
 {{- if eq $name (include "nginx-ingress.controller.service.name" $) }}
 {{- fail (printf "additional Service name %q must not match the primary controller Service name" $name) }}
@@ -63,4 +64,5 @@ spec:
   externalIPs:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- end }}
 {{- end }}
