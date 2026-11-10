@@ -108,6 +108,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.GlobalConfigurationApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("GlobalConfigurationSpec"):
 		return &applyconfigurationconfigurationv1.GlobalConfigurationSpecApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("HashSubset"):
+		return &applyconfigurationconfigurationv1.HashSubsetApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Header"):
 		return &applyconfigurationconfigurationv1.HeaderApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("HealthCheck"):
