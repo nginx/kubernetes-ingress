@@ -38,7 +38,11 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     wait_before_test,
 )
-from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_virtual_server_from_yaml
+from suite.utils.vs_vsr_resources_utils import (
+    delete_and_create_vs_from_yaml,
+    patch_v_s_route_from_yaml,
+    patch_virtual_server_from_yaml,
+)
 
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
@@ -528,6 +532,9 @@ class TestExternalAuthPoliciesVsr:
         """
         namespace = v_s_route_setup.route_m.namespace
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects, v_s_route_setup.vs_name, std_vs_src, v_s_route_setup.namespace
+        )
         secret_names, policy_names, _ = setup_ext_auth(
             kube_apis,
             namespace,
