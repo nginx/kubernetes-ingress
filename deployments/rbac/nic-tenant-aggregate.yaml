@@ -8,8 +8,9 @@
 # - author NGINX Ingress Controller resources and the resources of its optional features in their namespaces.
 #
 # It covers every rule a tenant Role can contain, for every feature. Rules that a tenant Role limits
-# with resourceNames (the leader election Lease) are granted here without resourceNames. Rules for
-# resources whose CRDs aren't installed have no effect.
+# with resourceNames (the leader election Lease) are granted here without resourceNames. It also covers
+# the Lease the tenant release renders, which the built-in admin role doesn't. Rules for resources
+# whose CRDs aren't installed have no effect.
 #
 # Upgrade this manifest before upgrading tenant releases: a newer tenant Role can contain rules that
 # an older version of this manifest doesn't, and the tenant's helm upgrade then fails with "forbidden".
@@ -71,14 +72,19 @@ rules:
   - statefulsets
   verbs:
   - get
+# The tenant release's leader election Lease: NIC gets and updates it, and Helm creates, patches
+# (server-side apply) and deletes it as the installing namespace admin.
 - apiGroups:
   - coordination.k8s.io
   resources:
   - leases
   verbs:
   - get
-  - update
+  - list
   - create
+  - update
+  - patch
+  - delete
 - apiGroups:
   - discovery.k8s.io
   resources:
