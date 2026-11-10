@@ -75,6 +75,7 @@ jobs:
             charts:
             - 'charts/**'
             - 'tests/Makefile'
+            - 'hack/generate-helm-schema.sh'
         if: github.event_name == 'pull_request'
 
       - name: Filter only docs changes
