@@ -243,7 +243,7 @@ jobs:
 
       - name: Check if Helm values schema changed
         run: |
-          if grep -n '"\$ref": "[^#]' charts/nginx-ingress/values.schema.json; then
+          if grep -nE '"\$ref"[[:space:]]*:[[:space:]]*"[^#]' charts/nginx-ingress/values.schema.json; then
             echo "values.schema.json must not have remote \$ref values, run 'make update-helm-schema'"
             exit 1
           fi
