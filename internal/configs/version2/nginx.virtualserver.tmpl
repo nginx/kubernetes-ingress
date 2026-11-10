@@ -46,6 +46,10 @@ map {{ $m.Source }} {{ $m.Variable }} {
 limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.Rate }};
 {{- end }}
 
+{{- range $z := .LimitConnZones }}
+limit_conn_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }};
+{{- end }}
+
 {{- range $c := .CacheZones }}
 proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }}{{ if $c.Inactive }} inactive={{ $c.Inactive }}{{ end }}{{ if $c.MaxSize }} max_size={{ $c.MaxSize }}{{ end }}{{ if $c.MinFree }} min_free={{ $c.MinFree }}{{ end }}{{ if $c.ManagerFiles }} manager_files={{ $c.ManagerFiles }}{{ end }}{{ if $c.ManagerSleep }} manager_sleep={{ $c.ManagerSleep }}{{ end }}{{ if $c.ManagerThreshold }} manager_threshold={{ $c.ManagerThreshold }}{{ end }}{{ if not $c.UseTempPath }} use_temp_path=off{{ end }};
 {{- end }}
@@ -211,6 +215,15 @@ server {
         {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
     {{- end }}
 
+    {{- if $s.LimitConns }}
+    limit_conn_dry_run {{ if $s.LimitConnOptions.DryRun }}on{{ else }}off{{ end }};
+    limit_conn_log_level {{ $s.LimitConnOptions.LogLevel }};
+    limit_conn_status {{ $s.LimitConnOptions.RejectCode }};
+        {{- range $lc := $s.LimitConns }}
+    limit_conn {{ $lc.ZoneName }} {{ $lc.Connections }};
+        {{- end }}
+    {{- end }}
+
     {{- if $s.APIKeyEnabled}}
     location = /_validate_apikey_njs {
         internal;
@@ -374,6 +387,18 @@ server {
         {{- range $rl := $l.LimitReqs }}
         limit_req zone={{ $rl.ZoneName }}{{ if $rl.Burst }} burst={{ $rl.Burst }}{{ end }}
             {{- if $rl.Delay }} delay={{ $rl.Delay }}{{ end }}{{ if $rl.NoDelay }} nodelay{{ end }};
+        {{- end }}
+
+        {{- if $l.LimitConns }}
+        limit_conn_dry_run {{ if $l.LimitConnOptions.DryRun }}on{{ else }}off{{ end }};
+        limit_conn_log_level {{ $l.LimitConnOptions.LogLevel }};
+        limit_conn_status {{ $l.LimitConnOptions.RejectCode }};
+            {{- range $lc := $l.LimitConns }}
+        limit_conn {{ $lc.ZoneName }} {{ $lc.Connections }};
+            {{- end }}
+        {{- else if and $l.ACMEChallenge $s.LimitConns }}
+        {{- /* The challenge location inherits the server's limit_conn; dry run keeps it from rejecting the ACME server. */}}
+        limit_conn_dry_run on;
         {{- end }}
 
         {{- if $l.ACMEChallenge }}
