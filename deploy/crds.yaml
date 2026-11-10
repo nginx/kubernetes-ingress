@@ -844,6 +844,12 @@ spec:
                       that are obtained from the jwksURI and sets a valid time for
                       expiration.
                     type: string
+                  leeway:
+                    description: Sets the maximum allowable leeway to compensate clock
+                      skew when verifying the exp and nbf JWT claims.
+                    maxLength: 32
+                    pattern: ^(\d{1,9}y)?(\d{1,9}M)?(\d{1,9}w)?(\d{1,9}d)?(\d{1,9}h)?(\d{1,9}m)?(\d{1,9}s?)?(\d{1,9}ms)?$
+                    type: string
                   realm:
                     description: The realm of the JWT.
                     type: string

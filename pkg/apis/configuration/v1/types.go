@@ -991,6 +991,11 @@ type JWTAuth struct {
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default:=1
 	SSLVerifyDepth *int `json:"sslVerifyDepth"`
+	// Sets the maximum allowable leeway to compensate clock skew when verifying the exp and nbf JWT claims.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=32
+	// +kubebuilder:validation:Pattern=`^(\d{1,9}y)?(\d{1,9}M)?(\d{1,9}w)?(\d{1,9}d)?(\d{1,9}h)?(\d{1,9}m)?(\d{1,9}s?)?(\d{1,9}ms)?$`
+	Leeway string `json:"leeway,omitempty"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration

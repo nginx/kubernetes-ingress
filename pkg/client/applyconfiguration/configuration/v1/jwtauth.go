@@ -27,6 +27,8 @@ type JWTAuthApplyConfiguration struct {
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// Sets the maximum allowable leeway to compensate clock skew when verifying the exp and nbf JWT claims.
+	Leeway *string `json:"leeway,omitempty"`
 }
 
 // JWTAuthApplyConfiguration constructs a declarative configuration of the JWTAuth type for use with
@@ -112,5 +114,13 @@ func (b *JWTAuthApplyConfiguration) WithTrustedCertSecret(value string) *JWTAuth
 // If called multiple times, the SSLVerifyDepth field is set to the value of the last call.
 func (b *JWTAuthApplyConfiguration) WithSSLVerifyDepth(value int) *JWTAuthApplyConfiguration {
 	b.SSLVerifyDepth = &value
+	return b
+}
+
+// WithLeeway sets the Leeway field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Leeway field is set to the value of the last call.
+func (b *JWTAuthApplyConfiguration) WithLeeway(value string) *JWTAuthApplyConfiguration {
+	b.Leeway = &value
 	return b
 }

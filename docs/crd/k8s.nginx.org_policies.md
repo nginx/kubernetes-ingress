@@ -106,6 +106,7 @@ The `.spec` object supports the following fields:
 | `jwt` | `object` | The JWT policy configures NGINX Plus to authenticate client requests using JSON Web Tokens. |
 | `jwt.jwksURI` | `string` | The remote URI where the request will be sent to retrieve JSON Web Key set |
 | `jwt.keyCache` | `string` | Enables in-memory caching of JWKS (JSON Web Key Sets) that are obtained from the jwksURI and sets a valid time for expiration. |
+| `jwt.leeway` | `string` | Sets the maximum allowable leeway to compensate clock skew when verifying the exp and nbf JWT claims. |
 | `jwt.realm` | `string` | The realm of the JWT. |
 | `jwt.secret` | `string` | The name of the Kubernetes secret containing the JSON Web Key. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the JWK role and must store the JWK under the jwk key. |
 | `jwt.sniEnabled` | `boolean` | Enables SNI (Server Name Indication) for the JWT policy. This is useful when the remote server requires SNI to serve the correct certificate. |
