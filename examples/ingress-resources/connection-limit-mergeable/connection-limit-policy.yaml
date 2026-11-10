@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: connection-limit-policy
+spec:
+  connectionLimit:
+    connections: 1
+    key: ${binary_remote_addr}
+    zoneSize: 10m
+    rejectCode: 429
+    logLevel: warn
+    dryRun: false
+    scale: false

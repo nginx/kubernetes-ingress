@@ -24,6 +24,7 @@ type IngressNginxConfig struct {
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	LimitConnZones          []version2.LimitConnZone
 	KeyValZones             []version2.KeyValZone
 	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
 	// templates can safely emit app_protect_enable off; in internal sub-request
@@ -126,6 +127,8 @@ type Server struct {
 	Deny                   []string
 	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
+	LimitConnOptions       version2.LimitConnOptions
+	LimitConns             []version2.LimitConn
 
 	HealthChecks map[string]HealthCheck
 
@@ -281,6 +284,8 @@ type Location struct {
 	EgressMTLS                 *version2.EgressMTLS
 	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
+	LimitConnOptions           version2.LimitConnOptions
+	LimitConns                 []version2.LimitConn
 	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
 	ACMEChallenge bool
 }

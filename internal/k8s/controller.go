@@ -1005,15 +1005,33 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			}
 		}
 
-		// handle virtualservers
+		// handle resources that reference a scaled Policy
 		if lbc.areCustomResourcesEnabled {
-			resources = lbc.findVirtualServersUsingRatelimitScaling()
-			resourceExes = lbc.createExtendedResources(resources)
-			for _, vserver := range resourceExes.VirtualServerExes {
-				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
-				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
-				if err != nil {
-					nl.Errorf(l, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
+			// Skip Ingresses the loops above already regenerated, so each resource reloads once.
+			regenerated := make(map[string]bool, len(resources))
+			for _, r := range resources {
+				regenerated[r.GetKeyWithKind()] = true
+			}
+			// Call the configurator directly, as reload_invariant_test.go requires.
+			for _, r := range lbc.findResourcesUsingPolicyScaling() {
+				if regenerated[r.GetKeyWithKind()] {
+					continue
+				}
+				switch impl := r.(type) {
+				case *VirtualServerConfiguration:
+					vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
+					warnings, err := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
+					lbc.updateVirtualServerStatusAndEvents(impl, warnings, err)
+				case *IngressConfiguration:
+					if impl.IsMaster {
+						mergeableIng := lbc.createMergeableIngresses(impl)
+						warnings, err := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
+						lbc.updateMergeableIngressStatusAndEvents(mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions), warnings, err)
+					} else {
+						ingEx := lbc.createIngressEx(impl.Ingress, impl.ValidHosts, nil)
+						warnings, err := lbc.configurator.AddOrUpdateIngress(ingEx)
+						lbc.updateRegularIngressStatusAndEvents(mergeIngressPolicyWarnings(impl, ingEx, nil), warnings, err)
+					}
 				}
 			}
 		}
@@ -1021,16 +1039,17 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 	}
 }
 
-func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []Resource {
+func (lbc *LoadBalancerController) findResourcesUsingPolicyScaling() []Resource {
 	policies := lbc.getAllPolicies()
 	resources := make([]Resource, 0, len(policies))
 	for _, policy := range policies {
-		if policy.Spec.RateLimit != nil && policy.Spec.RateLimit.Scale {
+		rl, cl := policy.Spec.RateLimit, policy.Spec.ConnectionLimit
+		if (rl != nil && rl.Scale) || (cl != nil && cl.Scale) {
 			newresources := lbc.configuration.FindResourcesForPolicy(policy.Namespace, policy.Name)
 			resources = append(resources, newresources...)
 		}
 	}
-	return resources
+	return removeDuplicateResources(resources)
 }
 
 func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *configs.VirtualServerEx, svcNamespace, serviceName string) bool {
@@ -4331,6 +4350,7 @@ func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyVal
 		IsPlus:           lbc.isNginxPlus,
 		EnableOIDC:       lbc.enableOIDC,
 		EnableAppProtect: lbc.appProtectEnabled,
+		PageSize:         os.Getpagesize(),
 	}
 	if lbc.configuration != nil {
 		cfg.EnableSnippets = lbc.configuration.snippetsEnabled

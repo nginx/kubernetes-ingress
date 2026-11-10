@@ -2757,7 +2757,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `connectionLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
 		errors.New("policy nginx-ingress/some-policy doesn't exist"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
@@ -2847,7 +2847,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `connectionLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -7982,5 +7982,185 @@ func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
 	}
 	if lbc.virtualServerRequiresEndpointsUpdate(vsEx, "other", "cm-acme-http-solver-abcde") {
 		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
+	}
+}
+
+func TestFindResourcesUsingPolicyScaling(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	for _, policy := range []*conf_v1.Policy{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10, Scale: true}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "unscaled-cl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10}},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "scaled-rl", Namespace: "default"},
+			Spec:       conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{Rate: "10r/s", Key: "${binary_remote_addr}", ZoneSize: "10M", Scale: true}},
+		},
+	} {
+		if err := store.Add(policy); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	configuration := createTestConfiguration()
+	for name, policies := range map[string][]string{
+		"vs-scaled-cl":   {"scaled-cl"},
+		"vs-unscaled-cl": {"unscaled-cl"},
+		"vs-scaled-rl":   {"scaled-rl"},
+		"vs-scaled-both": {"scaled-cl", "scaled-rl"},
+	} {
+		vs := createTestVirtualServer(name, name+".example.com")
+		for _, policy := range policies {
+			vs.Spec.Policies = append(vs.Spec.Policies, conf_v1.PolicyReference{Name: policy})
+		}
+		configuration.AddOrUpdateVirtualServer(vs)
+	}
+
+	ing := createTestIngress("ing-scaled-cl", "ing-scaled-cl.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "scaled-cl"
+	configuration.AddOrUpdateIngress(ing)
+
+	ing = createTestIngress("ing-unscaled-cl", "ing-unscaled-cl.example.com")
+	ing.Annotations[configs.PoliciesAnnotation] = "unscaled-cl"
+	configuration.AddOrUpdateIngress(ing)
+
+	// A minion that references a scaled Policy makes its master's configuration need an update.
+	configuration.AddOrUpdateIngress(createTestIngressMaster("master", "master.example.com"))
+	minion := createTestIngressMinion("minion-scaled-cl", "master.example.com", "/coffee")
+	minion.Annotations[configs.PoliciesAnnotation] = "scaled-cl"
+	configuration.AddOrUpdateIngress(minion)
+
+	lbc := &LoadBalancerController{
+		configuration:       configuration,
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": {policyLister: store}}),
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	var got []string
+	for _, r := range lbc.findResourcesUsingPolicyScaling() {
+		got = append(got, r.GetKeyWithKind())
+	}
+	sort.Strings(got)
+	want := []string{
+		"Ingress/default/ing-scaled-cl",
+		"Ingress/default/master",
+		"VirtualServer/default/vs-scaled-both",
+		"VirtualServer/default/vs-scaled-cl",
+		"VirtualServer/default/vs-scaled-rl",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("findResourcesUsingPolicyScaling() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateNumberOfIngressControllerReplicasReportsScaleWarnings(t *testing.T) {
+	t.Parallel()
+
+	lbc, confClient := newVSRStatusTestLBC(t)
+	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	lbc.getNamespacedInformer("default").policyLister = policies
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
+			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}},
+	}
+	if err := policies.Add(pol); err != nil {
+		t.Fatal(err)
+	}
+	lbc.configuration.AddOrUpdatePolicy(pol)
+	vs := createTestVirtualServer("cafe", "cafe.example.com")
+	vs.Spec.Policies = []conf_v1.PolicyReference{{Name: "cl"}}
+	addVSStatusTest(t, lbc, confClient, vs, nil, nil)
+
+	for _, tc := range []struct {
+		replicas    int
+		wantState   string
+		wantWarning bool
+	}{
+		{replicas: 3, wantState: conf_v1.StateWarning, wantWarning: true},
+		{replicas: 2, wantState: conf_v1.StateValid},
+	} {
+		var slice discovery_v1.EndpointSlice
+		for range tc.replicas {
+			slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
+		}
+		lbc.updateNumberOfIngressControllerReplicas(slice)
+
+		got, err := confClient.K8sV1().VirtualServers("default").Get(context.Background(), "cafe", meta_v1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		hasWarning := strings.Contains(got.Status.Message, "scaling 2 connections across 3 replicas")
+		if got.Status.State != tc.wantState || hasWarning != tc.wantWarning {
+			t.Errorf("replicas=%d: got state %q, message %q; want state %q, warning %v", tc.replicas, got.Status.State, got.Status.Message, tc.wantState, tc.wantWarning)
+		}
+		// The status updater compares the new status with the informer copy.
+		if err := lbc.getNamespacedInformer("default").virtualServerLister.Update(got); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestUpdateNumberOfIngressControllerReplicasRegeneratesEachIngressOnce(t *testing.T) {
+	t.Parallel()
+
+	policies := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cl", Namespace: "default"},
+		Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{
+			Connections: 2, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}},
+	}
+	if err := policies.Add(pol); err != nil {
+		t.Fatal(err)
+	}
+
+	configuration := createTestConfiguration()
+	configuration.AddOrUpdatePolicy(pol)
+	// The RateLimit scale annotation already regenerates this Ingress, so its Policy must not regenerate it again.
+	both := createTestIngress("both", "both.example.com")
+	both.Annotations["nginx.org/limit-req-rate"] = "10r/s"
+	both.Annotations["nginx.org/limit-req-scale"] = "true"
+	both.Annotations[configs.PoliciesAnnotation] = "cl"
+	configuration.AddOrUpdateIngress(both)
+	policyOnly := createTestIngress("policy-only", "policy-only.example.com")
+	policyOnly.Annotations[configs.PoliciesAnnotation] = "cl"
+	configuration.AddOrUpdateIngress(policyOnly)
+
+	manager := newTestNginxManager()
+	recorder := record.NewFakeRecorder(10)
+	lbc := &LoadBalancerController{
+		configuration:             configuration,
+		configurator:              createTestPolicySyncConfigurator(t, manager),
+		recorder:                  recorder,
+		namespacedInformers:       registryFrom(map[string]*namespacedInformer{"default": {policyLister: policies}}),
+		areCustomResourcesEnabled: true,
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	var slice discovery_v1.EndpointSlice
+	for range 3 {
+		slice.Endpoints = append(slice.Endpoints, discovery_v1.Endpoint{Conditions: discovery_v1.EndpointConditions{Ready: new(true)}})
+	}
+	lbc.updateNumberOfIngressControllerReplicas(slice)
+
+	// Each Ingress update also rewrites the default server.
+	written := slices.DeleteFunc(manager.CreatedConfigNames, func(name string) bool { return name == "_default-server" })
+	if diff := cmp.Diff([]string{"default-both", "default-policy-only"}, written); diff != "" {
+		t.Errorf("configs written on replica change mismatch (-want +got):\n%s", diff)
+	}
+	// Only the Policy path reports events, so the Ingress without the annotation gets the new scale warning.
+	if len(recorder.Events) != 1 {
+		t.Fatalf("want 1 event, got %d", len(recorder.Events))
+	}
+	if event := <-recorder.Events; !strings.Contains(event, "default/policy-only") || !strings.Contains(event, "scaling 2 connections across 3 replicas") {
+		t.Errorf("want a scale warning event for default/policy-only, got %q", event)
 	}
 }

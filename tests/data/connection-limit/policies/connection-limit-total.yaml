@@ -1,0 +1,9 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: connection-limit-total
+spec:
+  connectionLimit:
+    key: total
+    connections: 1
+    rejectCode: 429
