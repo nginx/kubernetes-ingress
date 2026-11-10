@@ -67,13 +67,17 @@ Each layer has a strict ownership boundary. Identify the correct layer before pl
 | --- | --- | --- |
 | Data model | `pkg/apis/configuration/v1/` | CRD struct definitions, generated DeepCopy |
 | Validation | `pkg/apis/configuration/validation/`, `internal/k8s/validation.go` | CRD field validation (kubebuilder markers), Ingress annotation validation |
-| Controller | `internal/k8s/` | Event handling, in-memory state, secret resolution, sync handlers, status updates |
-| Config generation | `internal/configs/`, `version1/`, `version2/` | Extended resource → NGINX config struct → template render → file write |
+| Controller | `internal/k8s/` (except `configuration.go`) | Event handling, sync queue, listers, secret resolution, sync handlers, status updates |
+| In-memory state | `internal/k8s/configuration.go` (`Configuration`) | Current resource set, host/listener ownership, collision winners; returns `[]ResourceChange` |
+| Config generation | `internal/configs/` (non-template) | Extended resource → template struct: defaults, precedence, merging, derived values; file write |
+| Templates | `version1/`, `version2/` (`*.tmpl`, `template_helper.go`) | Rendering already-computed template-struct fields into NGINX text |
 | Process management | `internal/nginx/` | NGINX process lifecycle, reload, rollback |
 
 **Layer crossing rules — violations cause architectural drift:**
 
-- Config generation (`internal/configs/`) must NOT call the k8s API or access `SecretStore` directly — it receives pre-resolved role-qualified `SecretReference` via extended resources. Controller-side WAF bundle resolution and the dedicated PLM `KubeClientSecretSource` are explicit exceptions to the normal extended-resource flow.
+- Config generation (`internal/configs/`) must NOT call the k8s API, touch informers, listers or the sync queue, or access `SecretStore` directly — it receives pre-resolved role-qualified `SecretReference` via extended resources. Controller-side WAF bundle resolution and the dedicated PLM `KubeClientSecretSource` are explicit exceptions to the normal extended-resource flow. `ParseConfigMap` / `ParseMGMTConfigMap` (`configmaps.go`) take a `record.EventRecorder` to report invalid ConfigMap keys; that is also accepted.
+- Templates must only render values already computed in Go (`if` / `range` / `with` over template-struct fields). Defaults, precedence, merging, validation and derived values belong in `internal/configs/` or a pure, unit-tested helper in `template_helper.go`. Logic written in a template is duplicated across the OSS and Plus files and drifts.
+- `Configuration` (`configuration.go`) must NOT enqueue tasks, read listers or call the k8s API. It takes objects and returns `[]ResourceChange` / `[]ConfigurationProblem`; the controller decides what to sync.
 - Controller (`internal/k8s/`) must NOT generate NGINX config text or render templates.
 - Data model (`types.go`) must NOT import `internal/configs` or `internal/k8s`.
 - Validation layer must NOT trigger NGINX reloads or update k8s status.

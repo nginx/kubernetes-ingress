@@ -27,6 +27,7 @@ description: 'Task planning and approach strategy for NIC. Use when starting any
    - Codegen: Never edit `zz_generated.deepcopy.go` manually
    - Templates: Update BOTH OSS and Plus variants for shared directives; Plus-only directives go in the Plus template only
    - CRD fields: Every new field needs kubebuilder markers + validation + template + tests
+   - Eventual consistency: config depends only on current cluster state, not on event order; a new cross-resource reference needs a reverse lookup and a test where the referenced object arrives last
 6. **Identify test surface** — What tests need adding or updating?
    - Unit tests for validation logic
    - Negative tests for input rejection (security)

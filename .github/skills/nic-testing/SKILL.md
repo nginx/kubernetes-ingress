@@ -153,6 +153,18 @@ func TestVirtualServerForNginx(t *testing.T) {
 
 ---
 
+## Order-independence tests
+
+Config must depend only on the current cluster state, not on the order events are processed (see Eventual consistency in `AGENTS.md`). Cover it whenever you add a cross-resource reference or change `internal/k8s/configuration.go`:
+
+- **Both orders converge.** Build the same objects in two fresh `createTestConfiguration()` instances, apply them in opposite orders (referrer first vs referenced object first), and `cmp.Diff` the resulting state or generated config. Pin `CreationTimestamp` and `UID` on every object so only the processing order varies.
+- **Add then delete returns to baseline.** Add an object, delete it, and compare with a configuration that never saw it.
+- **Late referent heals.** The referrer is first processed with the referenced object missing (expect a warning, not a permanent error), then re-synced once the object appears.
+
+Examples: `TestHostlessVSR_ReverseIndexDeterminism`, `TestAddIngressEmptyHostOldestWinsAndPromotesOnDelete`, `TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing`.
+
+---
+
 ## Helm Tests
 
 Location: `charts/tests/`

@@ -141,11 +141,13 @@ These recur in NIC. The verdict is settled -- do not re-litigate it per PR.
 | New pytest marker missing from `pyproject.toml` | Blocking -- `--strict-markers` fails the entire suite, not just the new test |
 | `values.yaml` value's **type or shape changed** without updating `values.schema.json` | Blocking -- schema validation rejects the render and `helm install` fails |
 | **New** `values.yaml` key absent from `values.schema.json` | Non-blocking -- the root schema has no `additionalProperties: false`, so it installs but gets no validation. Blocking only under `hostPort`/`containerPort`, which do set it |
+| Logic in the wrong layer: decision logic (defaults, precedence, merging, validation, derived values) in a `.tmpl`; informer/lister/queue/API access from `internal/configs/` or `Configuration`; NGINX config text built in `internal/k8s/` | Blocking -- template logic drifts between OSS and Plus and is only covered by snapshots; leaked access breaks layer isolation and eventual consistency |
 | Plus credentials via `COPY` instead of `--secret` | Blocking -- credential persists in the image layer |
 | GitHub Action pinned to a tag or branch instead of a SHA | Blocking -- supply chain |
 | New workflow job missing its `github.repository` gate | Blocking -- `validate-workflow-gating.sh` fails and the job would run on forks |
 | `docker build` step added to a publish-stage workflow | Blocking -- violates the internal/public repo split |
 | User-controlled string reaching NGINX config with no `containsDangerousChars()`/`ValidateEscapedString()` guard | Blocking -- injection |
+| Generated NGINX config depends on event/apply order (new cross-resource reference with no reverse lookup, handler acting on an event payload or per-event state, unsorted map iteration reaching config, conflict resolved by arrival order instead of `chooseObjectMetaWinner()`) | Blocking -- config diverges between orders or after a controller restart |
 | Security or validation path changed with no negative test | Blocking |
 | Error not wrapped with `%w` | Non-blocking -- **unless** a caller uses `errors.Is`/`errors.As` on it, then Blocking |
 | `//nolint:gosec` without a same-line justification | Non-blocking |
@@ -181,6 +183,7 @@ Before producing output, confirm you have checked each row that the diff touches
 | Imports / dependencies | `go.mod` and `go.sum` tidy |
 | `.github/workflows/**` | Correct `github.repository` gate for the stage (internal repo builds, public repo publishes), pinned action SHAs, matrix JSON in sync |
 | A new user-controlled string reaching NGINX config | A `containsDangerousChars()` / `ValidateEscapedString()` guard **and** a negative test |
+| A new reference from one resource to another (field, annotation, policy, secret, service) | A reverse lookup (`FindResourcesFor*` / `resourceReferenceChecker`) that re-syncs the referrer, **and** a test where the referenced object is added after the referrer (see `nic-testing`, "Order-independence tests") |
 
 An unmet row is Blocking unless the Fixed verdicts table above assigns it a lower severity, or (when reviewing a single PR in a stack) the missing layer is intentionally split into a sibling PR in the stack. Cite the missing artifact by path.
 
