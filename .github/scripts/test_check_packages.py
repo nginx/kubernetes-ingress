@@ -279,5 +279,70 @@ class TestConfigParsing(unittest.TestCase):
         self.assertEqual(nic_img.platforms, ["linux/amd64", "linux/arm64"])
 
 
+class TestReleasedImages(unittest.TestCase):
+    REPO_ROOT = str(SCRIPT_DIR.parent.parent)
+
+    def test_split_image_ref_maps_push_hosts_to_pull_hosts(self):
+        self.assertEqual(
+            cp.split_image_ref("docker-mgmt.nginx.com/nginx-ic/nginx-plus-ingress:5.7.0-ubi"),
+            ("private-registry.nginx.com", "nginx-ic/nginx-plus-ingress", "5.7.0-ubi"),
+        )
+        self.assertEqual(
+            cp.split_image_ref("docker.io/nginx/nginx-ingress:5.7.0"),
+            ("registry-1.docker.io", "nginx/nginx-ingress", "5.7.0"),
+        )
+        self.assertEqual(
+            cp.split_image_ref("quay.io/nginx/nginx-ingress:5.7.0"), ("quay.io", "nginx/nginx-ingress", "5.7.0")
+        )
+
+    def test_production_refs_follow_copy_images_configs(self):
+        refs = cp.released_image_refs(self.REPO_ROOT, "production", "1.2.3")
+        self.assertIn("docker.io/nginx/nginx-ingress:1.2.3-alpine", refs)
+        self.assertIn("ghcr.io/nginx/kubernetes-ingress:1.2.3-ubi", refs)
+        self.assertIn("docker-mgmt.nginx.com/nginx-ic-nap-dos/nginx-plus-ingress:1.2.3-ubi-agent", refs)
+        self.assertFalse(any("/release/" in r for r in refs), "gcr.io release registry needs GCP auth")
+        self.assertEqual(len(refs), len(set(refs)))
+
+    def test_staging_uses_the_nap_dos_name_publish_reads(self):
+        refs = cp.released_image_refs(self.REPO_ROOT, "staging", "1.2.3")
+        self.assertIn("docker-mgmt-test.nginx.com/nginx-ic-nap-dos/nginx-plus-ingress:1.2.3", refs)
+        self.assertFalse(any("nginx-ic-dos-nap" in r for r in refs))
+        self.assertIn("docker-mgmt-test.nginx.com/nginx-ic/nginx-ingress:1.2.3", refs)
+
+    def test_platforms_per_image(self):
+        deps = {d.name: d for d in cp.released_dependencies(self.REPO_ROOT, "production", "1.2.3", "4.5.6")}
+        self.assertEqual(
+            deps["private-registry.nginx.com/nginx-ic-nap/nginx-plus-ingress:1.2.3"].platforms, ["linux/amd64"]
+        )
+        self.assertEqual(
+            deps["private-registry.nginx.com/nginx-ic/nginx-plus-ingress:1.2.3"].platforms,
+            ["linux/amd64", "linux/arm64"],
+        )
+        self.assertEqual(deps["ghcr.io/nginx/charts/nginx-ingress:4.5.6"].platforms, [])
+
+    def test_jwt_only_sent_to_nginx_registries(self):
+        sent = {}
+
+        def fake_get(host, path, cert_file, key_file, headers=None, max_redirects=5):
+            sent[host] = headers
+            return 200, {}, b'{"token": "t"}'
+
+        orig = cp._http_get
+        cp._http_get = fake_get
+        try:
+            cp._bearer_token("ghcr.io", 'Bearer realm="https://ghcr.io/token"', None, None, jwt="secret")
+            cp._bearer_token(
+                "private-registry.nginx.com",
+                'Bearer realm="https://private-registry.nginx.com/_token"',
+                None,
+                None,
+                "secret",
+            )
+        finally:
+            cp._http_get = orig
+        self.assertNotIn("Authorization", sent["ghcr.io"])
+        self.assertIn("Authorization", sent["private-registry.nginx.com"])
+
+
 if __name__ == "__main__":
     unittest.main()

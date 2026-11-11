@@ -265,7 +265,9 @@ def _bearer_token(host, challenge, cert_file, key_file, jwt=None):
     query = urllib.parse.urlencode({k: v for k, v in params.items() if v})
     path = parts.path + ("?" + query if query else "")
     headers = {}
-    if jwt and parts.netloc == host:
+    # Same-host alone is not enough: ghcr.io, quay.io and public.ecr.aws also
+    # serve their realm from the registry host, and must never see our JWT.
+    if jwt and parts.netloc == host and host.endswith(".nginx.com"):
         basic = base64.b64encode(f"{jwt}:any".encode()).decode()
         headers["Authorization"] = f"Basic {basic}"
     status, _headers, body = _http_get(parts.netloc, path, cert_file, key_file, headers)
@@ -910,13 +912,14 @@ def load_config(path, matrix_dir=None):
     return deps
 
 
-def evaluate_image(dep, cert_file, key_file, jwt=None):
+def evaluate_image(dep, cert_file, key_file, jwt=None, check_current=True):
     """Apply EXISTS / COMPLETE / CURRENT to a container image tag.
 
     COMPLETE means the manifest list advertises every required platform. There
     is no OS/arch matrix for images, so they are excluded from that report.
+    check_current=False skips the tag listing, the slow part on big repositories.
     """
-    tags = fetch_image_tags(dep.host, dep.uri, cert_file, key_file, jwt)
+    tags = fetch_image_tags(dep.host, dep.uri, cert_file, key_file, jwt) if check_current else []
     dep.newest = tags[-1] if tags else None
 
     if dep.declared is None:
@@ -933,7 +936,9 @@ def evaluate_image(dep, cert_file, key_file, jwt=None):
             dep.detail = f"{dep.declared} not published yet (newest is {dep.newest or 'nothing'}), not gated"
             return
         dep.status = STATUS_MISSING
-        dep.detail = f"{dep.declared} not published (newest is {dep.newest or 'nothing'})"
+        dep.detail = f"{dep.declared} not published"
+        if check_current:
+            dep.detail += f" (newest is {dep.newest or 'nothing'})"
         return
 
     dep.resolved = dep.declared
@@ -1327,9 +1332,155 @@ def print_os_matrix(deps, distro_versions, os_filter=None, title=None):
     print_table(headers, table_rows)
 
 
+# --released: where each release stage pushes NIC itself. Image lists come from
+# the same .github/config files copy-images.sh publishes with, so a new variant
+# added there is checked here without touching this file. gcr.io release, ECR
+# and marketplace targets are left out: they need cloud credentials to read.
+RELEASE_IMAGE_CONFIGS = {
+    "production": [
+        ("config-oss-dockerhub", {}),
+        ("config-oss-ecr", {}),
+        ("config-oss-quay", {}),
+        ("config-oss-github", {}),
+        ("config-plus-nginx", {}),
+    ],
+    # Same override plus-release.yml applies when it reads the staged images
+    # back: the combined WAF+DoS image is staged as nginx-ic-nap-dos, not the
+    # nginx-ic-dos-nap default config-prep-nginx-test leaves in place.
+    "staging": [
+        ("config-prep-nginx-test", {"TARGET_NAP_WAF_DOS_IMAGE_PREFIX": "nginx-ic-nap-dos/nginx-plus-ingress"}),
+    ],
+}
+RELEASE_CHARTS = {
+    "production": [("ghcr.io", "nginx/charts/nginx-ingress"), (DOCKER_HUB_HOST, "nginxcharts/nginx-ingress")],
+    "staging": [(STAGING_REGISTRY, "nginx-ic/helm/nginx-ingress")],
+}
+# copy-images.sh pushes through the management hosts; customers pull the same
+# repositories from these, which is also where the JWT works.
+PULL_HOSTS = {
+    "docker.io": DOCKER_HUB_HOST,
+    "docker-mgmt.nginx.com": "private-registry.nginx.com",
+    "docker-mgmt-test.nginx.com": STAGING_REGISTRY,
+}
+# NAP and DoS images are built for amd64 only (matrix-images-nap.json).
+AMD64_ONLY_RE = re.compile(r"(^|/)nginx-ic-(nap|dos)")
+PUSH_LINE_RE = re.compile(r"Pushing image .* (\S+)\.\.\.$")
+
+
+def read_version_file(path):
+    """Return the KEY=VALUE pairs from .github/data/version.txt."""
+    values = {}
+    with open(path) as f:
+        for line in f:
+            key, sep, value = line.strip().partition("=")
+            if sep:
+                values[key] = value
+    return values
+
+
+def released_image_refs(repo_root, environment, version):
+    """List host/repository:tag for every NIC image a release pushes.
+
+    Runs copy-images.sh in DRY_RUN mode against each config and reads back the
+    targets it would push, so this cannot drift from what the release does.
+    """
+    import subprocess
+
+    refs = []
+    for name, overrides in RELEASE_IMAGE_CONFIGS[environment]:
+        env = {k: v for k, v in os.environ.items() if k != "CI"}  # CI swaps skopeo for docker run
+        env.update(
+            CONFIG_PATH=os.path.join(repo_root, ".github/config", name),
+            DRY_RUN="true",
+            SOURCE_TAG=version,
+            TARGET_TAG=version,
+            **overrides,
+        )
+        out = subprocess.run(
+            ["bash", os.path.join(repo_root, ".github/scripts/copy-images.sh")],
+            env=env,
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        refs.extend(m.group(1) for m in map(PUSH_LINE_RE.search, out.splitlines()) if m)
+    return list(dict.fromkeys(refs))
+
+
+def split_image_ref(ref):
+    """Split host/repository:tag, mapping push hosts to the hosts customers pull from."""
+    name, _, tag = ref.rpartition(":")
+    host, _, repository = name.partition("/")
+    return PULL_HOSTS.get(host, host), repository, tag
+
+
+def released_dependencies(repo_root, environment, version, chart_version):
+    deps = []
+    for ref in released_image_refs(repo_root, environment, version):
+        host, repository, tag = split_image_ref(ref)
+        platforms = "linux/amd64" if AMD64_ONLY_RE.search(repository) else "linux/amd64, linux/arm64"
+        dep = Dependency(
+            f"{host}/{repository}:{tag}", {"kind": KIND_IMAGE, "host": host, "uri": repository, "platforms": platforms}
+        )
+        dep.declared = tag
+        deps.append(dep)
+    for host, repository in RELEASE_CHARTS[environment]:
+        dep = Dependency(f"{host}/{repository}:{chart_version}", {"kind": KIND_IMAGE, "host": host, "uri": repository})
+        dep.declared = chart_version
+        deps.append(dep)
+    return deps
+
+
+def run_released(args):
+    """Check that every NIC image and chart of a release is published.
+
+    Reads only manifests -- one small JSON document per tag -- so nothing is
+    pulled, and runs the lookups in parallel.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    versions = read_version_file(os.path.join(args.repo_root, ".github/data/version.txt"))
+    version = args.released or versions["IC_VERSION"]
+    chart_version = args.chart_version or versions["HELM_CHART_VERSION"]
+    environment = "staging" if args.staging else "production"
+    deps = released_dependencies(args.repo_root, environment, version, chart_version)
+    jwt = load_registry_jwt(args.jwt)
+
+    print(f"Release:      NIC {version}, chart {chart_version}")
+    print(f"Environment:  {environment}")
+    if jwt is None and any(d.host.endswith(".nginx.com") for d in deps):
+        print(paint(f"Warning: '{args.jwt}' is missing -- NGINX registry checks will get HTTP 401.", YELLOW))
+
+    def check(dep):
+        try:
+            evaluate_image(dep, args.cert, args.key, jwt, check_current=False)
+        except Exception as e:  # a failed lookup is a failed check
+            dep.status = STATUS_ERROR
+            dep.detail = str(e)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(check, deps))
+
+    print_image_results(deps)
+    print()
+    print_details([d for d in deps if d.status != STATUS_OK])
+
+    blocking = [d for d in deps if d.status in BLOCKING]
+    print()
+    if blocking:
+        print(paint(f"FAIL: {len(blocking)} of {len(deps)} release artifact(s) missing or incomplete", f"{BOLD};{RED}"))
+        return 1
+    print(paint(f"PASS: all {len(deps)} release artifacts published", f"{BOLD};{GREEN}"))
+    return 0
+
+
 def run(args):
     global _COLOR
     _COLOR = should_color(args.color)
+
+    if args.released is not None:
+        return run_released(args)
 
     deps = load_config(args.config, matrix_dir=getattr(args, "matrix_dir", None))
 
@@ -1567,6 +1718,20 @@ def main():
         "--all-hosts",
         metavar="HOST",
         help="Check every dependency against this host. Mutually exclusive with --staging.",
+    )
+    parser.add_argument(
+        "--released",
+        nargs="?",
+        const="",
+        metavar="VERSION",
+        help="Instead of dependencies, check that every NIC image and Helm chart of a release "
+        "is published, by manifest only (nothing is pulled). VERSION defaults to IC_VERSION "
+        "in .github/data/version.txt. Production by default; add --staging for the "
+        "release-prep registries",
+    )
+    parser.add_argument(
+        "--chart-version",
+        help="Chart version for --released (default: HELM_CHART_VERSION in .github/data/version.txt)",
     )
     parser.add_argument("--strict", action="store_true", help="Also fail when a newer version is available")
     parser.add_argument(

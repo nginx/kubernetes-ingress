@@ -27,6 +27,14 @@
 #
 #   # Show extended OS availability matrix:
 #   ./.github/scripts/dependency-check.sh --group oss --matrix
+#
+#   # Check every NIC image and chart of a release is published (manifests only,
+#   # nothing pulled). Version defaults to .github/data/version.txt:
+#   ./.github/scripts/dependency-check.sh --released
+#   ./.github/scripts/dependency-check.sh --released 5.7.1 --chart-version 2.7.1
+#
+#   # Same, against the release-prep staging registries:
+#   ./.github/scripts/dependency-check.sh --released --staging
 
 set -euo pipefail
 
