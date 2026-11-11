@@ -126,7 +126,7 @@ spec:
     spec:
       containers:
       - name: pebble-challtestsrv
-        image: ghcr.io/letsencrypt/pebble-challtestsrv:2.10.1@sha256:12ce21884def456bcf9786542113949e1f19dc7738d2c70e156c2d0c38a1405b
+        image: ghcr.io/letsencrypt/pebble-challtestsrv:2.10.3@sha256:0152c8cb506e2ecba2900ed47d23932e27e3e6575a7d2c8ef93c7719ee3dea4c
         # DNS server only: every A query is answered with the NIC Service ClusterIP.
         # AAAA answers are disabled; Pebble dials the first address it resolves, AAAA first.
         args:
