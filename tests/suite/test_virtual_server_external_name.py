@@ -8,6 +8,7 @@ from suite.utils.custom_assertions import (
     wait_for_event_count_increases,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_deployment_with_name,
     create_namespace_with_name_from_yaml,
     create_service_from_yaml,
@@ -65,7 +66,7 @@ def vs_externalname_setup(
         virtual_server_setup.public_endpoint.port,
         virtual_server_setup.public_endpoint.port_ssl,
     )
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     ensure_response_from_backend(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
 
     def fin():
@@ -150,7 +151,7 @@ class TestVSWithExternalNameService:
 
         print("Step 2: Remove resolver from ConfigMap to trigger an error")
         config_map_name = ingress_controller_prerequisites.config_map["metadata"]["name"]
-        vs_event_warning_text = f"Configuration for {text} was added or updated ; with warning(s):"
+        vs_event_warning_text = f"Configuration for {text} was added or updated with warning(s):"
         replace_configmap(
             kube_apis.v1,
             config_map_name,

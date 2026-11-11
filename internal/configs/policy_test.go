@@ -3,7 +3,6 @@ package configs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -30,77 +29,62 @@ func TestGeneratePolicies(t *testing.T) {
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
-	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
 		tls:            true,
 		zoneSync:       false,
 		replicas:       2,
 		oidcPolicyName: "",
-		secretRefs: map[string]*secrets.SecretReference{
-			"default/ingress-mtls-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
-				},
-				Path: mTLSCertPath,
+		secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+				Secret: &api_v1.Secret{},
+				Path:   mTLSCertPath,
 			},
-			"default/ingress-mtls-secret-crl": {
+			secrets.RefKey("default/ingress-mtls-secret-crl", secrets.RoleCA): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
 					Data: map[string][]byte{
 						"ca.crl": []byte("base64crl"),
 					},
 				},
-				Path: mTLSCertAndCrlPath,
+				Path:    mTLSCertPath,
+				CRLPath: mTLSCrlPath,
 			},
-			"default/egress-mtls-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-egress-mtls-secret",
+			secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 			},
-			"default/egress-trusted-ca-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
-				},
-				Path: "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+			secrets.RefKey("default/egress-trusted-ca-secret", secrets.RoleCA): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-egress-trusted-ca-secret",
 			},
-			"default/egress-trusted-ca-secret-crl": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
-				},
-				Path: mTLSCertAndCrlPath,
+			secrets.RefKey("default/egress-trusted-ca-secret-crl", secrets.RoleCA): {
+				Secret:  &api_v1.Secret{},
+				Path:    mTLSCertPath,
+				CRLPath: mTLSCrlPath,
 			},
-			"default/jwt-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeJWK,
-				},
-				Path: "/etc/nginx/secrets/default-jwt-secret",
+			secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-jwt-secret",
 			},
-			"default/htpasswd-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeHtpasswd,
-				},
-				Path: "/etc/nginx/secrets/default-htpasswd-secret",
+			secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-htpasswd-secret",
 			},
-			"default/oidc-secret": {
+			secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("super_secret_123"),
 					},
 				},
 			},
-			"default/api-key-secret": {
+			secrets.RefKey("default/api-key-secret", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client1": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-2": {
+			secrets.RefKey("default/api-key-secret-2", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client2": []byte("password2"),
 					},
@@ -246,6 +230,138 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			msg: "rate limit reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "connection-limit-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/connection-limit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "connection-limit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						ConnectionLimit: &conf_v1.ConnectionLimit{
+							Connections: 10,
+							Key:         "total",
+							ZoneSize:    "10m",
+							RejectCode:  new(503),
+							LogLevel:    "error",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ConnectionLimit: connectionLimit{
+					Zones: []version2.LimitConnZone{
+						{
+							Key:      "total",
+							ZoneName: "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashTotal,
+							ZoneSize: "10m",
+						},
+					},
+					Conns: []version2.LimitConn{
+						{
+							ZoneName:    "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashTotal,
+							Connections: 10,
+						},
+					},
+					Options: version2.LimitConnOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+			},
+			msg: "connection limit reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "rateLimit-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "connection-limit-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/rateLimit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "rateLimit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						RateLimit: &conf_v1.RateLimit{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+						},
+					},
+				},
+				"default/connection-limit-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "connection-limit-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						ConnectionLimit: &conf_v1.ConnectionLimit{
+							Connections: 10,
+							Key:         "${binary_remote_addr}",
+							ZoneSize:    "10m",
+							RejectCode:  new(503),
+							LogLevel:    "error",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				RateLimit: rateLimit{
+					Reqs: []version2.LimitReq{
+						{
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+						},
+					},
+					Zones: []version2.LimitReqZone{
+						{
+							Key:      "test",
+							ZoneSize: "10M",
+							Rate:     "10r/s",
+							ZoneName: "pol_rl_default_rateLimit_policy_default_test_vs",
+						},
+					},
+					Options: version2.LimitReqOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+				ConnectionLimit: connectionLimit{
+					Zones: []version2.LimitConnZone{
+						{
+							Key:      "${binary_remote_addr}",
+							ZoneName: "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashBinaryRemoteAddr,
+							ZoneSize: "10m",
+						},
+					},
+					Conns: []version2.LimitConn{
+						{
+							ZoneName:    "pol_cl_default_connection-limit-policy_vs_default_test_" + clKeyHashBinaryRemoteAddr,
+							Connections: 10,
+						},
+					},
+					Options: version2.LimitConnOptions{
+						LogLevel:   "error",
+						RejectCode: 503,
+					},
+				},
+			},
+			msg: "rate limit and connection limit references",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2702,6 +2818,207 @@ func TestAddHSTSConfig_MultiplePolicy(t *testing.T) {
 	}
 }
 
+const (
+	clKeyHashBinaryRemoteAddr = "666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+	clKeyHashTotal            = "11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7"
+)
+
+func TestConnectionLimitZoneName(t *testing.T) {
+	t.Parallel()
+
+	vsCafe := policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerNamespace: "default", ownerName: "cafe"}
+	tests := []struct {
+		name       string
+		policyName string
+		owner      policyOwnerDetails
+		key        string
+		want       string
+	}{
+		{
+			name:       "VirtualServer",
+			policyName: "per-client",
+			owner:      vsCafe,
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_vs_default_cafe_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "constant key",
+			policyName: "downloads-total",
+			owner:      vsCafe,
+			key:        "total",
+			want:       "pol_cl_default_downloads-total_vs_default_cafe_" + clKeyHashTotal,
+		},
+		{
+			name:       "VirtualServerRoute",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerType: "vsr", ownerNamespace: "tea", ownerName: "tea-routes"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "VirtualServerRoute with the namespace and name of its VirtualServer",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerType: "vsr", ownerNamespace: "default", ownerName: "cafe"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "Ingress",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "ing", parentNamespace: "default", parentName: "cafe-master", ownerNamespace: "default", ownerName: "cafe-master"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_ing_default_cafe-master_" + clKeyHashBinaryRemoteAddr,
+		},
+		{
+			name:       "minion",
+			policyName: "per-client",
+			owner:      policyOwnerDetails{parentType: "ing", parentNamespace: "default", parentName: "cafe-master", ownerType: "ing", ownerNamespace: "coffee", ownerName: "coffee-minion"},
+			key:        "${binary_remote_addr}",
+			want:       "pol_cl_default_per-client_ing_default_cafe-master_ing_coffee_coffee-minion_" + clKeyHashBinaryRemoteAddr,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			policy := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: tc.policyName}}
+			if got := connectionLimitZoneName(policy, tc.owner, tc.key); got != tc.want {
+				t.Errorf("connectionLimitZoneName() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func connectionLimitPolicy(name string, cl conf_v1.ConnectionLimit) *conf_v1.Policy {
+	return &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: name},
+		Spec:       conf_v1.PolicySpec{ConnectionLimit: &cl},
+	}
+}
+
+var connectionLimitTestOwner = policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "cafe", ownerNamespace: "default", ownerName: "cafe"}
+
+func TestAddConnectionLimitConfig(t *testing.T) {
+	t.Parallel()
+
+	zone := "pol_cl_default_cl_vs_default_cafe_" + clKeyHashTotal
+	want := connectionLimit{
+		Zones:   []version2.LimitConnZone{{Key: "total", ZoneName: zone, ZoneSize: "1m"}},
+		Conns:   []version2.LimitConn{{ZoneName: zone, Connections: 10}},
+		Options: version2.LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+	}
+
+	cfg := newPoliciesConfig(nil)
+	cl := conf_v1.ConnectionLimit{Connections: 10, Key: "total", ZoneSize: "1m", RejectCode: new(429), LogLevel: "warn", DryRun: true}
+	res := cfg.addConnectionLimitConfig(connectionLimitPolicy("cl", cl), connectionLimitTestOwner, 0)
+	if diff := cmp.Diff(want, cfg.ConnectionLimit); diff != "" {
+		t.Errorf("addConnectionLimitConfig() mismatch (-want +got):\n%s", diff)
+	}
+	if len(res.warnings) != 0 || res.isError {
+		t.Errorf("addConnectionLimitConfig() returned warnings %v, isError %v", res.warnings, res.isError)
+	}
+}
+
+func TestAddConnectionLimitConfig_Scale(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		connections int
+		scale       bool
+		replicas    int
+		want        int
+		warnings    []string
+	}{
+		{name: "scale off", connections: 10, replicas: 3, want: 10},
+		{name: "unknown replica count", connections: 10, scale: true, replicas: 0, want: 10},
+		{name: "one replica", connections: 10, scale: true, replicas: 1, want: 10},
+		{name: "rounded down", connections: 10, scale: true, replicas: 3, want: 3},
+		{name: "one per replica", connections: 10, scale: true, replicas: 10, want: 1},
+		{
+			name: "clamped to one", connections: 2, scale: true, replicas: 3, want: 1,
+			warnings: []string{"ConnectionLimit policy default/cl: scaling 2 connections across 3 replicas gives less than one connection per replica; using 1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := newPoliciesConfig(nil)
+			policy := connectionLimitPolicy("cl", conf_v1.ConnectionLimit{Connections: tc.connections, Scale: tc.scale})
+			res := cfg.addConnectionLimitConfig(policy, connectionLimitTestOwner, tc.replicas)
+			if got := cfg.ConnectionLimit.Conns[0].Connections; got != tc.want {
+				t.Errorf("addConnectionLimitConfig() rendered %d connections, want %d", got, tc.want)
+			}
+			if diff := cmp.Diff(tc.warnings, res.warnings); diff != "" {
+				t.Errorf("addConnectionLimitConfig() warnings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestAddConnectionLimitConfig_BlockOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		second   conf_v1.ConnectionLimit
+		warnings []string
+	}{
+		{
+			name:   "same options",
+			second: conf_v1.ConnectionLimit{Connections: 20, Key: "total", LogLevel: "error", RejectCode: new(503)},
+		},
+		{
+			name:   "different options",
+			second: conf_v1.ConnectionLimit{Connections: 20, Key: "total", DryRun: true, LogLevel: "warn", RejectCode: new(429)},
+			warnings: []string{
+				"ConnectionLimit policy default/second with limit connection option dryRun='true' is overridden to dryRun='false' by the first policy reference in this context",
+				"ConnectionLimit policy default/second with limit connection option logLevel='warn' is overridden to logLevel='error' by the first policy reference in this context",
+				"ConnectionLimit policy default/second with limit connection option rejectCode='429' is overridden to rejectCode='503' by the first policy reference in this context",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := newPoliciesConfig(nil)
+			first := conf_v1.ConnectionLimit{Connections: 10, LogLevel: "error", RejectCode: new(503)}
+			cfg.addConnectionLimitConfig(connectionLimitPolicy("first", first), connectionLimitTestOwner, 0)
+			res := cfg.addConnectionLimitConfig(connectionLimitPolicy("second", tc.second), connectionLimitTestOwner, 0)
+
+			if diff := cmp.Diff(tc.warnings, res.warnings); diff != "" {
+				t.Errorf("addConnectionLimitConfig() warnings mismatch (-want +got):\n%s", diff)
+			}
+			if want := (version2.LimitConnOptions{LogLevel: "error", RejectCode: 503}); cfg.ConnectionLimit.Options != want {
+				t.Errorf("block options = %+v, want the first Policy's %+v", cfg.ConnectionLimit.Options, want)
+			}
+			if len(cfg.ConnectionLimit.Conns) != 2 || len(cfg.ConnectionLimit.Zones) != 2 {
+				t.Errorf("got %d limits and %d zones, want 2 of each", len(cfg.ConnectionLimit.Conns), len(cfg.ConnectionLimit.Zones))
+			}
+		})
+	}
+}
+
+func TestAddConnectionLimitConfig_ZoneNameFollowsKey(t *testing.T) {
+	t.Parallel()
+
+	zoneName := func(cl conf_v1.ConnectionLimit) string {
+		cfg := newPoliciesConfig(nil)
+		cfg.addConnectionLimitConfig(connectionLimitPolicy("cl", cl), connectionLimitTestOwner, 0)
+		return cfg.ConnectionLimit.Zones[0].ZoneName
+	}
+
+	base := zoneName(conf_v1.ConnectionLimit{Connections: 10, Key: "total", ZoneSize: "1m"})
+	if got := zoneName(conf_v1.ConnectionLimit{Connections: 10, Key: "total", ZoneSize: "2m"}); got != base {
+		t.Errorf("a zone size change renamed the zone to %q, want %q", got, base)
+	}
+	if got := zoneName(conf_v1.ConnectionLimit{Connections: 10, Key: "total-2", ZoneSize: "1m"}); got == base {
+		t.Errorf("a key change kept the zone name %q", got)
+	}
+}
+
 func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	t.Parallel()
 
@@ -3053,12 +3370,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/jwt-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3073,6 +3388,48 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "jwt reference missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "jwt-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test",
+							Secret: "jwt-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; jwt-secret-2 has no map entry
+					secrets.RefKey("default/jwt-secret-1", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`JWT policy default/jwt-policy-2 references a secret default/jwt-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "jwt earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3096,25 +3453,23 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/jwt-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-jwt-secret",
 					},
 				},
 			},
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Secret: "/etc/nginx/secrets/default-jwt-secret",
+						Realm:  "test",
+					},
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`JWT policy default/jwt-policy references a secret default/jwt-secret of a wrong type 'nginx.org/ca', must be 'nginx.org/jwk'`,
-				},
-			},
-			msg: "jwt references wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "jwt secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3154,18 +3509,14 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/jwt-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
-						},
-						Path: "/etc/nginx/secrets/default-jwt-secret",
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-jwt-secret",
 					},
-					"default/jwt-secret2": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
-						},
-						Path: "/etc/nginx/secrets/default-jwt-secret2",
+					secrets.RefKey("default/jwt-secret2", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-jwt-secret2",
 					},
 				},
 			},
@@ -3207,12 +3558,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/htpasswd-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeHtpasswd,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3227,6 +3576,48 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "basic auth reference missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "basic-auth-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/basic-auth-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "basic-auth-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test",
+							Secret: "htpasswd-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; htpasswd-secret-2 has no map entry
+					secrets.RefKey("default/htpasswd-secret-1", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Basic Auth policy default/basic-auth-policy-2 references a secret default/htpasswd-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "basic auth earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3250,25 +3641,21 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/htpasswd-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-htpasswd-secret",
 					},
 				},
 			},
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				BasicAuth: &version2.BasicAuth{
+					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
+					Realm:  "test",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`Basic Auth policy default/basic-auth-policy references a secret default/htpasswd-secret of a wrong type 'nginx.org/ca', must be 'nginx.org/htpasswd'`,
-				},
-			},
-			msg: "basic auth references wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "basic auth secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3308,18 +3695,14 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/htpasswd-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeHtpasswd,
-						},
-						Path: "/etc/nginx/secrets/default-htpasswd-secret",
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-htpasswd-secret",
 					},
-					"default/htpasswd-secret2": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeHtpasswd,
-						},
-						Path: "/etc/nginx/secrets/default-htpasswd-secret2",
+					secrets.RefKey("default/htpasswd-secret2", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-htpasswd-secret2",
 					},
 				},
 			},
@@ -3359,8 +3742,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
 						Error: errors.New("secret is invalid"),
 					},
 				},
@@ -3373,7 +3756,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`IngressMTLS policy "default/ingress-mtls-policy" references an invalid secret default/ingress-mtls-secret: secret is invalid`,
+					`IngressMTLS policy default/ingress-mtls-policy references an invalid secret default/ingress-mtls-secret: secret is invalid`,
 				},
 			},
 			msg: "ingress mtls reference an invalid secret",
@@ -3400,26 +3783,23 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
 			context: "spec",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				IngressMTLS: &version2.IngressMTLS{
+					ClientCert:   ingressMTLSCertPath,
+					VerifyClient: "on",
+					VerifyDepth:  1,
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`IngressMTLS policy default/ingress-mtls-policy references a secret default/ingress-mtls-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/ca'`,
-				},
-			},
-			msg: "ingress mtls references wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "ingress mtls secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3454,12 +3834,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Path: ingressMTLSCertPath,
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
@@ -3501,12 +3879,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Path: ingressMTLSCertPath,
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
@@ -3581,12 +3957,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: false,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Path: ingressMTLSCertPath,
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
@@ -3626,15 +4000,15 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
 							Data: map[string][]byte{
 								"ca.crl": []byte("base64crl"),
 							},
 						},
-						Path: ingressMTLSCertPath,
+						Path:    ingressMTLSCertPath,
+						CRLPath: ingressMTLSCrlPath,
 					},
 				},
 			},
@@ -3678,7 +4052,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls:        true,
-				secretRefs: map[string]*secrets.SecretReference{},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			context: "spec",
 			expected: policiesCfg{
@@ -3688,7 +4062,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`IngressMTLS policy "default/ingress-mtls-policy" references a non-existent secret default/ingress-mtls-secret`,
+					`IngressMTLS policy default/ingress-mtls-policy references a secret default/ingress-mtls-secret that could not be resolved`,
 				},
 			},
 			msg: "ingress mtls absent secret ref",
@@ -3729,12 +4103,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
-						Path: "/etc/nginx/secrets/default-egress-mtls-secret",
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 					},
 				},
 			},
@@ -3781,12 +4153,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-trusted-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-trusted-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3825,26 +4195,27 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 					},
 				},
 			},
 			context: "route",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				EgressMTLS: &version2.EgressMTLS{
+					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
+					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
+					Ciphers:        "DEFAULT",
+					Protocols:      "TLSv1 TLSv1.1 TLSv1.2",
+					VerifyDepth:    1,
+					SessionReuse:   true,
+					SSLName:        "foo.com",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-mtls-secret of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'`,
-				},
-			},
-			msg: "egress mtls referencing wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "egress mtls tls secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3868,26 +4239,26 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-trusted-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-trusted-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-egress-trusted-secret",
 					},
 				},
 			},
 			context: "route",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				EgressMTLS: &version2.EgressMTLS{
+					Ciphers:      "DEFAULT",
+					Protocols:    "TLSv1 TLSv1.1 TLSv1.2",
+					VerifyDepth:  1,
+					SessionReuse: true,
+					TrustedCert:  "/etc/nginx/secrets/default-egress-trusted-secret",
+					SSLName:      "foo.com",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-trusted-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/ca'`,
-				},
-			},
-			msg: "egress trusted secret referencing wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "egress mtls trusted cert secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3911,12 +4282,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3955,7 +4324,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			context: "route",
 			expected: policiesCfg{
@@ -3965,7 +4334,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`EgressMTLS policy default/egress-mtls-policy references an invalid secret default/egress-mtls-secret: secret doesn't exist`,
+					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-mtls-secret that could not be resolved`,
 				},
 			},
 			msg: "egress mtls referencing absent tls secret ref",
@@ -3991,12 +4360,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -4035,32 +4402,41 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							EndSessionEndpoint:    "http://foo.com/bar",
 							PostLogoutRedirectURI: "/_logout",
 							AccessTokenEnable:     true,
-							PKCEEnable:            true,
 						},
 					},
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
 							Type: api_v1.SecretTypeTLS,
+							Data: map[string][]byte{
+								"client-secret": []byte("super_secret_123"),
+							},
 						},
 					},
 				},
 			},
 			context: "spec",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				OIDC: &version2.OIDC{
+					AuthEndpoint:          "http://foo.com/bar",
+					TokenEndpoint:         "http://foo.com/bar",
+					JwksURI:               "http://foo.com/bar",
+					EndSessionEndpoint:    "http://foo.com/bar",
+					ClientSecret:          "super_secret_123",
+					Scope:                 "openid",
+					RedirectURI:           "/_codexch",
+					PostLogoutRedirectURI: "/_logout",
+					ZoneSyncLeeway:        200,
+					AccessTokenEnable:     true,
+					VerifyDepth:           1,
+					PolicyName:            "default/oidc-policy",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`OIDC policy default/oidc-policy references a secret default/oidc-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/oidc'`,
-				},
-			},
-			msg: "oidc secret referencing wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "oidc secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -4108,10 +4484,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("super_secret_123"),
 							},
@@ -4184,10 +4559,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("super_secret_123"),
 							},
@@ -4392,10 +4766,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"client1": []byte("password"),
 							},
@@ -4459,14 +4832,17 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
 							Data: map[string][]byte{
 								"client1": []byte("password"),
+								"client2": []byte("password"),
 							},
 						},
+						Error: errors.New("secret cannot be used for API key authentication: " +
+							"every data key (ca.crt, namespace, token) is reserved by another " +
+							"NGINX Ingress Controller feature"),
 					},
 				},
 			},
@@ -4477,38 +4853,19 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`API Key policy default/api-key-policy references a secret default/api-key-secret of a wrong type 'nginx.org/jwk', must be 'nginx.org/apikey'`,
+					`API Key default/api-key-policy references an invalid secret default/api-key-secret: secret cannot be used for API key authentication: every data key (ca.crt, namespace, token) is reserved by another NGINX Ingress Controller feature`,
 				},
 			},
-			msg: "api key referencing wrong secret type",
+			msg: "api key secret whose keys are all reserved",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
-				{
-					Name:      "api-key-policy",
-					Namespace: "default",
-				},
 				{
 					Name:      "api-key-policy-2",
 					Namespace: "default",
 				},
 			},
 			policies: map[string]*conf_v1.Policy{
-				"default/api-key-policy": {
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name:      "api-key-policy",
-						Namespace: "default",
-					},
-					Spec: conf_v1.PolicySpec{
-						APIKey: &conf_v1.APIKey{
-							SuppliedIn: &conf_v1.SuppliedIn{
-								Header: []string{"X-API-Key"},
-								Query:  []string{"api-key"},
-							},
-							ClientSecret: "api-key-secret",
-						},
-					},
-				},
 				"default/api-key-policy-2": {
 					ObjectMeta: meta_v1.ObjectMeta{
 						Name:      "api-key-policy-2",
@@ -4518,24 +4875,18 @@ func TestGeneratePoliciesFails(t *testing.T) {
 						APIKey: &conf_v1.APIKey{
 							SuppliedIn: &conf_v1.SuppliedIn{
 								Header: []string{"X-API-Key"},
-								Query:  []string{"api-key"},
 							},
-							ClientSecret: "api-key-secret",
+							ClientSecret: "api-key-secret-2",
 						},
 					},
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
-							Data: map[string][]byte{
-								"client1": []byte("password"),
-								"client2": []byte("password"),
-							},
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; api-key-secret-2 has no map entry
+					secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -4546,10 +4897,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`API Key default/api-key-policy references an invalid secret default/api-key-secret: secret is invalid`,
+					`API Key default/api-key-policy-2 references a secret default/api-key-secret-2 that could not be resolved`,
 				},
 			},
-			msg: "api key referencing invalid api key secrets",
+			msg: "api key earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -4644,10 +4995,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			policyOpts: policyOptions{
 				replicas:       1,
 				oidcPolicyName: "",
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("super_secret_123"),
 							},
@@ -4731,12 +5081,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -4776,26 +5124,36 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
 							Type: api_v1.SecretTypeTLS,
+							Data: map[string][]byte{
+								"client-secret": []byte("super_secret_123"),
+							},
 						},
 					},
 				},
 			},
 			context: "spec",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:            "oidc_default_oidc_native_policy_default_test_vs",
+					PolicyKey:       "default/oidc-native-policy",
+					Issuer:          "https://accounts.google.com",
+					ClientID:        "my-client",
+					ClientSecret:    "super_secret_123",
+					RedirectURI:     "/oidc_callback_oidc_default_oidc_native_policy_default_test_vs",
+					CookieName:      "NGX_OIDC_oidc_default_oidc_native_policy_default_test_vs",
+					SessionStore:    "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs",
+					SSLVerify:       true,
+					SSLVerifyDepth:  1,
+					ProxyLocation:   "/_oidc_idp_oidc_default_oidc_native_policy_default_test_vs",
+					ProxyBufferSize: "32k",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`OIDCNative policy default/oidc-native-policy references a secret default/oidc-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/oidc'`,
-				},
-			},
-			msg: "oidcNative secret wrong type",
+			expectedWarnings: Warnings{},
+			msg:              "oidcNative secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -4820,7 +5178,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			context: "route",
 			expected: policiesCfg{
@@ -4830,7 +5188,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`OIDCNative policy default/oidc-native-policy references a missing secret default/missing-secret`,
+					`OIDCNative policy default/oidc-native-policy references a secret default/missing-secret that could not be resolved`,
 				},
 			},
 			msg: "oidcNative missing secret",
@@ -4858,12 +5216,12 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{},
 						},
+						Error: errors.New(`secret is missing required key "client-secret"`),
 					},
 				},
 			},
@@ -4875,7 +5233,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`OIDCNative policy default/oidc-native-policy references a secret default/oidc-secret missing 'client-secret' key`,
+					`OIDCNative policy default/oidc-native-policy references an invalid secret default/oidc-secret: secret is missing required key "client-secret"`,
 				},
 			},
 			msg: "oidcNative secret missing client-secret key",
@@ -4903,8 +5261,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: nil,
 					},
 				},
@@ -5021,6 +5379,11 @@ func TestIsPolicySupportedOnIngress(t *testing.T) {
 		{
 			name:     "CORS is supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{CORS: &conf_v1.CORS{}}},
+			expected: true,
+		},
+		{
+			name:     "ConnectionLimit is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{ConnectionLimit: &conf_v1.ConnectionLimit{Connections: 10}}},
 			expected: true,
 		},
 		{

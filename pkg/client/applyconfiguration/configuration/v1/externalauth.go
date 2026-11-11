@@ -25,7 +25,7 @@ type ExternalAuthApplyConfiguration struct {
 	SSLVerify *bool `json:"sslVerify,omitempty"`
 	// SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
-	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
 	SNIName *string `json:"sniName,omitempty"`

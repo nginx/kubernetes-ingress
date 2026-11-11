@@ -23,6 +23,7 @@ pythonpath = [
 addopts = "--tb=native -ra --disable-warnings -x -l -v --strict-markers"
 log_cli = true
 markers = [
+    "acme",
     "agentv2",
     "agentv3",
     "annotations",
@@ -35,6 +36,7 @@ markers = [
     "appprotect_waf_policies_vsr",
     "appprotect_waf_v5",
     "appprotect_waf_bundle_source",
+    "appprotect_waf_plm",
     "appprotect_waf_policies_ing",
     "appprotect_waf_policies_ing_v5",
     "appprotect_watch",
@@ -64,6 +66,10 @@ markers = [
     "policies_rl",
     "policies_rl_vs",
     "policies_rl_vsr",
+    "policies_cl",
+    "policies_cl_vs",
+    "policies_cl_vsr",
+    "policies_cl_ingress",
     "policies_jwt",
     "policies_ac",
     "policies_mtls",
@@ -77,6 +83,7 @@ markers = [
     "ts",
     "ts_tcp",
     "ts_udp",
+    "utils",
     "upgrade",
     "vs",
     "vs_api",
@@ -105,6 +112,7 @@ markers = [
     "vsr_grpc",
     "vsr_redirects",
     "vsr_multi_regex",
+    "vsr_hostless",
     "vsr_regexes",
     "vsr_rewrite",
     "vsr_routing",

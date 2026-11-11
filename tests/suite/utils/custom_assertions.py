@@ -2,8 +2,11 @@
 
 import time
 
+import grpc
 import pytest
 import requests
+from suite.grpc.helloworld_pb2 import HelloRequest
+from suite.grpc.helloworld_pb2_grpc import GreeterStub
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.resources_utils import (
     get_events,
@@ -12,6 +15,17 @@ from suite.utils.resources_utils import (
     get_vs_nginx_template_conf,
     wait_before_test,
 )
+
+
+def assert_h2c_grpc_hello(endpoint, host) -> None:
+    """Call the Greeter service over unencrypted HTTP/2 (h2c) on the HTTP port and check the reply."""
+    options = (("grpc.default_authority", host),)
+    with grpc.insecure_channel(f"{endpoint.public_ip}:{endpoint.port}", options) as channel:
+        try:
+            response = GreeterStub(channel).SayHello(HelloRequest(name="h2c"), timeout=10)
+            assert "Hello h2c" in response.message
+        except grpc.RpcError as e:
+            pytest.fail(f"h2c gRPC call failed: {e.code()} {e.details()}")
 
 
 def assert_no_new_events(old_list, new_list):
@@ -278,7 +292,6 @@ def assert_proxy_entries_do_not_exist(config) -> None:
     assert "proxy_send_timeout 60s;" not in config
 
     assert "proxy_set_header Upgrade $http_upgrade;" not in config
-    assert "proxy_http_version 1.1;" not in config
 
     assert "proxy_next_upstream error timeout;" not in config
     assert "proxy_next_upstream_timeout 0s;" not in config
@@ -298,7 +311,6 @@ def assert_proxy_entries_exist(config) -> None:
     assert "proxy_send_timeout 60s;" in config
 
     assert "proxy_set_header Upgrade $http_upgrade;" in config
-    assert "proxy_http_version 1.1;" in config
 
     assert "proxy_next_upstream error timeout;" in config
     assert "proxy_next_upstream_timeout 0s;" in config
@@ -348,6 +360,7 @@ def assert_crd_status(
     expected_messages=None,
     retry_count=30,
     wait_time=1,
+    **kwargs,
 ):
     """Wait until a CRD resource reaches expected_state, optionally check reason and message substrings.
 
@@ -360,6 +373,7 @@ def assert_crd_status(
     :param expected_messages: if set, list of substrings that must appear in status.message
     :param retry_count: number of retries
     :param wait_time: seconds between retries
+    :param kwargs: additional status fields to match exactly
     :return: the resource dict
     """
     count = 0
@@ -378,7 +392,8 @@ def assert_crd_status(
             messages_ok = not expected_messages or all(
                 msg in resource_info["status"].get("message", "") for msg in expected_messages
             )
-            if reason_ok and messages_ok:
+            fields_ok = all(resource_info["status"].get(field) == value for field, value in kwargs.items())
+            if reason_ok and messages_ok and fields_ok:
                 return resource_info
 
         count += 1
@@ -395,6 +410,9 @@ def assert_crd_status(
             for msg in expected_messages:
                 if msg not in status.get("message", ""):
                     details.append(f"expected '{msg}' in status message")
+        for field, value in kwargs.items():
+            if status.get(field) != value:
+                details.append(f"expected {field} '{value}', got '{status.get(field)}'")
         fail_msg = (
             f"{crd_plural} '{name}' reached state '{expected_state}' but {'; '.join(details)}. "
             f"Current status: {status}"

@@ -56,6 +56,28 @@
       ]
     },
     {
+      "description": "Batch container digest bumps into a single weekly PR per base branch. Placed before the package-specific docker groups below so those keep precedence for their own images. Excludes the UBI chain: a redhat/ubi10 digest bump rebuilds ghcr.io/nginx/dependencies/nginx-ubi (build-ubi-dependency.yml), which the images then consume via its own digest bump, so batching either link would delay UBI and WAF package updates by up to a week each.",
+      "groupName": "container digests",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "!ghcr.io/nginx/dependencies/nginx-ubi",
+        "!/^redhat\\//"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "addLabels": [
+        "docker",
+        "skip changelog"
+      ],
+      "schedule": [
+        "before 6am on monday"
+      ]
+    },
+    {
       "addLabels": [
         "helm"
       ],
@@ -70,6 +92,21 @@
       ],
       "matchManagers": [
         "github-actions"
+      ],
+      "groupName": "github actions",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Bump the scout-cache action's version/sha inputs in the same PR as the docker/scout-action `uses:` pin, so the shared binary always matches the action.",
+      "addLabels": [
+        "github_actions",
+        "skip changelog"
+      ],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "docker/scout-action"
       ],
       "groupName": "github actions",
       "minimumReleaseAge": "3 days"
@@ -252,6 +289,7 @@
       "matchDatasources": [
         "docker",
         "github-releases",
+        "github-tags",
         "go",
         "golang-version"
       ],
@@ -259,6 +297,21 @@
         "go",
         "dependencies"
       ]
+    },
+    {
+      "description": "Maintenance branches only receive updates that can reach a released artifact. Dev tooling, the pytest suite, test fixtures, examples and docs cannot, so skip them there. Deliberately does NOT skip .github/** - that is release infrastructure (image copying in .github/scripts/copy-images.sh, chart publishing in publish-helm.yml, and pinned Action digests) and release-2026-lts must still be able to build and publish for three years. Regex rather than a literal branch list because the current-stable entry in baseBranchPatterns is replaced at each release.",
+      "matchBaseBranches": [
+        "/^release-/"
+      ],
+      "matchFileNames": [
+        ".pre-commit-config.yaml",
+        "pyproject.toml",
+        "tests/**",
+        "examples/**",
+        "docs/**",
+        "**/*.md"
+      ],
+      "enabled": false
     }
   ],
   "kubernetes": {
@@ -273,6 +326,16 @@
     ]
   },
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows (e.g. the scout-cache action inputs in ci.yml)",
+      "managerFilePatterns": [
+        "/.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "version: (?<currentValue>\\S+)\\s+sha: (?<currentDigest>[a-f0-9]{40}) # renovate-digest: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)"
+      ]
+    },
     {
       "customType": "regex",
       "description": "Update env variable version in Github Actions workflow",
@@ -407,7 +470,7 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.6",
+    "release-5.7",
     "release-2026-lts"
   ],
   "commitBodyTable": true,

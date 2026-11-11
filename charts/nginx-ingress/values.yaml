@@ -1,3 +1,11 @@
+## Labels to apply to all chart-managed resources, including pod templates.
+## Does not apply to CRDs (Helm does not template crds/) or to pod selector labels.
+## A resource's own extraLabels field (e.g. controller.pod.extraLabels, controller.service.extraLabels)
+## takes precedence over commonLabels on key collision. Setting a chart-managed label
+## (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label)
+## via commonLabels or extraLabels fails the template render.
+commonLabels: {}
+
 controller:
   ## The name of the Ingress Controller daemonset, deployment, or statefulset.
   name: controller
@@ -39,7 +47,7 @@ controller:
     #     - kube-dns.kube-system.svc.cluster.local
 
     ## Secret containing TLS client certificate
-    # sslCertificateSecretName: ssl-certificate # kubernetes.io/tls secret type
+    # sslCertificateSecretName: ssl-certificate # kubernetes.io/tls or Opaque secret type
 
     ## Secret containing trusted CA certificate
     # sslTrustedCertificateSecretName: ssl-trusted-cert
@@ -51,6 +59,9 @@ controller:
 
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
+
+  ## Maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn (e.g. a rolling deployment) before flushing it, bounding how stale the running NGINX config can get. 0 disables the bound.
+  batchReloadWindow: 2000
 
   ## Support for App Protect WAF
   appprotect:
@@ -84,7 +95,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.15.0"
+        tag: "5.16.1"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -108,7 +119,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.15.0"
+        tag: "5.16.1"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -154,7 +165,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-ip-intelligence
 
         ## The tag of the App Protect WAF v5 IP Intelligence image.
-        tag: "5.15.0"
+        tag: "5.16.1"
         ## The digest of the App Protect WAF v5 IP Intelligence image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -241,7 +252,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.6.2"
+    # tag: "5.7.1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -489,6 +500,15 @@ controller:
   ## Enable external DNS for Virtual Server resources. Requires controller.enableCustomResources.
   enableExternalDNS: false
 
+  ## Selects the DNSEndpoint API group and version NGINX Ingress Controller writes to when
+  ## enableExternalDNS is true.
+  ## Use "externaldns.nginx.org/v1" (default) with external-dns <= v0.20.x started with
+  ## --crd-source-apiversion=externaldns.nginx.org/v1. Use "externaldns.k8s.io/v1alpha1" with
+  ## external-dns v0.21.0+, which only recognizes the upstream group. The upstream CRD is NOT
+  ## shipped by this chart; install it separately (e.g. via the external-dns Helm chart) when
+  ## selecting the upstream value.
+  externalDNSGroupVersion: "externaldns.nginx.org/v1"
+
   globalConfiguration:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false
@@ -603,6 +623,26 @@ controller:
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
 
+    ## Additional Services that expose the Ingress Controller pods independently from the primary Service.
+    ## This is useful when different listeners require separate LoadBalancer IPs, annotations, or source ranges.
+    ## Each name is used as the exact Service name and must be unique in the release namespace.
+    ## The controller can report status from only one Service; additional Services do not change controller.reportIngressStatus.externalService.
+    ## To use the example below, replace "{}" with the commented entries.
+    additionalServices: {}
+    #  nginx-ingress-redis:
+    #    type: LoadBalancer
+    #    annotations: {}
+    #    extraLabels: {}
+    #    loadBalancerIP: ""
+    #    loadBalancerClass: ""
+    #    externalTrafficPolicy: Local
+    #    loadBalancerSourceRanges: []
+    #    ports:
+    #    - name: redis
+    #      port: 6379
+    #      targetPort: 6379
+    #      protocol: TCP
+
     ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
     sessionAffinity:
       ## Enable session affinity. Valid values: None, ClientIP
@@ -704,6 +744,16 @@ controller:
 
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
+
+  ## Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream response latency histogram, e.g. "5,10,25,50,100,250,500,1000".
+  ## Requires controller.enableLatencyMetrics. When empty, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.
+  latencyMetricsBuckets: ""
+
+  ## Honor EndpointSlice topology hints (set by Service spec.trafficDistribution or the service.kubernetes.io/topology-mode annotation),
+  ## preferring upstream endpoints on the same node or in the same zone as the Ingress Controller pod.
+  ## Each replica only routes to its own node or zone, so spread replicas across zones in proportion to client traffic.
+  ## The zone is read from the node's topology.kubernetes.io/zone label at startup; restart the Ingress Controller if it changes.
+  enableTopologyAwareRouting: false
 
   ## Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack.
   disableIPV6: false
@@ -816,6 +866,8 @@ nginxAgent:
   endpointHost: "agent.connect.nginx.com"
   endpointPort: 443
   tlsSkipVerify: false
+  ## Custom labels to associate with the NGINX instance in NGINX One Console (for example, display-name: my-instance).
+  labels: {}
 
   # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
@@ -827,9 +879,9 @@ nginxAgent:
     tls:
       enabled: true
       skipVerify: false
-      ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
+      ## kubernetes.io/tls or Opaque secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
       secret: ""
-      ## nginx.org/ca secret for verification of Instance Manager TLS
+      ## Opaque secret for verification of Instance Manager TLS
       caSecret: ""
     sni: ""
   ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF

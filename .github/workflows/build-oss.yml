@@ -6,9 +6,16 @@ on:
       platforms:
         required: true
         type: string
+      build-os:
+        required: true
+        type: string
       image:
         required: true
         type: string
+      tag-suffix:
+        required: false
+        type: string
+        default: ""
       tag:
         required: false
         type: string
@@ -58,7 +65,7 @@ permissions:
 
 jobs:
   build:
-    name: "OSS ${{ inputs.image }} ${{inputs.platforms }}"
+    name: "OSS ${{ inputs.build-os }} ${{ inputs.platforms }}"
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read # for docker/build-push-action to read repo content
@@ -111,7 +118,7 @@ jobs:
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -119,7 +126,7 @@ jobs:
         if: ${{ inputs.authenticated }}
 
       - name: DockerHub Login
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
@@ -131,9 +138,9 @@ jobs:
         with:
           context: workflow
           images: |
-            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
+            name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ inputs.image }}
           flavor: |
-            suffix=${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}
+            suffix=${{ inputs.tag-suffix }}
           tags: |
             type=raw,value=${{ inputs.tag }}
           labels: |
@@ -149,7 +156,7 @@ jobs:
       - name: Set base name variable
         id: base_name
         run: |
-          base_image="gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.image }}"
+          base_image="gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-base/oss:${{ inputs.base-image-md5 }}-${{ inputs.build-os }}"
           echo "image=${base_image}" >> $GITHUB_OUTPUT
 
       - name: Check if images exist
@@ -164,13 +171,13 @@ jobs:
         if: ${{ inputs.authenticated && ! inputs.full-build }}
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
@@ -178,7 +185,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.build-os) || '' }}
           target: common
           tags: ${{ steps.base_name.outputs.image }}
           platforms: ${{ inputs.platforms }}
@@ -187,7 +194,7 @@ jobs:
           no-cache: true
           build-args: |
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
-            BUILD_OS=${{ inputs.image }}
+            BUILD_OS=${{ inputs.build-os }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
             ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
@@ -215,8 +222,8 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.image) || '' }}
-          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
+          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.build-os) || '' }}
+          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.build-os) || '' }}
           target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -229,7 +236,7 @@ jobs:
           provenance: false
           build-args: |
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
-            BUILD_OS=${{ inputs.image }}
+            BUILD_OS=${{ inputs.build-os }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
@@ -239,17 +246,17 @@ jobs:
 
       - name: Make directory for security scan results
         run: |
-          mkdir -p "${{ inputs.image }}-results/"
+          mkdir -p "${{ inputs.build-os }}-results/"
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        uses: docker/scout-action@e7e2a72bf1485d10a58f30696b6c513b261ce4fa # v1.29.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
           ignore-base: true
-          sarif-file: "${{ inputs.image }}-results/scout.sarif"
+          sarif-file: "${{ inputs.build-os }}-results/scout.sarif"
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true

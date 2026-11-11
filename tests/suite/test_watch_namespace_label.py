@@ -7,6 +7,8 @@ from suite.utils.resources_utils import (
     delete_namespace,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     patch_namespace_with_label,
     retry_get_until_status_code,
     wait_until_all_pods_are_ready,
@@ -41,8 +43,9 @@ def backend_setup(request, kube_apis, ingress_controller_endpoint) -> BackendSet
     """
     resource_hosts = {}
     namespaces = []
+    e2e_run_id = generate_e2e_run_id()
     for ns in ["watched-ns", "foreign-ns", "watched-ns2"]:
-        namespace, ingress_host = create_and_setup_namespace(kube_apis, ingress_controller_endpoint, ns)
+        namespace, ingress_host = create_and_setup_namespace(kube_apis, ingress_controller_endpoint, ns, e2e_run_id)
         resource_hosts[f"{ns}-ingress"] = ingress_host
         namespaces.append(namespace)
 
@@ -74,8 +77,11 @@ def backend_setup_vs(request, kube_apis, ingress_controller_endpoint) -> Backend
     """
     resource_hosts = {}
     namespaces = []
+    e2e_run_id = generate_e2e_run_id()
     for ns in ["watched-ns", "foreign-ns", "watched-ns2"]:
-        namespace, vs_host = create_and_setup_namespace(kube_apis, ingress_controller_endpoint, ns, is_vs=True)
+        namespace, vs_host = create_and_setup_namespace(
+            kube_apis, ingress_controller_endpoint, ns, e2e_run_id, is_vs=True
+        )
         resource_hosts[f"{ns}-vs"] = vs_host
         namespaces.append(namespace)
 
@@ -95,10 +101,10 @@ def backend_setup_vs(request, kube_apis, ingress_controller_endpoint) -> Backend
     return BackendSetup(req_url, resource_hosts)
 
 
-def create_and_setup_namespace(kube_apis, ingress_controller_endpoint, ns_name, is_vs=False):
+def create_and_setup_namespace(kube_apis, ingress_controller_endpoint, ns_name, e2e_run_id, is_vs=False):
     ns = create_namespace_with_name_from_yaml(kube_apis.v1, ns_name, f"{TEST_DATA}/common/ns.yaml")
     print(f"------------------------- Deploy the backend in {ns} -----------------------------------")
-    create_example_app(kube_apis, "simple", ns)
+    create_example_app(kube_apis, "simple", ns, e2e_run_id=e2e_run_id)
     src_ing_yaml = f"{TEST_DATA}/watch-namespace/{ns}-ingress.yaml"
     src_vs_yaml = f"{TEST_DATA}/watch-namespace/{ns}-virtual-server.yaml"
     if not is_vs:
@@ -108,7 +114,7 @@ def create_and_setup_namespace(kube_apis, ingress_controller_endpoint, ns_name, 
         create_virtual_server_from_yaml(kube_apis.custom_objects, src_vs_yaml, ns)
         ingress_host = get_first_host_from_yaml(src_vs_yaml)
     req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-    wait_until_all_pods_are_ready(kube_apis.v1, ns)
+    wait_until_all_pods_are_ready(kube_apis.v1, ns, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,

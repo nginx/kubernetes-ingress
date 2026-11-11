@@ -14,6 +14,8 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     delete_secret,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -133,6 +135,7 @@ def create_native_oidc_policy(
 @pytest.fixture(scope="class")
 def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint):
     """Deploy keycloak-secure and register two FCLO-enabled native OIDC clients."""
+    e2e_run_id = generate_e2e_run_id()
 
     # TLS secret shared by the webapp VirtualServers
     vs_secret_name = create_secret_from_yaml(
@@ -147,9 +150,9 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
         kube_apis.v1, test_namespace, f"{TEST_DATA}/oidc/keycloak-ca-secret.yaml"
     )
 
-    create_example_app(kube_apis, backend_app, test_namespace)
+    create_example_app(kube_apis, backend_app, test_namespace, e2e_run_id=e2e_run_id)
     wait_before_test()
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     keycloak_vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, keycloak_vs_src, test_namespace)
     wait_before_test()
 
@@ -367,6 +370,7 @@ class TestOIDCNativeFCLO:
         crd_ingress_controller,
         test_namespace,
         keycloak_setup,
+        e2e_run_id,
     ):
         """Front-channel logout across two native OIDC relying parties.
 
@@ -377,7 +381,7 @@ class TestOIDCNativeFCLO:
         5. Click logout and confirm FCLO terminated sessions on both apps.
         """
         # Deploy backend webapps (reused from NJS FCLO tests)
-        create_items_from_yaml(kube_apis, webapps_src, test_namespace)
+        create_items_from_yaml(kube_apis, webapps_src, test_namespace, e2e_run_id=e2e_run_id)
 
         secret_one_name = create_native_oidc_secret(
             kube_apis, test_namespace, keycloak_setup.secret_one, "oidc-native-secret-one"
@@ -448,6 +452,7 @@ class TestOIDCNativeFCLO:
         crd_ingress_controller,
         test_namespace,
         keycloak_setup,
+        e2e_run_id,
     ):
         """RP-initiated logout via the native OIDC logoutURI.
 
@@ -460,7 +465,7 @@ class TestOIDCNativeFCLO:
         5. Confirm the session is terminated (next access shows login form).
         """
         # Deploy backend webapps
-        create_items_from_yaml(kube_apis, webapps_src, test_namespace)
+        create_items_from_yaml(kube_apis, webapps_src, test_namespace, e2e_run_id=e2e_run_id)
 
         secret_one_name = create_native_oidc_secret(
             kube_apis, test_namespace, keycloak_setup.secret_one, "oidc-native-secret-one"

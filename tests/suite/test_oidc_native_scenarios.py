@@ -12,6 +12,7 @@ from suite.utils.custom_assertions import assert_crd_status, assert_vs_status, a
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_secret,
     delete_namespace,
     delete_secret,
@@ -153,9 +154,9 @@ def create_scenario_resources(kube_apis, namespace, keycloak_setup, number):
             "VirtualServerRoute": "virtualserverroutes",
         }.get(kind)
         if kind == "Secret":
-            # Kubernetes validates TLS data; retain the intentionally wrong type,
-            # while providing syntactically valid values for the API server.
-            if document["metadata"]["name"] == "test18-wrong-type":
+            # The API server requires tls.crt/tls.key to be valid base64 on a
+            # kubernetes.io/tls Secret; the scenarios leave them empty.
+            if document.get("type") == "kubernetes.io/tls":
                 document["data"] = {"tls.crt": "YQ==", "tls.key": "YQ=="}
             name = create_secret(kube_apis.v1, namespace, document)
             resources["secrets"].append(name)
@@ -204,7 +205,7 @@ def scenario_response(endpoint, host, path="/", https=True):
 
 
 def vs_conf(kube_apis, ingress_controller_prerequisites, namespace, vs_name):
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     return get_vs_nginx_template_conf(
         kube_apis.v1, namespace, vs_name, ic_pod_name, ingress_controller_prerequisites.namespace
     )

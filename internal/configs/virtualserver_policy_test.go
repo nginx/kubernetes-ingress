@@ -2,6 +2,7 @@ package configs
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -436,6 +437,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/oauth2/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -444,6 +446,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 						{Name: "Content-Length", Value: "0"},
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
+						{Name: "X-Forwarded-Prefix", Value: ""},
+						{Name: "X-Forwarded-URI", Value: "$request_uri"},
+						{Name: "X-Forwarded-Method", Value: "$request_method"},
+						{Name: "X-Original-URI", Value: "$request_uri"},
 					},
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
@@ -473,17 +479,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ProxyNextUpstreamTries:   0,
 					ProxyInterceptErrors:     true,
 					HasKeepalive:             true,
-					ErrorPages: []version2.ErrorPage{
-						{
-							Name:         "/oauth2/signin",
-							Codes:        "401",
-							ResponseCode: version2.ErrorPageResponseCodeInherit,
-						},
-					},
-					ProxySSLName:            "tea-svc.default.svc",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders:         []version2.Header{{Name: "Host", Value: "$host"}},
-					ServiceName:             "tea-svc",
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
 							Service:      "auth-server",
@@ -684,6 +683,56 @@ func TestGenerateVirtualServerConfigExternalAuthMultipleRoutesNoDuplicateOAuth2(
 		if !found {
 			t.Errorf("expected warning about 'Duplicate external auth URI /auth' for route '/coffee', got: %v", vsWarnings)
 		}
+	}
+}
+
+func TestGenerateVirtualServerConfigExternalAuthSubrouteDuplicateWarningTargetsVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	policy := &conf_v1.Policy{
+		Name: "ext-auth", Namespace: "default",
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc"},
+		},
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		Name: "vsr", Namespace: "default",
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Subroutes: []conf_v1.Route{
+				{
+					Path:     "/sub",
+					Policies: []conf_v1.PolicyReference{{Name: "ext-auth", Namespace: "default"}},
+					Action:   &conf_v1.Action{Pass: "tea"},
+				},
+			},
+		},
+	}
+	vsEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			Name: "vs", Namespace: "default",
+			Spec: conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{
+					{
+						Path:     "/route",
+						Policies: []conf_v1.PolicyReference{{Name: "ext-auth", Namespace: "default"}},
+						Action:   &conf_v1.Action{Pass: "coffee"},
+					},
+					{Path: "/sub", Route: "default/vsr"},
+				},
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+		Policies:            map[string]*conf_v1.Policy{"default/ext-auth": policy},
+	}
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	_, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	if len(warnings[vsEx.VirtualServer]) == 0 {
+		t.Error("expected duplicate auth warning on VirtualServer, got none")
+	}
+	if len(warnings[vsr]) != 0 {
+		t.Errorf("expected no warnings on VirtualServerRoute, got %v", warnings[vsr])
 	}
 }
 
@@ -890,6 +939,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -898,6 +948,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 						{Name: "Content-Length", Value: "0"},
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
+						{Name: "X-Forwarded-Prefix", Value: ""},
+						{Name: "X-Forwarded-URI", Value: "$request_uri"},
+						{Name: "X-Forwarded-Method", Value: "$request_method"},
+						{Name: "X-Original-URI", Value: "$request_uri"},
 					},
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
@@ -927,20 +981,13 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ProxyNextUpstreamTries:   0,
 					ProxyInterceptErrors:     true,
 					HasKeepalive:             true,
-					ErrorPages: []version2.ErrorPage{
-						{
-							Name:         "/signin",
-							Codes:        "401",
-							ResponseCode: -1,
-						},
-					},
-					ProxySSLName:            "tea-v1-svc.default.svc",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders:         []version2.Header{{Name: "Host", Value: "$host"}},
-					ServiceName:             "tea-v1-svc",
-					IsVSR:                   true,
-					VSRName:                 "tea-vsr",
-					VSRNamespace:            "default",
+					ProxySSLName:             "tea-v1-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-v1-svc",
+					IsVSR:                    true,
+					VSRName:                  "tea-vsr",
+					VSRNamespace:             "default",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
 							Service:      "auth-server",
@@ -1188,18 +1235,16 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 	t.Parallel()
 
 	virtualServerEx := VirtualServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/api-key-secret-spec": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"clientSpec": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-route": {
+			secrets.RefKey("default/api-key-secret-route", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"clientRoute": []byte("password2"),
 					},
@@ -1450,18 +1495,16 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 	t.Parallel()
 
 	virtualServerEx := VirtualServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/api-key-secret-1": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client1": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-2": {
+			secrets.RefKey("default/api-key-secret-2", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client2": []byte("password2"),
 					},
@@ -2089,6 +2132,218 @@ func TestGenerateVirtualServerConfigRateLimit(t *testing.T) {
 
 		if len(warnings) != 0 {
 			t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+		}
+	}
+}
+
+func TestGenerateVirtualServerConfigConnectionLimit(t *testing.T) {
+	t.Parallel()
+
+	policies := map[string]*conf_v1.Policy{
+		"default/per-client": connectionLimitPolicy("per-client", conf_v1.ConnectionLimit{
+			Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error",
+		}),
+		"default/downloads-total": connectionLimitPolicy("downloads-total", conf_v1.ConnectionLimit{
+			Connections: 200, Key: "total", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error",
+		}),
+		"default/scaled": connectionLimitPolicy("scaled", conf_v1.ConnectionLimit{
+			Connections: 10, Key: "${binary_remote_addr}", ZoneSize: "10m", RejectCode: new(503), LogLevel: "error", Scale: true,
+		}),
+	}
+	perClient := []conf_v1.PolicyReference{{Name: "per-client"}}
+	downloadsTotal := []conf_v1.PolicyReference{{Name: "downloads-total"}}
+	upstreams := []conf_v1.Upstream{
+		{Name: "tea", Service: "tea-svc", Port: 80},
+		{Name: "coffee", Service: "coffee-svc", Port: 80},
+	}
+	vs := func(name string, policies []conf_v1.PolicyReference, routes ...conf_v1.Route) *conf_v1.VirtualServer {
+		return &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec:       conf_v1.VirtualServerSpec{Host: name + ".example.com", Policies: policies, Upstreams: upstreams, Routes: routes},
+		}
+	}
+	vsr := func(name string, policies []conf_v1.PolicyReference) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				Upstreams: upstreams,
+				Subroutes: []conf_v1.Route{{Path: "/tea", Policies: policies, Action: &conf_v1.Action{Pass: "tea"}}},
+			},
+		}
+	}
+	coffee := conf_v1.Route{Path: "/coffee", Action: &conf_v1.Action{Pass: "coffee"}}
+
+	perClientZone := "pol_cl_default_per-client_vs_default_cafe_" + clKeyHashBinaryRemoteAddr
+	totalZone := "pol_cl_default_downloads-total_vs_default_cafe_" + clKeyHashTotal
+	tests := []struct {
+		name     string
+		vs       *conf_v1.VirtualServer
+		vsrs     []*conf_v1.VirtualServerRoute
+		replicas int
+		// wantZones lists zone names in the order they are rendered.
+		wantZones  []string
+		wantServer []version2.LimitConn
+		// wantLocations maps every location path to its limits. wantAllLocations, when set, applies to every location instead.
+		wantLocations    map[string][]version2.LimitConn
+		wantAllLocations []version2.LimitConn
+		wantErrorReturn  bool
+	}{
+		{
+			name:          "Policy in spec.policies",
+			vs:            vs("cafe", perClient, coffee),
+			wantZones:     []string{perClientZone},
+			wantServer:    []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+			wantLocations: map[string][]version2.LimitConn{"/coffee": nil},
+		},
+		{
+			name: "same Policy in spec.policies and on a route",
+			vs: vs("cafe", perClient, conf_v1.Route{
+				Path:     "/downloads",
+				Policies: []conf_v1.PolicyReference{{Name: "per-client"}, {Name: "downloads-total"}},
+				Action:   &conf_v1.Action{Pass: "coffee"},
+			}, coffee),
+			wantZones:  []string{perClientZone, totalZone},
+			wantServer: []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+			wantLocations: map[string][]version2.LimitConn{
+				"/downloads": {{ZoneName: perClientZone, Connections: 10}, {ZoneName: totalZone, Connections: 200}},
+				"/coffee":    nil,
+			},
+		},
+		{
+			name: "route Policy on split and match routes",
+			vs: vs("cafe", nil,
+				conf_v1.Route{
+					Path:     "/split",
+					Policies: downloadsTotal,
+					Splits: []conf_v1.Split{
+						{Weight: 50, Action: &conf_v1.Action{Pass: "tea"}},
+						{Weight: 50, Action: &conf_v1.Action{Pass: "coffee"}},
+					},
+				},
+				conf_v1.Route{
+					Path:     "/match",
+					Policies: downloadsTotal,
+					Matches: []conf_v1.Match{{
+						Conditions: []conf_v1.Condition{{Header: "x-version", Value: "v2"}},
+						Action:     &conf_v1.Action{Pass: "coffee"},
+					}},
+					Action: &conf_v1.Action{Pass: "tea"},
+				},
+			),
+			wantZones:        []string{totalZone},
+			wantAllLocations: []version2.LimitConn{{ZoneName: totalZone, Connections: 200}},
+		},
+		{
+			name:       "subroute with its own Policy, in a VirtualServerRoute named like its VirtualServer",
+			vs:         vs("cafe", perClient, conf_v1.Route{Path: "/tea", Route: "default/cafe"}),
+			vsrs:       []*conf_v1.VirtualServerRoute{vsr("cafe", perClient)},
+			wantZones:  []string{perClientZone, "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr},
+			wantServer: []version2.LimitConn{{ZoneName: perClientZone, Connections: 10}},
+			wantLocations: map[string][]version2.LimitConn{
+				"/tea": {{ZoneName: "pol_cl_default_per-client_vs_default_cafe_vsr_default_cafe_" + clKeyHashBinaryRemoteAddr, Connections: 10}},
+			},
+		},
+		{
+			name:          "subroute without policies inherits the route Policy",
+			vs:            vs("cafe", nil, conf_v1.Route{Path: "/tea", Route: "default/tea-routes", Policies: downloadsTotal}),
+			vsrs:          []*conf_v1.VirtualServerRoute{vsr("tea-routes", nil)},
+			wantZones:     []string{totalZone},
+			wantLocations: map[string][]version2.LimitConn{"/tea": {{ZoneName: totalZone, Connections: 200}}},
+		},
+		{
+			name:      "hostless VirtualServerRoute used by cafe",
+			vs:        vs("cafe", nil, conf_v1.Route{Path: "/tea", Route: "default/shared"}),
+			vsrs:      []*conf_v1.VirtualServerRoute{vsr("shared", downloadsTotal)},
+			wantZones: []string{"pol_cl_default_downloads-total_vs_default_cafe_vsr_default_shared_" + clKeyHashTotal},
+			wantLocations: map[string][]version2.LimitConn{
+				"/tea": {{ZoneName: "pol_cl_default_downloads-total_vs_default_cafe_vsr_default_shared_" + clKeyHashTotal, Connections: 200}},
+			},
+		},
+		{
+			name:      "hostless VirtualServerRoute used by cafe-2",
+			vs:        vs("cafe-2", nil, conf_v1.Route{Path: "/tea", Route: "default/shared"}),
+			vsrs:      []*conf_v1.VirtualServerRoute{vsr("shared", downloadsTotal)},
+			wantZones: []string{"pol_cl_default_downloads-total_vs_default_cafe-2_vsr_default_shared_" + clKeyHashTotal},
+			wantLocations: map[string][]version2.LimitConn{
+				"/tea": {{ZoneName: "pol_cl_default_downloads-total_vs_default_cafe-2_vsr_default_shared_" + clKeyHashTotal, Connections: 200}},
+			},
+		},
+		{
+			name:          "scaled Policy",
+			vs:            vs("cafe", []conf_v1.PolicyReference{{Name: "scaled"}}, coffee),
+			replicas:      3,
+			wantZones:     []string{"pol_cl_default_scaled_vs_default_cafe_" + clKeyHashBinaryRemoteAddr},
+			wantServer:    []version2.LimitConn{{ZoneName: "pol_cl_default_scaled_vs_default_cafe_" + clKeyHashBinaryRemoteAddr, Connections: 3}},
+			wantLocations: map[string][]version2.LimitConn{"/coffee": nil},
+		},
+		{
+			name:            "missing Policy",
+			vs:              vs("cafe", []conf_v1.PolicyReference{{Name: "missing"}}, coffee),
+			wantLocations:   map[string][]version2.LimitConn{"/coffee": nil},
+			wantErrorReturn: true,
+		},
+	}
+
+	wantOptions := version2.LimitConnOptions{LogLevel: "error", RejectCode: 503}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			vsc.IngressControllerReplicas = tc.replicas
+			vsEx := VirtualServerEx{VirtualServer: tc.vs, VirtualServerRoutes: tc.vsrs, Policies: policies}
+
+			cfg, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+			var gotZones []string
+			for _, z := range cfg.LimitConnZones {
+				gotZones = append(gotZones, z.ZoneName)
+			}
+			if diff := cmp.Diff(tc.wantZones, gotZones); diff != "" {
+				t.Errorf("zones mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantServer, cfg.Server.LimitConns); diff != "" {
+				t.Errorf("server limits mismatch (-want +got):\n%s", diff)
+			}
+			if len(tc.wantServer) > 0 && cfg.Server.LimitConnOptions != wantOptions {
+				t.Errorf("server options = %+v, want %+v", cfg.Server.LimitConnOptions, wantOptions)
+			}
+
+			assertConnectionLimitLocations(t, cfg.Server.Locations, tc.wantLocations, tc.wantAllLocations, wantOptions)
+
+			if tc.wantErrorReturn {
+				if cfg.Server.PoliciesErrorReturn == nil || cfg.Server.PoliciesErrorReturn.Code != 500 {
+					t.Errorf("server PoliciesErrorReturn = %+v, want code 500", cfg.Server.PoliciesErrorReturn)
+				}
+			} else if len(warnings) != 0 {
+				t.Errorf("GenerateVirtualServerConfig() returned warnings: %v", warnings)
+			}
+		})
+	}
+}
+
+// assertConnectionLimitLocations checks the limits of every location against want, or against wantAll when it is set,
+// and checks that every location with limits has the default options.
+func assertConnectionLimitLocations(t *testing.T, locations []version2.Location, want map[string][]version2.LimitConn, wantAll []version2.LimitConn, wantOptions version2.LimitConnOptions) {
+	t.Helper()
+
+	if len(locations) == 0 {
+		t.Fatal("no locations generated")
+	}
+	got := make(map[string][]version2.LimitConn)
+	for _, loc := range locations {
+		got[loc.Path] = loc.LimitConns
+		if wantAll != nil {
+			if diff := cmp.Diff(wantAll, loc.LimitConns); diff != "" {
+				t.Errorf("location %s limits mismatch (-want +got):\n%s", loc.Path, diff)
+			}
+		}
+		if len(loc.LimitConns) > 0 && loc.LimitConnOptions != wantOptions {
+			t.Errorf("location %s options = %+v, want %+v", loc.Path, loc.LimitConnOptions, wantOptions)
+		}
+	}
+	if wantAll == nil {
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("location limits mismatch (-want +got):\n%s", diff)
 		}
 	}
 }
@@ -2895,10 +3150,9 @@ func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
 						"10.0.0.30:80",
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/example-client-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("c2VjcmV0"),
 							},
@@ -3111,18 +3365,16 @@ func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
 						"10.0.0.30:80",
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/example-client-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("c2VjcmV0"),
 							},
 						},
 					},
-					"default/example-ca-secret": {
+					secrets.RefKey("default/example-ca-secret", secrets.RoleCA): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
 							Data: map[string][]byte{
 								"ca.crt": []byte("ca-certificate-data"),
 							},
@@ -3322,10 +3574,9 @@ func TestGenerateVirtualServerConfigOIDCRouteDoesNotLeakToSubsequentRoutes(t *te
 		Endpoints: map[string][]string{
 			"default/app-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3447,10 +3698,9 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 			"default/tea-svc:80":    {"10.0.0.20:80"},
 			"default/coffee-svc:80": {"10.0.0.30:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3486,6 +3736,72 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 		if !loc.OIDC {
 			t.Errorf("location %q should have OIDC=true because the VS spec carries the OIDC policy, but got OIDC=false", loc.Path)
 		}
+	}
+}
+
+func TestGenerateVirtualServerConfigPropagatesAppProtectLoadModule(t *testing.T) {
+	t.Parallel()
+
+	for name, loaded := range map[string]bool{"module not loaded": false, "module loaded": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Host:      "cafe.example.com",
+						Policies:  []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+						Routes:    []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}}},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-policy", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:  "https://auth.example.com",
+								TokenEndpoint: "https://token.example.com",
+								JWKSURI:       "https://jwks.example.com",
+								ClientID:      "example-client-id",
+								ClientSecret:  "example-client-secret",
+								Scope:         "openid",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{"default/tea-svc:80": {"10.0.0.20:80"}},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{Data: map[string][]byte{"client-secret": []byte("c2VjcmV0")}},
+					},
+				},
+			}
+
+			vsc := newVirtualServerConfigurator(
+				&ConfigParams{Context: context.Background(), ServerTokens: "off"},
+				true,
+				false,
+				&StaticConfigParams{MainAppProtectLoadModule: loaded},
+				false,
+				&fakeBV,
+			)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings) != 0 {
+				t.Fatalf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+			}
+			if result.AppProtectLoadModule != loaded {
+				t.Errorf("VirtualServerConfig.AppProtectLoadModule = %t, want %t", result.AppProtectLoadModule, loaded)
+			}
+			if result.Server.OIDC == nil {
+				t.Fatal("expected Server.OIDC to be non-nil")
+			}
+			if result.Server.OIDC.AppProtectLoadModule != loaded {
+				t.Errorf("Server.OIDC.AppProtectLoadModule = %t, want %t", result.Server.OIDC.AppProtectLoadModule, loaded)
+			}
+		})
 	}
 }
 
@@ -3548,10 +3864,9 @@ func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.
 		Endpoints: map[string][]string{
 			"default/app-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3907,10 +4222,9 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 						},
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"cafe/api-key-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("cafe/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"clientSpec": []byte("password"),
 							},
@@ -4204,6 +4518,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4212,6 +4527,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 					{Name: "Content-Length", Value: "0"},
 					{Name: "Host", Value: "$host"},
 					{Name: "X-Scheme", Value: "$scheme"},
+					{Name: "X-Forwarded-Prefix", Value: ""},
+					{Name: "X-Forwarded-URI", Value: "$request_uri"},
+					{Name: "X-Forwarded-Method", Value: "$request_method"},
+					{Name: "X-Original-URI", Value: "$request_uri"},
 				},
 				ProxyConnectTimeout:      "10s",
 				ProxyReadTimeout:         "15s",
@@ -4248,6 +4567,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4256,6 +4576,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 					{Name: "Content-Length", Value: "0"},
 					{Name: "Host", Value: "$host"},
 					{Name: "X-Scheme", Value: "$scheme"},
+					{Name: "X-Forwarded-Prefix", Value: ""},
+					{Name: "X-Forwarded-URI", Value: "$request_uri"},
+					{Name: "X-Forwarded-Method", Value: "$request_method"},
+					{Name: "X-Original-URI", Value: "$request_uri"},
 				},
 				ProxyConnectTimeout:      "10s",
 				ProxyReadTimeout:         "15s",
@@ -4295,6 +4619,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_ns1_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_ns1_my-auth/verify"`,
 				ProxyPassRequestHeaders: true,
@@ -4303,6 +4628,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 					{Name: "Content-Length", Value: "0"},
 					{Name: "Host", Value: "$host"},
 					{Name: "X-Scheme", Value: "$scheme"},
+					{Name: "X-Forwarded-Prefix", Value: ""},
+					{Name: "X-Forwarded-URI", Value: "$request_uri"},
+					{Name: "X-Forwarded-Method", Value: "$request_method"},
+					{Name: "X-Original-URI", Value: "$request_uri"},
 				},
 				ProxyConnectTimeout:        "30s",
 				ProxyReadTimeout:           "30s",
@@ -4338,6 +4667,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4346,6 +4676,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 					{Name: "Content-Length", Value: "0"},
 					{Name: "Host", Value: "$host"},
 					{Name: "X-Scheme", Value: "$scheme"},
+					{Name: "X-Forwarded-Prefix", Value: ""},
+					{Name: "X-Forwarded-URI", Value: "$request_uri"},
+					{Name: "X-Forwarded-Method", Value: "$request_method"},
+					{Name: "X-Original-URI", Value: "$request_uri"},
 				},
 				ClientMaxBodySize:        "0",
 				ProxyNextUpstream:        "error timeout",
@@ -4562,73 +4896,6 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 	}
 }
 
-func TestGetServerErrorPages(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		cfg      policiesCfg
-		expected []version2.ErrorPage
-	}{
-		{
-			name: "nil ExternalAuth returns nil",
-			cfg: policiesCfg{
-				ExternalAuth: nil,
-			},
-			expected: nil,
-		},
-		{
-			name: "empty SigninURL returns nil",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "",
-				},
-			},
-			expected: nil,
-		},
-		{
-			name: "non-empty SigninURL returns 401 error page",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
-				},
-			},
-			expected: []version2.ErrorPage{
-				{
-					Name:         "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
-		},
-		{
-			name: "simple SigninURL returns 401 error page",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "https://auth.example.com/login",
-				},
-			},
-			expected: []version2.ErrorPage{
-				{
-					Name:         "https://auth.example.com/login",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := getServerErrorPages(tc.cfg)
-			if diff := cmp.Diff(tc.expected, result); diff != "" {
-				t.Errorf("getServerErrorPages() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -4777,17 +5044,11 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				Snippets:               "proxy_set_header X-Custom-Header \"custom-value\";",
 				ServicePorts:           nil,
 			},
-			ErrorPages: []version2.ErrorPage{
-				{
-					Name:         "/signin",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
 			Locations: []version2.Location{
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -4796,6 +5057,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 						{Name: "Content-Length", Value: "0"},
 						{Name: "Host", Value: "$host"},
 						{Name: "X-Scheme", Value: "$scheme"},
+						{Name: "X-Forwarded-Prefix", Value: ""},
+						{Name: "X-Forwarded-URI", Value: "$request_uri"},
+						{Name: "X-Forwarded-Method", Value: "$request_method"},
+						{Name: "X-Original-URI", Value: "$request_uri"},
 					},
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
@@ -4927,7 +5192,182 @@ func TestGenerateVirtualServerConfigQuotesExternalAuthPaths(t *testing.T) {
 	if !signinLocationFound {
 		t.Error("GenerateVirtualServerConfig() did not quote the ExternalAuth signin redirect path")
 	}
-	if len(cfg.Server.ErrorPages) != 1 || cfg.Server.ErrorPages[0].Name != `/start\"; return 200; #` {
-		t.Errorf("GenerateVirtualServerConfig() did not escape the ExternalAuth signin URL: %+v", cfg.Server.ErrorPages)
+	if cfg.Server.ExternalAuth == nil || cfg.Server.ExternalAuth.SigninURL != `/start"; return 200; #` {
+		t.Errorf("GenerateVirtualServerConfig() did not preserve the ExternalAuth signin URL: %+v", cfg.Server.ExternalAuth)
+	}
+}
+
+func TestGenerateVirtualServerConfig_EarlierInvalidPolicyStopsSecretCollection(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name             string
+		policies         map[string]*conf_v1.Policy
+		route1Policies   []conf_v1.PolicyReference
+		route2Policies   []conf_v1.PolicyReference
+		secretRefs       map[secrets.SecretRefKey]*secrets.SecretReference
+		expectedWarnings []string
+	}{
+		{
+			name: "JWT earlier invalid policy stops reference collection and later policy has no map entry",
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-1": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "jwt-policy-1", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test1",
+							Secret: "jwt-secret-1",
+						},
+					},
+				},
+				"default/jwt-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "jwt-policy-2", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test2",
+							Secret: "jwt-secret-2",
+						},
+					},
+				},
+			},
+			route1Policies: []conf_v1.PolicyReference{{Name: "jwt-policy-1"}},
+			route2Policies: []conf_v1.PolicyReference{{Name: "jwt-policy-2"}},
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				// Earlier invalid policy stopped reference collection; jwt-secret-2 has no map entry
+				secrets.RefKey("default/jwt-secret-1", secrets.RoleJWK): {
+					Secret: &api_v1.Secret{},
+					Error:  errors.New("secret is invalid"),
+				},
+			},
+			expectedWarnings: []string{
+				"JWT policy default/jwt-policy-1 references an invalid secret default/jwt-secret-1: secret is invalid",
+				"JWT policy default/jwt-policy-2 references a secret default/jwt-secret-2 that could not be resolved",
+			},
+		},
+		{
+			name: "BasicAuth earlier invalid policy stops reference collection and later policy has no map entry",
+			policies: map[string]*conf_v1.Policy{
+				"default/basic-auth-policy-1": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "basic-auth-policy-1", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test1",
+							Secret: "basic-secret-1",
+						},
+					},
+				},
+				"default/basic-auth-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "basic-auth-policy-2", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test2",
+							Secret: "basic-secret-2",
+						},
+					},
+				},
+			},
+			route1Policies: []conf_v1.PolicyReference{{Name: "basic-auth-policy-1"}},
+			route2Policies: []conf_v1.PolicyReference{{Name: "basic-auth-policy-2"}},
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				// Earlier invalid policy stopped reference collection; basic-secret-2 has no map entry
+				secrets.RefKey("default/basic-secret-1", secrets.RoleHtpasswd): {
+					Secret: &api_v1.Secret{},
+					Error:  errors.New("secret is invalid"),
+				},
+			},
+			expectedWarnings: []string{
+				"Basic Auth policy default/basic-auth-policy-1 references an invalid secret default/basic-secret-1: secret is invalid",
+				"Basic Auth policy default/basic-auth-policy-2 references a secret default/basic-secret-2 that could not be resolved",
+			},
+		},
+		{
+			name: "APIKey earlier invalid policy stops reference collection and later policy has no map entry",
+			policies: map[string]*conf_v1.Policy{
+				"default/api-key-policy-1": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "api-key-policy-1", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							SuppliedIn:   &conf_v1.SuppliedIn{Header: []string{"X-API-Key"}},
+							ClientSecret: "api-key-secret-1",
+						},
+					},
+				},
+				"default/api-key-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "api-key-policy-2", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							SuppliedIn:   &conf_v1.SuppliedIn{Header: []string{"X-API-Key"}},
+							ClientSecret: "api-key-secret-2",
+						},
+					},
+				},
+			},
+			route1Policies: []conf_v1.PolicyReference{{Name: "api-key-policy-1"}},
+			route2Policies: []conf_v1.PolicyReference{{Name: "api-key-policy-2"}},
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				// Earlier invalid policy stopped reference collection; api-key-secret-2 has no map entry
+				secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
+					Secret: &api_v1.Secret{},
+					Error:  errors.New("secret is invalid"),
+				},
+			},
+			expectedWarnings: []string{
+				"API Key default/api-key-policy-1 references an invalid secret default/api-key-secret-1: secret is invalid",
+				"API Key default/api-key-policy-2 references a secret default/api-key-secret-2 that could not be resolved",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vs := &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "cafe",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{Name: "tea", Service: "tea-svc", Port: 80},
+						{Name: "coffee", Service: "coffee-svc", Port: 80},
+					},
+					Routes: []conf_v1.Route{
+						{
+							Path:     "/tea",
+							Action:   &conf_v1.Action{Pass: "tea"},
+							Policies: tc.route1Policies,
+						},
+						{
+							Path:     "/coffee",
+							Action:   &conf_v1.Action{Pass: "coffee"},
+							Policies: tc.route2Policies,
+						},
+					},
+				},
+			}
+			vsEx := VirtualServerEx{
+				VirtualServer: vs,
+				Policies:      tc.policies,
+				SecretRefs:    tc.secretRefs,
+			}
+
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+			// Assert that generating the configuration returns warnings and does not panic
+			_, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+			vsWarnings := warnings[vs]
+			for _, expectedWarning := range tc.expectedWarnings {
+				found := false
+				for _, w := range vsWarnings {
+					if strings.Contains(w, expectedWarning) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected warning %q not found in warnings: %v", expectedWarning, vsWarnings)
+				}
+			}
+		})
 	}
 }

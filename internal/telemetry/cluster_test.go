@@ -1213,20 +1213,20 @@ var (
 var (
 	secret1 = &apiCoreV1.Secret{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      "tls-secret-1",
+			Name:      "jwk-secret-1",
 			Namespace: "default",
 		},
-		Type: apiCoreV1.SecretTypeTLS,
-		Data: map[string][]byte{},
+		Type: apiCoreV1.SecretTypeOpaque,
+		Data: map[string][]byte{"jwk": []byte("{}")},
 	}
 
 	secret2 = &apiCoreV1.Secret{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      "tls-secret-2",
+			Name:      "jwk-secret-2",
 			Namespace: "default",
 		},
-		Type: apiCoreV1.SecretTypeTLS,
-		Data: map[string][]byte{},
+		Type: apiCoreV1.SecretTypeOpaque,
+		Data: map[string][]byte{"jwk": []byte("{}")},
 	}
 )
 

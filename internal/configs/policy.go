@@ -18,7 +18,6 @@ import (
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -40,6 +39,13 @@ type rateLimit struct {
 	PolicyGroupMaps  []version2.Map
 	Options          version2.LimitReqOptions
 	AuthJWTClaimSets []version2.AuthJWTClaimSet
+}
+
+// connectionLimit holds the ConnectionLimit configuration of one context.
+type connectionLimit struct {
+	Zones   []version2.LimitConnZone
+	Conns   []version2.LimitConn
+	Options version2.LimitConnOptions
 }
 
 // jwtAuth hold the configuration for the JWTAuth & JWKSAuth Policies
@@ -67,6 +73,7 @@ type policiesCfg struct {
 	Context         context.Context
 	Deny            []string
 	RateLimit       rateLimit
+	ConnectionLimit connectionLimit
 	JWTAuth         jwtAuth
 	ExternalAuth    *version2.ExternalAuth
 	BasicAuth       *version2.BasicAuth
@@ -91,12 +98,15 @@ type policyOwnerDetails struct {
 	parentNamespace string
 	parentName      string
 	parentType      string
+	// ownerType is "vsr" for a VirtualServerRoute subroute with its own policies and "ing" for a
+	// mergeable minion. It is empty when the references belong to the parent itself.
+	ownerType string
 }
 
 type policyOptions struct {
 	tls             bool
 	zoneSync        bool
-	secretRefs      map[string]*secrets.SecretReference
+	secretRefs      map[secrets.SecretRefKey]*secrets.SecretReference
 	apResources     *appProtectPolicyResources
 	defaultCABundle string
 	replicas        int
@@ -173,6 +183,7 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 // references for that policy type.
 func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
 	return pol.Spec.AccessControl != nil ||
+		pol.Spec.ConnectionLimit != nil ||
 		pol.Spec.CORS != nil ||
 		pol.Spec.ExternalAuth != nil ||
 		pol.Spec.IngressMTLS != nil ||
@@ -246,12 +257,68 @@ func (p *policiesCfg) addRateLimitConfig(
 	return res
 }
 
+// connectionLimitZoneName returns a zone name unique to the Policy, the parent whose configuration
+// file defines the zone, the referencing object, and the key.
+func connectionLimitZoneName(policy *conf_v1.Policy, owner policyOwnerDetails, key string) string {
+	name := fmt.Sprintf("pol_cl_%s_%s_%s_%s_%s", policy.Namespace, policy.Name, owner.parentType, owner.parentNamespace, owner.parentName)
+	if owner.ownerType != "" {
+		name = fmt.Sprintf("%s_%s_%s_%s", name, owner.ownerType, owner.ownerNamespace, owner.ownerName)
+	}
+	sum := sha256.Sum256([]byte(key))
+	return name + "_" + hex.EncodeToString(sum[:])
+}
+
+func (p *policiesCfg) addConnectionLimitConfig(policy *conf_v1.Policy, ownerDetails policyOwnerDetails, podReplicas int) *validationResults {
+	res := newValidationResults()
+	// The CRD schema defaults key, zoneSize, rejectCode, and logLevel, so they are never empty here.
+	cl := policy.Spec.ConnectionLimit
+	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
+	zoneName := connectionLimitZoneName(policy, ownerDetails, cl.Key)
+
+	connections := cl.Connections
+	if cl.Scale && podReplicas > 0 {
+		connections = cl.Connections / podReplicas
+		if connections < 1 {
+			connections = 1
+			res.addWarningf("ConnectionLimit policy %s: scaling %d connections across %d replicas gives less than one connection per replica; using 1",
+				polKey, cl.Connections, podReplicas)
+		}
+	}
+
+	p.ConnectionLimit.Zones = append(p.ConnectionLimit.Zones, version2.LimitConnZone{Key: cl.Key, ZoneName: zoneName, ZoneSize: cl.ZoneSize})
+	p.ConnectionLimit.Conns = append(p.ConnectionLimit.Conns, version2.LimitConn{ZoneName: zoneName, Connections: connections})
+
+	options := version2.LimitConnOptions{DryRun: cl.DryRun, LogLevel: cl.LogLevel}
+	if cl.RejectCode != nil {
+		options.RejectCode = *cl.RejectCode
+	}
+
+	if len(p.ConnectionLimit.Conns) == 1 {
+		p.ConnectionLimit.Options = options
+		return res
+	}
+	first := p.ConnectionLimit.Options
+	if options.DryRun != first.DryRun {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option dryRun='%v' is overridden to dryRun='%v' by the first policy reference in this context",
+			polKey, options.DryRun, first.DryRun)
+	}
+	if options.LogLevel != first.LogLevel {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option logLevel='%v' is overridden to logLevel='%v' by the first policy reference in this context",
+			polKey, options.LogLevel, first.LogLevel)
+	}
+	if options.RejectCode != first.RejectCode {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option rejectCode='%v' is overridden to rejectCode='%v' by the first policy reference in this context",
+			polKey, options.RejectCode, first.RejectCode)
+	}
+	return res
+}
+
 // nolint:gocyclo
 func (p *policiesCfg) addJWTAuthConfig(
 	jwtAuth *conf_v1.JWTAuth,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
 	if p.JWTAuth.Auth != nil {
@@ -260,16 +327,13 @@ func (p *policiesCfg) addJWTAuthConfig(
 	}
 	if jwtAuth.Secret != "" {
 		jwtSecretKey := fmt.Sprintf("%v/%v", polNamespace, jwtAuth.Secret)
-		secretRef := secretRefs[jwtSecretKey]
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeJWK {
-			res.addWarningf("JWT policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, jwtSecretKey, secretType, secrets.SecretTypeJWK)
+		secretRef := secretRefs[secrets.RefKey(jwtSecretKey, secrets.RoleJWK)]
+		if secretRef == nil {
+			res.addWarningf("JWT policy %s references a secret %s that could not be resolved", polKey, jwtSecretKey)
 			res.isError = true
 			return res
-		} else if secretRef.Error != nil {
+		}
+		if secretRef.Error != nil {
 			res.addWarningf("JWT policy %s references an invalid secret %s: %v", polKey, jwtSecretKey, secretRef.Error)
 			res.isError = true
 			return res
@@ -288,33 +352,22 @@ func (p *policiesCfg) addJWTAuthConfig(
 		var trustedCertPath string
 		if jwtAuth.SSLVerify && jwtAuth.TrustedCertSecret != "" {
 			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, jwtAuth.TrustedCertSecret)
-			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+			trustedCertSecretRef := secretRefs[secrets.RefKey(trustedCertSecretKey, secrets.RoleCA)]
 
 			// Check if secret reference exists
 			if trustedCertSecretRef == nil {
-				res.addWarningf("JWT policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.addWarningf("JWT policy %s references a secret %s that could not be resolved", polKey, trustedCertSecretKey)
 				res.isError = true
 				return res
 			}
 
-			var secretType api_v1.SecretType
-			if trustedCertSecretRef.Secret != nil {
-				secretType = trustedCertSecretRef.Secret.Type
-			}
-			if secretType != "" && secretType != secrets.SecretTypeCA {
-				res.addWarningf("JWT policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
-				res.isError = true
-				return res
-			} else if trustedCertSecretRef.Error != nil {
+			if trustedCertSecretRef.Error != nil {
 				res.addWarningf("JWT policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
 				res.isError = true
 				return res
 			}
 
-			caFields := strings.Fields(trustedCertSecretRef.Path)
-			if len(caFields) > 0 {
-				trustedCertPath = caFields[0]
-			}
+			trustedCertPath = trustedCertSecretRef.Path
 		}
 
 		sslVerifyDepth := 1
@@ -352,7 +405,7 @@ func (p *policiesCfg) addExternalAuthConfig(
 	polKey string,
 	polNamespace string,
 	polName string,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 	policyOpts policyOptions,
 	ownerDetails policyOwnerDetails,
 ) *validationResults {
@@ -414,7 +467,7 @@ func (p *policiesCfg) configureExternalAuthSSL(
 	externalAuth *conf_v1.ExternalAuth,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 	policyOpts policyOptions,
 ) *validationResults {
 	res := newValidationResults()
@@ -430,32 +483,21 @@ func (p *policiesCfg) configureExternalAuthSSL(
 	if externalAuth.TrustedCertSecret != "" {
 		secretNS, secretName := ParseResourceReference(externalAuth.TrustedCertSecret, polNamespace)
 		trustedCertSecretRefName := fmt.Sprintf("%s/%s", secretNS, secretName)
-		trustedCertSecretRef := secretRefs[trustedCertSecretRefName]
+		trustedCertSecretRef := secretRefs[secrets.RefKey(trustedCertSecretRefName, secrets.RoleCA)]
 
 		if trustedCertSecretRef == nil {
-			res.addWarningf("ExternalAuth policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretRefName)
+			res.addWarningf("ExternalAuth policy %s references a secret %s that could not be resolved", polKey, trustedCertSecretRefName)
 			res.isError = true
 			return res
 		}
 
-		var secretType api_v1.SecretType
-		if trustedCertSecretRef.Secret != nil {
-			secretType = trustedCertSecretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeCA {
-			res.addWarningf("ExternalAuth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretRefName, secretType, secrets.SecretTypeCA)
-			res.isError = true
-			return res
-		} else if trustedCertSecretRef.Error != nil {
+		if trustedCertSecretRef.Error != nil {
 			res.addWarningf("ExternalAuth policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretRefName, trustedCertSecretRef.Error)
 			res.isError = true
 			return res
 		}
 
-		caFields := strings.Fields(trustedCertSecretRef.Path)
-		if len(caFields) > 0 {
-			trustedCertPath = caFields[0]
-		}
+		trustedCertPath = trustedCertSecretRef.Path
 	}
 	p.ExternalAuth.SSLTrustedCert = trustedCertPath
 
@@ -473,7 +515,7 @@ func (p *policiesCfg) addBasicAuthConfig(
 	basicAuth *conf_v1.BasicAuth,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
 	if p.BasicAuth != nil {
@@ -482,16 +524,13 @@ func (p *policiesCfg) addBasicAuthConfig(
 	}
 
 	basicSecretKey := fmt.Sprintf("%v/%v", polNamespace, basicAuth.Secret)
-	secretRef := secretRefs[basicSecretKey]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeHtpasswd {
-		res.addWarningf("Basic Auth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, basicSecretKey, secretType, secrets.SecretTypeHtpasswd)
+	secretRef := secretRefs[secrets.RefKey(basicSecretKey, secrets.RoleHtpasswd)]
+	if secretRef == nil {
+		res.addWarningf("Basic Auth policy %s references a secret %s that could not be resolved", polKey, basicSecretKey)
 		res.isError = true
 		return res
-	} else if secretRef.Error != nil {
+	}
+	if secretRef.Error != nil {
 		res.addWarningf("Basic Auth policy %s references an invalid secret %s: %v", polKey, basicSecretKey, secretRef.Error)
 		res.isError = true
 		return res
@@ -510,7 +549,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	polNamespace string,
 	context string,
 	tls bool,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
 	if context != specContext {
@@ -529,22 +568,14 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	}
 
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, ingressMTLS.ClientCertSecret)
-	secretRef := secretRefs[secretKey]
+	secretRef := secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)]
 	if secretRef == nil {
-		res.addWarningf("IngressMTLS policy %q references a non-existent secret %s", polKey, secretKey)
+		res.addWarningf("IngressMTLS policy %s references a secret %s that could not be resolved", polKey, secretKey)
 		res.isError = true
 		return res
 	}
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeCA {
-		res.addWarningf("IngressMTLS policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeCA)
-		res.isError = true
-		return res
-	} else if secretRef.Error != nil {
-		res.addWarningf("IngressMTLS policy %q references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+	if secretRef.Error != nil {
+		res.addWarningf("IngressMTLS policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 		res.isError = true
 		return res
 	}
@@ -558,33 +589,24 @@ func (p *policiesCfg) addIngressMTLSConfig(
 		verifyClient = ingressMTLS.VerifyClient
 	}
 
-	caFields := strings.Fields(secretRef.Path)
-
 	if _, hasCrlKey := secretRef.Secret.Data[CACrlKey]; hasCrlKey && ingressMTLS.CrlFileName != "" {
 		res.addWarningf("Both ca.crl in the Secret and ingressMTLS.crlFileName fields cannot be used. ca.crl in %s will be ignored and %s will be applied", secretKey, polKey)
 	}
 
-	if ingressMTLS.CrlFileName != "" {
-		p.IngressMTLS = &version2.IngressMTLS{
-			ClientCert:   caFields[0],
-			ClientCrl:    path.Join(DefaultSecretPath, path.Base(ingressMTLS.CrlFileName)),
-			VerifyClient: verifyClient,
-			VerifyDepth:  verifyDepth,
-		}
-	} else if _, hasCrlKey := secretRef.Secret.Data[CACrlKey]; hasCrlKey {
-		p.IngressMTLS = &version2.IngressMTLS{
-			ClientCert:   caFields[0],
-			ClientCrl:    caFields[1],
-			VerifyClient: verifyClient,
-			VerifyDepth:  verifyDepth,
-		}
-	} else {
-		p.IngressMTLS = &version2.IngressMTLS{
-			ClientCert:   caFields[0],
-			VerifyClient: verifyClient,
-			VerifyDepth:  verifyDepth,
-		}
+	mtls := &version2.IngressMTLS{
+		ClientCert:   secretRef.Path,
+		VerifyClient: verifyClient,
+		VerifyDepth:  verifyDepth,
 	}
+
+	switch {
+	case ingressMTLS.CrlFileName != "":
+		mtls.ClientCrl = path.Join(DefaultSecretPath, path.Base(ingressMTLS.CrlFileName))
+	case secretRef.CRLPath != "":
+		mtls.ClientCrl = secretRef.CRLPath
+	}
+	p.IngressMTLS = mtls
+
 	return res
 }
 
@@ -592,7 +614,7 @@ func (p *policiesCfg) addEgressMTLSConfig(
 	egressMTLS *conf_v1.EgressMTLS,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
 	if p.EgressMTLS != nil {
@@ -608,21 +630,13 @@ func (p *policiesCfg) addEgressMTLSConfig(
 	if egressMTLS.TLSSecret != "" {
 		egressTLSSecret := fmt.Sprintf("%v/%v", polNamespace, egressMTLS.TLSSecret)
 
-		secretRef := secretRefs[egressTLSSecret]
+		secretRef := secretRefs[secrets.RefKey(egressTLSSecret, secrets.RoleTLS)]
 		if secretRef == nil {
-			res.addWarningf("EgressMTLS policy %s references an invalid secret %s: secret doesn't exist", polKey, egressTLSSecret)
+			res.addWarningf("EgressMTLS policy %s references a secret %s that could not be resolved", polKey, egressTLSSecret)
 			res.isError = true
 			return res
 		}
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != api_v1.SecretTypeTLS {
-			res.addWarningf("EgressMTLS policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, egressTLSSecret, secretType, api_v1.SecretTypeTLS)
-			res.isError = true
-			return res
-		} else if secretRef.Error != nil {
+		if secretRef.Error != nil {
 			res.addWarningf("EgressMTLS policy %s references an invalid secret %s: %v", polKey, egressTLSSecret, secretRef.Error)
 			res.isError = true
 			return res
@@ -636,33 +650,19 @@ func (p *policiesCfg) addEgressMTLSConfig(
 	if egressMTLS.TrustedCertSecret != "" {
 		trustedCertSecret := fmt.Sprintf("%v/%v", polNamespace, egressMTLS.TrustedCertSecret)
 
-		secretRef := secretRefs[trustedCertSecret]
+		secretRef := secretRefs[secrets.RefKey(trustedCertSecret, secrets.RoleCA)]
 		if secretRef == nil {
-			res.addWarningf("EgressMTLS policy %s references an invalid secret %s: secret doesn't exist", polKey, trustedCertSecret)
+			res.addWarningf("EgressMTLS policy %s references a secret %s that could not be resolved", polKey, trustedCertSecret)
 			res.isError = true
 			return res
 		}
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeCA {
-			res.addWarningf("EgressMTLS policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecret, secretType, secrets.SecretTypeCA)
-			res.isError = true
-			return res
-		} else if secretRef.Error != nil {
+		if secretRef.Error != nil {
 			res.addWarningf("EgressMTLS policy %s references an invalid secret %s: %v", polKey, trustedCertSecret, secretRef.Error)
 			res.isError = true
 			return res
 		}
 
 		trustedSecretPath = secretRef.Path
-	}
-
-	if len(trustedSecretPath) != 0 {
-		// CA secret refs can include an optional CRL path after the bundle path; NGINX trusted_certificate only needs the bundle itself.
-		caFields := strings.Fields(trustedSecretPath)
-		trustedSecretPath = caFields[0]
 	}
 
 	p.EgressMTLS = &version2.EgressMTLS{
@@ -723,19 +723,11 @@ func (p *policiesCfg) addOIDCConfig(
 		return res
 	} else {
 		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidc.ClientSecret)
-		secretRef, ok := secretRefs[secretKey]
+		secretRef, ok := secretRefs[secrets.RefKey(secretKey, secrets.RoleOIDC)]
 		clientSecret := []byte("")
 
 		if ok {
-			var secretType api_v1.SecretType
-			if secretRef.Secret != nil {
-				secretType = secretRef.Secret.Type
-			}
-			if secretType != "" && secretType != secrets.SecretTypeOIDC {
-				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
-				res.isError = true
-				return res
-			} else if secretRef.Error != nil && !oidc.PKCEEnable {
+			if secretRef.Error != nil && !oidc.PKCEEnable {
 				res.addWarningf("OIDC policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 				res.isError = true
 				return res
@@ -816,33 +808,21 @@ func (p *policiesCfg) addOIDCConfig(
 		if oidc.SSLVerify && oidc.TrustedCertSecret != "" {
 			// Override default CA bundle if trusted cert secret is provided
 			trustedCertSecretKey := fmt.Sprintf("%s/%s", polNamespace, oidc.TrustedCertSecret)
-			trustedCertSecretRef := secretRefs[trustedCertSecretKey]
+			trustedCertSecretRef := secretRefs[secrets.RefKey(trustedCertSecretKey, secrets.RoleCA)]
 
 			// Check if secret reference exists
 			if trustedCertSecretRef == nil {
-				res.addWarningf("OIDC policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretKey)
+				res.addWarningf("OIDC policy %s references a secret %s that could not be resolved", polKey, trustedCertSecretKey)
 				res.isError = true
 				return res
 			}
-
-			var secretType api_v1.SecretType
-			if trustedCertSecretRef.Secret != nil {
-				secretType = trustedCertSecretRef.Secret.Type
-			}
-			if secretType != "" && secretType != secrets.SecretTypeCA {
-				res.addWarningf("OIDC policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretKey, secretType, secrets.SecretTypeCA)
-				res.isError = true
-				return res
-			} else if trustedCertSecretRef.Error != nil {
+			if trustedCertSecretRef.Error != nil {
 				res.addWarningf("OIDC policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretKey, trustedCertSecretRef.Error)
 				res.isError = true
 				return res
 			}
 
-			caFields := strings.Fields(trustedCertSecretRef.Path)
-			if len(caFields) > 0 {
-				trustedCertPath = caFields[0]
-			}
+			trustedCertPath = trustedCertSecretRef.Path
 		}
 
 		sslVerifyDepth := 1
@@ -880,26 +860,16 @@ func resolveOIDCNativeClientSecret(
 	oidcNative *conf_v1.OIDCNative,
 	polKey string,
 	polNamespace string,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 	res *validationResults,
 ) (string, bool) {
 	if oidcNative.ClientSecret == "" {
 		return "", true
 	}
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcNative.ClientSecret)
-	secretRef, ok := secretRefs[secretKey]
+	secretRef, ok := secretRefs[secrets.RefKey(secretKey, secrets.RoleOIDC)]
 	if !ok {
-		res.addWarningf("OIDCNative policy %s references a missing secret %s", polKey, secretKey)
-		res.isError = true
-		return "", false
-	}
-
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeOIDC {
-		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+		res.addWarningf("OIDCNative policy %s references a secret %s that could not be resolved", polKey, secretKey)
 		res.isError = true
 		return "", false
 	}
@@ -914,12 +884,7 @@ func resolveOIDCNativeClientSecret(
 		return "", false
 	}
 
-	clientSecretBytes, ok := secretRef.Secret.Data[ClientSecretKey]
-	if !ok {
-		res.addWarningf("OIDCNative policy %s references a secret %s missing '%s' key", polKey, secretKey, ClientSecretKey)
-		res.isError = true
-		return "", false
-	}
+	clientSecretBytes := secretRef.Secret.Data[ClientSecretKey]
 
 	return string(clientSecretBytes), true
 }
@@ -938,18 +903,9 @@ func resolveOIDCNativeTrustedCert(
 	}
 
 	trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
-	trustedCertRef, ok := policyOpts.secretRefs[trustedCertKey]
+	trustedCertRef, ok := policyOpts.secretRefs[secrets.RefKey(trustedCertKey, secrets.RoleCA)]
 	if !ok {
-		res.addWarningf("OIDCNative policy %s references a missing trusted cert secret %s", polKey, trustedCertKey)
-		res.isError = true
-		return "", "", false
-	}
-	var secretType api_v1.SecretType
-	if trustedCertRef.Secret != nil {
-		secretType = trustedCertRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeCA {
-		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertKey, secretType, secrets.SecretTypeCA)
+		res.addWarningf("OIDCNative policy %s references a secret %s that could not be resolved", polKey, trustedCertKey)
 		res.isError = true
 		return "", "", false
 	}
@@ -958,13 +914,9 @@ func resolveOIDCNativeTrustedCert(
 		res.isError = true
 		return "", "", false
 	}
-	caFields := strings.Fields(trustedCertRef.Path)
-	if len(caFields) > 0 {
-		trustedCertPath = caFields[0]
-	}
-	if len(caFields) > 1 {
-		trustedCrlPath = caFields[1]
-	}
+
+	trustedCertPath = trustedCertRef.Path
+	trustedCrlPath = trustedCertRef.CRLPath
 	return trustedCertPath, trustedCrlPath, true
 }
 
@@ -1152,7 +1104,7 @@ func (p *policiesCfg) addAPIKeyConfig(
 	polKey string,
 	polNamespace string,
 	ownerDetails policyOwnerDetails,
-	secretRefs map[string]*secrets.SecretReference,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
 	if p.APIKey.Key != nil {
@@ -1165,16 +1117,13 @@ func (p *policiesCfg) addAPIKeyConfig(
 	}
 
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, apiKey.ClientSecret)
-	secretRef := secretRefs[secretKey]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeAPIKey {
-		res.addWarningf("API Key policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeAPIKey)
+	secretRef := secretRefs[secrets.RefKey(secretKey, secrets.RoleAPIKey)]
+	if secretRef == nil {
+		res.addWarningf("API Key %s references a secret %s that could not be resolved", polKey, secretKey)
 		res.isError = true
 		return res
-	} else if secretRef.Error != nil {
+	}
+	if secretRef.Error != nil {
 		res.addWarningf("API Key %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 		res.isError = true
 		return res
@@ -1645,6 +1594,8 @@ func generatePolicies(
 					pathContext,
 					path,
 				)
+			case pol.Spec.ConnectionLimit != nil:
+				res = config.addConnectionLimitConfig(pol, ownerDetails, policyOpts.replicas)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.ExternalAuth != nil:

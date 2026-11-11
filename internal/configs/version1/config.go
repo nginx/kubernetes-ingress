@@ -17,7 +17,6 @@ type UpstreamLabels struct {
 type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
-	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
 	OIDCProviders           []version2.OIDCProvider
@@ -25,7 +24,15 @@ type IngressNginxConfig struct {
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	LimitConnZones          []version2.LimitConnZone
 	KeyValZones             []version2.KeyValZone
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
+	// HTTP2 mirrors the http2 ConfigMap key, which is set in the http context. Servers with
+	// HTTP/2 off only render http2 off; when this is on.
+	HTTP2 bool
 }
 
 // Ingress holds information about an Ingress resource.
@@ -45,6 +52,7 @@ type Upstream struct {
 	QueueTimeout     int64
 	UpstreamZoneSize string
 	UpstreamLabels   UpstreamLabels
+	Keepalive        string
 }
 
 // UpstreamServer describes a server in an NGINX upstream.
@@ -119,6 +127,8 @@ type Server struct {
 	Deny                   []string
 	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
+	LimitConnOptions       version2.LimitConnOptions
+	LimitConns             []version2.LimitConn
 
 	HealthChecks map[string]HealthCheck
 
@@ -167,6 +177,9 @@ type Server struct {
 	CustomHTTPErrorBackend string
 
 	AppRoot string
+
+	// ACMEChallengeActive is true when the server has at least one ACME HTTP-01 challenge location.
+	ACMEChallengeActive bool
 }
 
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
@@ -234,10 +247,13 @@ type Location struct {
 	ServiceName             string
 	LimitReq                *LimitReq
 	DisableForwardedHeaders bool
+	UseForwardedHeaders     bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
 	Internal       bool
+	// DisableWAF marks subrequest targets such as the ExternalAuth location.
+	DisableWAF bool
 
 	MinionIngress *Ingress
 
@@ -246,6 +262,7 @@ type Location struct {
 	ProxyNextUpstreamTries   *uint64
 	ProxyRedirectFrom        string
 	ProxyRedirectTo          string
+	ProxyHTTPVersion         string
 	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
 	// location. When non-empty, the location renders proxy_intercept_errors on;
 	// and, when the parent Server has a non-empty CustomHTTPErrorBackend, an
@@ -267,6 +284,10 @@ type Location struct {
 	EgressMTLS                 *version2.EgressMTLS
 	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
+	LimitConnOptions           version2.LimitConnOptions
+	LimitConns                 []version2.LimitConn
+	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
+	ACMEChallenge bool
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
@@ -336,6 +357,7 @@ type MainConfig struct {
 	MainOtelExporterHeaderName         string
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string
+	MainOtelTraceContext               string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool
@@ -359,6 +381,7 @@ type MainConfig struct {
 	TLSPassthroughPort                 int
 	VariablesHashBucketSize            uint64
 	VariablesHashMaxSize               uint64
+	UseForwardedHeaders                bool
 	WorkerConnections                  string
 	WorkerCPUAffinity                  string
 	WorkerProcesses                    string

@@ -7,6 +7,7 @@ from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     create_secret_from_yaml,
@@ -15,6 +16,8 @@ from suite.utils.resources_utils import (
     delete_secret,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_last_reload_time,
     get_pods_amount,
     get_reload_count,
@@ -47,11 +50,12 @@ class SmokeSetup:
 @pytest.fixture(scope="class", params=["standard", "mergeable", "implementation-specific-pathtype"])
 def smoke_setup(request, kube_apis, ingress_controller_endpoint, ingress_controller, test_namespace) -> SmokeSetup:
     print("------------------------- Deploy Smoke Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, f"{TEST_DATA}/smoke/smoke-secret.yaml")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/smoke/{request.param}/smoke-ingress.yaml", test_namespace)
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/smoke/{request.param}/smoke-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,
@@ -109,7 +113,7 @@ class TestSmoke:
         ns = ingress_controller_prerequisites.namespace
 
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 0)
-        while get_pods_amount(kube_apis.v1, ns) != 0:
+        while get_pods_amount(kube_apis.v1, ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)

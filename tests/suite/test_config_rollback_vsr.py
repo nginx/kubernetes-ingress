@@ -7,6 +7,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     wait_before_test,
@@ -73,7 +74,7 @@ class TestConfigRollbackVSRoute:
         expected_nginx_error,
     ):
         """Patch a VS or VSR with an invalid snippet — VS and all VSRs become Invalid, traffic rolls back."""
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_setup = v_s_route_setup
         route_m = vs_setup.route_m
         route_s = vs_setup.route_s

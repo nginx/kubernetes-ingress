@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+  annotations:
+    # Pins upstream connections for every location of this Ingress to HTTP/1.0.
+    # Valid values are "1.0", "1.1" and "2". The annotation takes precedence over the
+    # appProtocol of the backing Service.
+    nginx.org/proxy-http-version: "1.0"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cafe.example.com
+      http:
+        paths:
+          - path: /coffee
+            pathType: Prefix
+            backend:
+              service:
+                name: coffee-svc
+                port:
+                  number: 80
+          - path: /tea
+            pathType: Prefix
+            backend:
+              service:
+                name: tea-svc
+                port:
+                  number: 80

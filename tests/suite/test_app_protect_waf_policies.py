@@ -15,7 +15,7 @@ from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_p
 from suite.utils.resources_utils import (
     create_items_from_yaml,
     get_file_contents,
-    get_pod_name_that_contains,
+    get_first_pod_name,
     retry_get,
     wait_before_test,
 )
@@ -338,8 +338,8 @@ class TestAppProtectWAFPolicyVS:
             virtual_server_setup.vs_host,
         )
         print(response.text)
-        syslog_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog")
-        syslog_esc_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog2")
+        syslog_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog")
+        syslog_esc_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog2")
         log_contents = ""
         retry = 0
         while "ASM:attack_type" not in str(log_contents) and retry <= 60:

@@ -230,6 +230,10 @@ var (
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
 		},
+		configs.HTTP2Annotation: {
+			validateRequiredAnnotation,
+			validateBoolAnnotation,
+		},
 		hstsAnnotation: {
 			validateRequiredAnnotation,
 			validateBoolAnnotation,
@@ -443,6 +447,10 @@ var (
 		sslCiphersAnnotation: {
 			validateRequiredAnnotation,
 			validateSSLCiphersAnnotation,
+		},
+		configs.ProxyHTTPVersionAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyHTTPVersionAnnotation,
 		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
@@ -735,8 +743,12 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 
 		if len(parts) == 2 {
 			value := strings.TrimSpace(parts[1])
-			for _, msg := range version1.ValidateAddHeaderValue(value) {
-				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, msg))
+			for _, err := range common_validation.ValidateProxySetHeaderValue(value, context.fieldPath, context.isPlus) {
+				if err.Type == field.ErrorTypeForbidden {
+					allErrs = append(allErrs, field.Forbidden(context.fieldPath, fmt.Sprintf("%q: %s", entry, err.Detail)))
+				} else {
+					allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Detail))
+				}
 			}
 		}
 	}
@@ -806,6 +818,15 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 	}
 
 	return allErrs
+}
+
+// validateProxyHTTPVersionAnnotation validates the nginx.org/proxy-http-version annotation.
+// It shares the accepted value set with the VirtualServer upstream proxy-http-version field so
+// that the two surfaces cannot drift apart. The shared validator accepts an empty value as
+// "unset"; an annotation that is present but blank is rejected earlier in the validation
+// chain by validateRequiredAnnotation.
+func validateProxyHTTPVersionAnnotation(context *annotationValidationContext) field.ErrorList {
+	return common_validation.ValidateProxyHTTPVersion(context.value, context.fieldPath)
 }
 
 func sortedAnnotationNames(annotationValidations annotationValidationConfig) []string {

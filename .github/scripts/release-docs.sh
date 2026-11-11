@@ -10,7 +10,8 @@ TIDY=${TIDY:-"true"}
 DOCS_REPO=${DOCS_REPO:-"nginx/documentation"}
 GITHUB_USERNAME=${GITHUB_USERNAME:-""}
 GITHUB_EMAIL=${GITHUB_EMAIL:-""}
-RELEASE_BRANCH_PREFIX=${RELEASE_BRANCH_PREFIX:-"nic-release-"}
+NEW_RELEASE_BRANCH=${NEW_RELEASE_BRANCH:-"nic-release-next"}
+PATCH_RELEASE_BRANCH=${PATCH_RELEASE_BRANCH:-"nic-patch-next"}
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
  usage() {
@@ -84,7 +85,8 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: DOCS_REPO: ${DOCS_REPO}"
     echo "DEBUG: GITHUB_USERNAME: ${GITHUB_USERNAME}"
     echo "DEBUG: GITHUB_EMAIL: ${GITHUB_EMAIL}"
-    echo "DEBUG: RELEASE_BRANCH_PREFIX: ${RELEASE_BRANCH_PREFIX}"
+    echo "DEBUG: NEW_RELEASE_BRANCH: ${NEW_RELEASE_BRANCH}"
+    echo "DEBUG: PATCH_RELEASE_BRANCH: ${PATCH_RELEASE_BRANCH}"
     echo "DEBUG: GH_TOKEN: ****$(echo -n $GH_TOKEN | tail -c 4)"
     echo "DEBUG: DOCS_FOLDER: ${DOCS_FOLDER}"
     echo "DEBUG: ic_version: ${ic_version}"
@@ -144,10 +146,16 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
 fi
 
-# Generate branch name using major.minor version (e.g., nic-release-5.2)
-branch=${RELEASE_BRANCH_PREFIX}${ic_version%.*}
+# Select the target branch based on release type:
+# - New major/minor release (major.minor differs from previous_version) -> static "nic-release-next" branch
+# - Patch release (same major.minor as previous_version) -> static "nic-patch-next" branch
+if [ "${ic_version%.*}" != "${previous_version%.*}" ]; then
+    branch=${NEW_RELEASE_BRANCH}
+else
+    branch=${PATCH_RELEASE_BRANCH}
+fi
 if [ "${DEBUG}" != "false" ]; then
-    echo "DEBUG: Generated branch name: ${branch} (from version ${ic_version})"
+    echo "DEBUG: Generated branch name: ${branch} (from version ${ic_version}, previous ${previous_version})"
 fi
 
 echo "INFO: Checking out branch ${branch} in the documentation repository"

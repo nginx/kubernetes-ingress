@@ -11,7 +11,7 @@ import (
 
 func TestNewController_NoNamespaces(t *testing.T) {
 	t.Parallel()
-	opts := BuildOpts(context.Background(), nil, &record.FakeRecorder{}, vsfake.NewSimpleClientset(), 0, false)
+	opts := BuildOpts(context.Background(), nil, &record.FakeRecorder{}, vsfake.NewSimpleClientset(), 0, false, GroupVersionNginx)
 
 	c, err := NewController(opts)
 	if err != nil {
@@ -26,7 +26,7 @@ func TestNewController_DynamicNsSkipsEmptyNamespace(t *testing.T) {
 	t.Parallel()
 	// With isDynamicNs=true and a single empty-string namespace, the loop
 	// should break immediately without creating any informers.
-	opts := BuildOpts(context.Background(), []string{""}, &record.FakeRecorder{}, vsfake.NewSimpleClientset(), 0, true)
+	opts := BuildOpts(context.Background(), []string{""}, &record.FakeRecorder{}, vsfake.NewSimpleClientset(), 0, true, GroupVersionNginx)
 
 	c, err := NewController(opts)
 	if err != nil {
@@ -35,23 +35,32 @@ func TestNewController_DynamicNsSkipsEmptyNamespace(t *testing.T) {
 	if c == nil {
 		t.Fatal("expected non-nil controller")
 	}
-	if len(c.informerGroup) != 0 {
-		t.Errorf("expected empty informerGroup when namespace skipped, got %d entries", len(c.informerGroup))
+	if c.informerGroup.Len() != 0 {
+		t.Errorf("expected empty informerGroup when namespace skipped, got %d entries", c.informerGroup.Len())
 	}
 }
 
 func TestNewController_WithNamespace(t *testing.T) {
 	t.Parallel()
-	opts := BuildOpts(context.Background(), []string{"default"}, &record.FakeRecorder{}, vsfake.NewSimpleClientset(), time.Duration(0), false)
+	for _, gv := range []string{GroupVersionNginx, GroupVersionUpstream} {
+		t.Run(gv, func(t *testing.T) {
+			t.Parallel()
+			opts := BuildOpts(context.Background(), []string{"default"}, &record.FakeRecorder{}, vsfake.NewSimpleClientset(), time.Duration(0), false, gv)
 
-	c, err := NewController(opts)
-	if err != nil {
-		t.Errorf("expected nil error, got %v", err)
-	}
-	if c == nil {
-		t.Fatal("expected non-nil controller")
-	}
-	if _, ok := c.informerGroup["default"]; !ok {
-		t.Error("expected informerGroup to contain entry for 'default' namespace")
+			c, err := NewController(opts)
+			if err != nil {
+				t.Errorf("expected nil error, got %v", err)
+			}
+			if c == nil {
+				t.Fatal("expected non-nil controller")
+			}
+			nsi := c.informerGroup.Get("default")
+			if nsi == nil {
+				t.Fatal("expected informerGroup to contain entry for 'default' namespace")
+			}
+			if nsi.backend == nil {
+				t.Error("expected namespacedInformer.backend to be initialized")
+			}
+		})
 	}
 }

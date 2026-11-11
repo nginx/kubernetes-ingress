@@ -1334,12 +1334,10 @@ func TestGenerateTransportServerConfigForTCPWithTLSWithHost(t *testing.T) {
 			},
 		},
 		DisableIPV6: false,
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/my-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-my-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/my-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-my-secret",
 			},
 		},
 	}
@@ -1450,12 +1448,10 @@ func TestGenerateTransportServerConfigForTCPWithTLS(t *testing.T) {
 			},
 		},
 		DisableIPV6: false,
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/my-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-my-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/my-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-my-secret",
 			},
 		},
 	}
@@ -1800,13 +1796,13 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 	t.Parallel()
 	validTests := []struct {
 		inputTLS        *conf_v1.TransportServerTLS
-		inputSecretRefs map[string]*secrets.SecretReference
+		inputSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
 		expectedSSL     *version2.StreamSSL
 		msg             string
 	}{
 		{
 			inputTLS:        nil,
-			inputSecretRefs: map[string]*secrets.SecretReference{},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			expectedSSL:     &version2.StreamSSL{Enabled: false},
 			msg:             "no TLS field",
 		},
@@ -1814,12 +1810,10 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TransportServerTLS{
 				Secret: "secret",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/secret": {
-					Secret: &api_v1.Secret{
-						Type: api_v1.SecretTypeTLS,
-					},
-					Path: "secret.pem",
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/secret", secrets.RoleTLS): {
+					Secret: &api_v1.Secret{},
+					Path:   "secret.pem",
 				},
 			},
 			expectedSSL: &version2.StreamSSL{
@@ -1829,11 +1823,28 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 			},
 			msg: "normal case with HTTPS",
 		},
+		{
+			inputTLS: &conf_v1.TransportServerTLS{
+				Secret: "mistyped",
+			},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/mistyped", secrets.RoleTLS): {
+					Secret: &api_v1.Secret{},
+					Path:   "mistyped.pem",
+				},
+			},
+			expectedSSL: &version2.StreamSSL{
+				Enabled:        true,
+				Certificate:    "mistyped.pem",
+				CertificateKey: "mistyped.pem",
+			},
+			msg: "secret with an unrecognized type is accepted",
+		},
 	}
 
 	invalidTests := []struct {
 		inputTLS         *conf_v1.TransportServerTLS
-		inputSecretRefs  map[string]*secrets.SecretReference
+		inputSecretRefs  map[secrets.SecretRefKey]*secrets.SecretReference
 		expectedSSL      *version2.StreamSSL
 		expectedWarnings Warnings
 		msg              string
@@ -1842,8 +1853,8 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TransportServerTLS{
 				Secret: "missing",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/missing": {
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/missing", secrets.RoleTLS): {
 					Error: errors.New("missing doesn't exist"),
 				},
 			},
@@ -1856,27 +1867,9 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 		},
 		{
 			inputTLS: &conf_v1.TransportServerTLS{
-				Secret: "mistyped",
-			},
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/mistyped": {
-					Secret: &api_v1.Secret{
-						Type: secrets.SecretTypeCA,
-					},
-				},
-			},
-			expectedSSL: &version2.StreamSSL{
-				Enabled:        false,
-				Certificate:    "",
-				CertificateKey: "",
-			},
-			msg: "wrong secret type",
-		},
-		{
-			inputTLS: &conf_v1.TransportServerTLS{
 				Secret: "",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			expectedSSL:     &version2.StreamSSL{Enabled: false},
 			msg:             "secret is empty",
 		},

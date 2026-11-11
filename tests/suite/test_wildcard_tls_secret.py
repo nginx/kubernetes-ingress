@@ -12,6 +12,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     is_secret_present,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -56,12 +58,13 @@ def wildcard_tls_secret_setup(
 ) -> WildcardTLSSecretSetup:
     ing_type = request.param
     print("------------------------- Deploy Wildcard-Tls-Secret-Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/wildcard-tls-secret/{ing_type}/wildcard-secret-ingress.yaml", test_namespace
     )
     host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/wildcard-tls-secret/{ing_type}/wildcard-secret-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -126,6 +129,41 @@ class TestTLSWildcardSecrets:
         wait_and_assert_status_code(200, req_url, wildcard_tls_secret_setup.ingress_host, verify=False)
 
     def test_certificate_subject(self, wildcard_tls_secret_ingress_controller, wildcard_tls_secret_setup):
+        subject_dict = get_server_certificate_subject(
+            wildcard_tls_secret_setup.public_endpoint.public_ip,
+            wildcard_tls_secret_setup.ingress_host,
+            wildcard_tls_secret_setup.public_endpoint.port_ssl,
+        )
+        assert subject_dict[b"C"] == b"ES"
+        assert subject_dict[b"ST"] == b"CanaryIslands"
+        assert subject_dict[b"O"] == b"nginx"
+        assert subject_dict[b"OU"] == b"example.com"
+        assert subject_dict[b"CN"] == b"example.com"
+
+    def test_certificate_subject_with_opaque_secret(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        wildcard_tls_secret_ingress_controller,
+        wildcard_tls_secret_setup,
+    ):
+        """
+        The wildcard secret is served from an Opaque secret carrying the same tls.crt/tls.key keys.
+
+        Asserts on the certificate actually served on the wire rather than on an event, because
+        a secret NIC fails to apply still produces a SecretUpdated event while serving the stale
+        certificate.
+        """
+        delete_secret(
+            kube_apis.v1, wildcard_tls_secret_ingress_controller.secret_name, ingress_controller_prerequisites.namespace
+        )
+        # Secret type is immutable, so the swap must be delete-then-create.
+        create_secret_from_yaml(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            f"{TEST_DATA}/wildcard-tls-secret/opaque-wildcard-tls-secret.yaml",
+        )
+        wait_before_test(1)
         subject_dict = get_server_certificate_subject(
             wildcard_tls_secret_setup.public_endpoint.public_ip,
             wildcard_tls_secret_setup.ingress_host,

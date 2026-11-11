@@ -3,6 +3,7 @@ import re
 import pytest
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_license,
     create_secret_from_yaml,
     delete_secret,
@@ -18,6 +19,10 @@ from suite.utils.resources_utils import (
 from suite.utils.yaml_utils import get_name_from_yaml
 
 default_mgmt_configmap = f"{TEST_DATA}/common/default-mgmt-configmap.yaml"
+mgmt_trusted_cert_src = f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml"
+mgmt_trusted_cert_opaque_src = f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert-opaque.yaml"
+mgmt_ssl_cert_src = f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml"
+mgmt_ssl_cert_opaque_src = f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert-opaque.yaml"
 
 
 def assert_event(event_list, event_type, reason, message_substring):
@@ -68,7 +73,7 @@ class TestMGMTConfigMap:
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         metrics_url = (
             f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
         )
@@ -80,11 +85,13 @@ class TestMGMTConfigMap:
         print(f"Step 1a: initial reload count is {reload_count}")
 
         print("Step 2: create duplicate existing secret with new name")
+        # Legacy nginx.com/license type, kept deliberately: proves the type is still accepted.
         license_name = create_license(
             kube_apis.v1,
             ingress_controller_prerequisites.namespace,
             cli_arguments["plus-jwt"],
             license_token_name="license-token-changed",
+            secret_type="nginx.com/license",
         )
         assert is_secret_present(kube_apis.v1, license_name, ingress_controller_prerequisites.namespace)
 
@@ -154,6 +161,14 @@ class TestMGMTConfigMap:
         ],
         indirect=["ingress_controller"],
     )
+    @pytest.mark.parametrize(
+        "trusted_cert_src, ssl_cert_src",
+        [
+            (mgmt_trusted_cert_src, mgmt_ssl_cert_src),
+            (mgmt_trusted_cert_opaque_src, mgmt_ssl_cert_opaque_src),
+        ],
+        ids=["typed_secrets", "opaque_secrets"],
+    )
     def test_full_mgmt_configmap(
         self,
         cli_arguments,
@@ -161,6 +176,8 @@ class TestMGMTConfigMap:
         ingress_controller_prerequisites,
         ingress_controller,
         ingress_controller_endpoint,
+        trusted_cert_src,
+        ssl_cert_src,
     ):
         """
         Test that all mgmt config map params are reflected in the nginx conf
@@ -170,7 +187,7 @@ class TestMGMTConfigMap:
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         metrics_url = (
             f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
         )
@@ -202,16 +219,14 @@ class TestMGMTConfigMap:
         create_secret_from_yaml(
             kube_apis.v1,
             ingress_controller_prerequisites.namespace,
-            f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml",
+            trusted_cert_src,
         )
-        trusted_cert_secret_name = get_name_from_yaml(f"{TEST_DATA}/mgmt-configmap-keys/ssl-trusted-cert.yaml")
+        trusted_cert_secret_name = get_name_from_yaml(trusted_cert_src)
         assert is_secret_present(kube_apis.v1, trusted_cert_secret_name, ingress_controller_prerequisites.namespace)
 
         print("Step 5: create ssl certificate secret")
-        create_secret_from_yaml(
-            kube_apis.v1, ingress_controller_prerequisites.namespace, f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml"
-        )
-        ssl_cert_secret_name = get_name_from_yaml(f"{TEST_DATA}/mgmt-configmap-keys/ssl-cert.yaml")
+        create_secret_from_yaml(kube_apis.v1, ingress_controller_prerequisites.namespace, ssl_cert_src)
+        ssl_cert_secret_name = get_name_from_yaml(ssl_cert_src)
         assert is_secret_present(kube_apis.v1, ssl_cert_secret_name, ingress_controller_prerequisites.namespace)
 
         print("Step 6: update the mgmt config map with all options on")

@@ -3,7 +3,9 @@ package configs
 import (
 	"context"
 	"reflect"
+	"slices"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -3273,6 +3275,7 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 	}
 
 	expected := version2.VirtualServerConfig{
+		HTTP2: true,
 		Upstreams: []version2.Upstream{
 			{
 				UpstreamLabels: version2.UpstreamLabels{
@@ -3354,8 +3357,8 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 			StatusZone:  "cafe.example.com",
 			VSNamespace: "default",
 			VSName:      "cafe",
+			HTTP2:       true,
 			SSL: &version2.SSL{
-				HTTP2:          true,
 				Certificate:    "/etc/nginx/secrets/wildcard",
 				CertificateKey: "/etc/nginx/secrets/wildcard",
 			},
@@ -3732,5 +3735,217 @@ func TestGenerateVirtualServerConfigWithForeignNamespaceServiceInVSR(t *testing.
 
 	if !cmp.Equal(expected, result) {
 		t.Error(cmp.Diff(expected, result))
+	}
+}
+
+// TestGenerateVirtualServerConfigProxyHTTPVersion asserts the precedence documented for the
+// upstream proxy-http-version field: explicit field > Service appProtocol > unset.
+func TestGenerateVirtualServerConfigProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "unset",
+						Service: "unset-svc",
+						Port:    80,
+					},
+					{
+						Name:    "inferred",
+						Service: "h2c-svc",
+						Port:    80,
+					},
+					{
+						Name:             "explicit",
+						Service:          "explicit-svc",
+						Port:             80,
+						ProxyHTTPVersion: "1.0",
+					},
+					{
+						Name:             "explicit-overrides-h2c",
+						Service:          "h2c-override-svc",
+						Port:             80,
+						ProxyHTTPVersion: "1.1",
+					},
+					{
+						Name:    "other-app-protocol",
+						Service: "grpc-web-svc",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/unset", Action: &conf_v1.Action{Pass: "unset"}},
+					{Path: "/inferred", Action: &conf_v1.Action{Pass: "inferred"}},
+					{Path: "/explicit", Action: &conf_v1.Action{Pass: "explicit"}},
+					{Path: "/explicit-overrides-h2c", Action: &conf_v1.Action{Pass: "explicit-overrides-h2c"}},
+					{Path: "/other-app-protocol", Action: &conf_v1.Action{Pass: "other-app-protocol"}},
+				},
+			},
+		},
+		ServiceAppProtocols: map[string]string{
+			"default/h2c-svc:80":          "kubernetes.io/h2c",
+			"default/h2c-override-svc:80": "kubernetes.io/h2c",
+			"default/grpc-web-svc:80":     "kubernetes.io/grpc-web",
+		},
+	}
+
+	want := map[string]string{
+		"/unset":                  "",
+		"/inferred":               "2",
+		"/explicit":               "1.0",
+		"/explicit-overrides-h2c": "1.1",
+		"/other-app-protocol":     "",
+	}
+
+	baseCfgParams := ConfigParams{Context: context.Background()}
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig() returned unexpected warnings: %v", warnings)
+	}
+
+	got := make(map[string]string)
+	for _, loc := range result.Server.Locations {
+		got[loc.Path] = loc.ProxyHTTPVersion
+	}
+
+	for path, wantVersion := range want {
+		gotVersion, exists := got[path]
+		if !exists {
+			t.Fatalf("no location generated for path %q; got %v", path, got)
+		}
+		if gotVersion != wantVersion {
+			t.Errorf("location %q: ProxyHTTPVersion = %q, want %q", path, gotVersion, wantVersion)
+		}
+	}
+}
+
+// TestGenerateVirtualServerConfigProxyHTTPVersionGRPC asserts that gRPC upstreams never carry a
+// resolved HTTP version (grpc_pass always uses HTTP/2) and that configuring one is reported.
+func TestGenerateVirtualServerConfigProxyHTTPVersionGRPC(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				TLS:  &conf_v1.TLS{Secret: ""},
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:             "grpc-configured",
+						Service:          "grpc-svc",
+						Port:             50051,
+						Type:             "grpc",
+						ProxyHTTPVersion: "1.1",
+						TLS:              conf_v1.UpstreamTLS{Enable: true},
+					},
+					{
+						Name:    "grpc-h2c",
+						Service: "grpc-h2c-svc",
+						Port:    50052,
+						Type:    "grpc",
+						TLS:     conf_v1.UpstreamTLS{Enable: true},
+					},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/grpc-configured", Action: &conf_v1.Action{Pass: "grpc-configured"}},
+					{Path: "/grpc-h2c", Action: &conf_v1.Action{Pass: "grpc-h2c"}},
+				},
+			},
+		},
+		ServiceAppProtocols: map[string]string{
+			"default/grpc-h2c-svc:50052": "kubernetes.io/h2c",
+		},
+	}
+
+	baseCfgParams := ConfigParams{Context: context.Background(), HTTP2: true}
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	result, _ := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+	for _, loc := range result.Server.Locations {
+		if loc.ProxyHTTPVersion != "" {
+			t.Errorf("location %q: ProxyHTTPVersion = %q, want it unset for a gRPC upstream",
+				loc.Path, loc.ProxyHTTPVersion)
+		}
+	}
+
+	wantWarning := "proxy-http-version is ignored for upstream grpc-configured because it has type grpc, which always uses HTTP/2"
+	if !slices.Contains(vsc.warnings[virtualServerEx.VirtualServer], wantWarning) {
+		t.Errorf("GenerateVirtualServerConfig() warnings %v do not contain %q",
+			vsc.warnings[virtualServerEx.VirtualServer], wantWarning)
+	}
+
+	// The upstream without an explicit field must not produce a warning of its own.
+	for _, warning := range vsc.warnings[virtualServerEx.VirtualServer] {
+		if strings.Contains(warning, "grpc-h2c") && strings.Contains(warning, "proxy-http-version") {
+			t.Errorf("unexpected proxy-http-version warning for an unconfigured gRPC upstream: %q", warning)
+		}
+	}
+}
+
+// TestGenerateVirtualServerConfigHTTP2 asserts that spec.http2 overrides the http2 ConfigMap key,
+// that the server-level directive is only set when it differs from the ConfigMap key,
+// and that gRPC upstreams only require HTTP/2.
+func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
+	t.Parallel()
+	on, off := true, false
+	tests := []struct {
+		msg       string
+		tls       bool
+		configMap bool
+		spec      *bool
+		want      bool
+	}{
+		{msg: "TLS inherits ConfigMap on", tls: true, configMap: true, want: true},
+		{msg: "TLS, spec off overrides ConfigMap on", tls: true, configMap: true, spec: &off},
+		{msg: "TLS, spec on overrides ConfigMap off", tls: true, spec: &on, want: true},
+		{msg: "TLS, spec on matches ConfigMap on", tls: true, configMap: true, spec: &on, want: true},
+		{msg: "no TLS inherits ConfigMap on", configMap: true, want: true},
+		{msg: "no TLS, spec off overrides ConfigMap on", configMap: true, spec: &off},
+		{msg: "no TLS, spec on", spec: &on, want: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			vs := &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+				Spec: conf_v1.VirtualServerSpec{
+					Host:      "cafe.example.com",
+					HTTP2:     tc.spec,
+					Upstreams: []conf_v1.Upstream{{Name: "grpc", Service: "grpc-svc", Port: 50051, Type: "grpc"}},
+					Routes:    []conf_v1.Route{{Path: "/", Action: &conf_v1.Action{Pass: "grpc"}}},
+				},
+			}
+			if tc.tls {
+				vs.Spec.TLS = &conf_v1.TLS{Secret: "cafe-secret"}
+			}
+
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background(), HTTP2: tc.configMap}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			result, _ := vsc.GenerateVirtualServerConfig(&VirtualServerEx{VirtualServer: vs}, nil, nil)
+
+			if result.Server.HTTP2 != tc.want {
+				t.Errorf("Server.HTTP2 = %v, want %v", result.Server.HTTP2, tc.want)
+			}
+			if result.HTTP2 != tc.configMap {
+				t.Errorf("HTTP2 = %v, want the ConfigMap value %v", result.HTTP2, tc.configMap)
+			}
+			grpcWarning := slices.Contains(vsc.warnings[vs], "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2")
+			if grpcWarning != !tc.want {
+				t.Errorf("gRPC warning = %v, want %v", grpcWarning, !tc.want)
+			}
+		})
 	}
 }

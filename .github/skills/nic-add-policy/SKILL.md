@@ -100,6 +100,15 @@ File: `internal/k8s/`
 - In `syncPolicy()`, ensure the new type is handled for VS/VSR/Ingress
 - Check if it needs feature-gate guarding (isPlus, enableOIDC, etc.)
 
+If the policy references secrets:
+
+- Add every Secret field to `policySecretIndexFunc()` through `collectPolicySecretRefs()` or `collectWAFSecretRefs()`.
+- Resolve each reference during extended-resource construction with `secretStore.GetSecret(namespacedKey, role)`.
+- Store the result under `secrets.RefKey(namespacedKey, role)`.
+- Select the role from the reference site's semantics; never infer it from `Secret.type` or Secret data.
+- Ensure `syncPolicy()` fans out to every supported VS, VSR, and Ingress consumer.
+- Add index tests covering add, update, delete, cross-namespace references, and duplicate references.
+
 ## Step 13: Write integration tests
 
 Directory: `tests/suite/`
@@ -129,7 +138,7 @@ Every `add*Config()` method in `internal/configs/policy.go` follows this pattern
 
 ```go
 func (p *policiesCfg) addMyPolicyConfig(spec *conf_v1.MyPolicy, key, namespace string,
-    secretRefs map[string]*secrets.SecretReference) *validationResults {
+    secretRefs map[secrets.SecretRefKey]*secrets.SecretReference) *validationResults {
     res := newValidationResults()
 
     // 1. Duplicate check
@@ -140,15 +149,16 @@ func (p *policiesCfg) addMyPolicyConfig(spec *conf_v1.MyPolicy, key, namespace s
 
     // 2. Secret resolution (if applicable)
     secretKey := namespace + "/" + spec.Secret
-    secretRef := secretRefs[secretKey]
-    if secretRef.Error != nil {
+    refKey := secrets.RefKey(secretKey, secrets.RoleExpected)
+    secretRef, ok := secretRefs[refKey]
+    if !ok || secretRef == nil {
         res.isError = true
-        res.addWarningf("secret %s has error: %v", secretKey, secretRef.Error)
+        res.addWarningf("secret %s could not be resolved", secretKey)
         return res
     }
-    if secretRef.Type != secrets.SecretTypeExpected {
+    if secretRef.Error != nil {
         res.isError = true
-        res.addWarningf("secret %s has wrong type", secretKey)
+        res.addWarningf("secret %s is invalid: %v", secretKey, secretRef.Error)
         return res
     }
 

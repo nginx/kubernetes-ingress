@@ -47,6 +47,11 @@ const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
 // SSLPreferServerCiphersAnnotation is the annotation where SSL prefer server ciphers is specified.
 const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
 
+// HTTP2Annotation turns HTTP/2 on or off for an Ingress, overriding the http2 ConfigMap key.
+// For unencrypted (h2c) traffic on the default listeners, HTTP/2 must also be enabled in the ConfigMap.
+// When off, HTTP/2 requests for the Ingress hosts get 421 Misdirected Request; HTTP/1.1 is unaffected.
+const HTTP2Annotation = "nginx.org/http2"
+
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
@@ -107,6 +112,9 @@ const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
 // them via error_page to the Ingress's spec.defaultBackend when one is configured.
 const CustomHTTPErrorsAnnotation = "nginx.org/custom-http-errors"
 
+// ProxyHTTPVersionAnnotation is the annotation for specifying the HTTP version to use when proxying requests to upstream servers.
+const ProxyHTTPVersionAnnotation = "nginx.org/proxy-http-version"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
@@ -136,6 +144,7 @@ var minionDenylist = map[string]bool{
 	"nginx.org/server-snippets":                         true,
 	"nginx.org/ssl-ciphers":                             true,
 	"nginx.org/ssl-prefer-server-ciphers":               true,
+	HTTP2Annotation:                                     true,
 	"nginx.org/app-root":                                true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
@@ -172,6 +181,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/limit-req-reject-code":    true,
 	"nginx.org/limit-req-scale":          true,
 	UpstreamVhostAnnotation:              true,
+	ProxyHTTPVersionAnnotation:           true,
 }
 
 var validPathRegex = map[string]bool{
@@ -349,6 +359,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
 	}
 
+	if proxyHTTPVersion, exists := ingEx.Ingress.Annotations[ProxyHTTPVersionAnnotation]; exists {
+		cfgParams.ProxyHTTPVersion = proxyHTTPVersion
+	}
+
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
@@ -400,6 +414,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
+		}
+	}
+
+	if http2, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, HTTP2Annotation, ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.HTTP2 = http2
 		}
 	}
 

@@ -14,7 +14,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	api_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -98,25 +97,31 @@ type PodInfo struct {
 
 // VirtualServerEx holds a VirtualServer along with the resources that are referenced in this VirtualServer.
 type VirtualServerEx struct {
-	VirtualServer               *conf_v1.VirtualServer
-	HTTPPort                    int
-	HTTPSPort                   int
-	HTTPIPv4                    string
-	HTTPIPv6                    string
-	HTTPSIPv4                   string
-	HTTPSIPv6                   string
-	Endpoints                   map[string][]string
+	VirtualServer *conf_v1.VirtualServer
+	HTTPPort      int
+	HTTPSPort     int
+	HTTPIPv4      string
+	HTTPIPv6      string
+	HTTPSIPv4     string
+	HTTPSIPv6     string
+	Endpoints     map[string][]string
+	// ServiceAppProtocols holds the appProtocol of the Service port backing each upstream,
+	// keyed identically to Endpoints. Absent or unset appProtocols are not stored.
+	ServiceAppProtocols         map[string]string
 	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
 	VirtualServerSelectorRoutes map[string][]string
 	ExternalNameSvcs            map[string]bool
 	Policies                    map[string]*conf_v1.Policy
 	PodsByIP                    map[string]PodInfo
-	SecretRefs                  map[string]*secrets.SecretReference
+	SecretRefs                  map[secrets.SecretRefKey]*secrets.SecretReference
 	ApPolRefs                   map[string]*unstructured.Unstructured
 	LogConfRefs                 map[string]*unstructured.Unstructured
 	DosProtectedRefs            map[string]*unstructured.Unstructured
 	DosProtectedEx              map[string]*DosEx
 	ZoneSync                    bool
+	// ChallengeRoutes holds synthetic VirtualServerRoutes for cert-manager ACME HTTP-01 challenges.
+	// They are rendered without policies and are not part of VirtualServerRoutes.
+	ChallengeRoutes []*conf_v1.VirtualServerRoute
 }
 
 func (vsx *VirtualServerEx) String() string {
@@ -321,6 +326,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	appProtectLoadModule       bool
 	plmEnabled                 bool
 }
 
@@ -364,6 +370,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		appProtectLoadModule:       staticParams.MainAppProtectLoadModule,
 		plmEnabled:                 staticParams.PLMEnabled,
 	}
 }
@@ -435,7 +442,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		useCustomListeners = true
 	}
 
-	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs, vsc.cfgParams)
+	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs)
+	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, vsc.cfgParams.HTTP2)
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
@@ -502,11 +510,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var statusMatches []version2.StatusMatch
 	var healthChecks []version2.HealthCheck
 	var limitReqZones []version2.LimitReqZone
+	var limitConnZones []version2.LimitConnZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
 	var cacheZones []version2.CacheZone
 	var oidcProviders []version2.OIDCProvider
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
+	limitConnZones = append(limitConnZones, policiesCfg.ConnectionLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
 	if policiesCfg.OIDCProvider != nil {
 		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
@@ -518,7 +528,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			sslConfig,
+			http2,
 			vsc,
 			u,
 			vsEx.VirtualServer,
@@ -536,11 +546,30 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
 			upstreams, healthChecks, statusMatches = generateUpstreams(
-				sslConfig,
+				http2,
 				vsc,
 				u,
 				vsr,
 				vsr.Namespace,
+				upstreamNamer,
+				vsEx,
+				upstreams,
+				crUpstreams,
+				healthChecks,
+				statusMatches,
+			)
+		}
+	}
+	// generate upstreams for each ACME challenge route
+	for _, cr := range vsEx.ChallengeRoutes {
+		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, cr)
+		for _, u := range cr.Spec.Upstreams {
+			upstreams, healthChecks, statusMatches = generateUpstreams(
+				http2,
+				vsc,
+				u,
+				cr,
+				cr.Namespace,
 				upstreamNamer,
 				vsEx,
 				upstreams,
@@ -591,7 +620,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyPassUpstream))
 
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			sslConfig,
+			http2,
 			vsc,
 			proxyURLUpstream,
 			vsEx.VirtualServer,
@@ -772,7 +801,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 				upstreams, healthChecks, statusMatches = generateUpstreams(
-					sslConfig,
+					http2,
 					vsc,
 					proxyURLUpstream,
 					vsEx.VirtualServer,
@@ -812,6 +841,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+		limitConnZones = append(limitConnZones, routePoliciesCfg.ConnectionLimit.Zones...)
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 		if routePoliciesCfg.OIDCProvider != nil {
 			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
@@ -822,24 +852,21 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
+		rc := locationContext{
+			upstreamNamer:  virtualServerUpstreamNamer,
+			crUpstreams:    crUpstreams,
+			cfgParams:      vsc.cfgParams,
+			errorPages:     errorPages,
+			originalPath:   r.Path,
+			locSnippets:    vsLocSnippets,
+			enableSnippets: vsc.enableSnippets,
+			isVSR:          isVSR,
+			warnings:       vsc.warnings,
+		}
+
 		if len(r.Matches) > 0 {
-			cfg := generateMatchesConfig(
-				r,
-				virtualServerUpstreamNamer,
-				crUpstreams,
-				VariableNamer,
-				matchesRoutes,
-				len(splitClients),
-				vsc.cfgParams,
-				errorPages,
-				vsLocSnippets,
-				vsc.enableSnippets,
-				len(returnLocations),
-				isVSR,
-				"", "",
-				vsc.warnings,
-				vsc.DynamicWeightChangesReload,
-			)
+			cfg := generateMatchesConfig(rc, r, VariableNamer, matchesRoutes, len(splitClients), len(returnLocations),
+				vsc.DynamicWeightChangesReload)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
@@ -854,8 +881,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 			matchesRoutes++
 		} else if len(r.Splits) > 0 {
-			cfg := generateDefaultSplitsConfig(r, virtualServerUpstreamNamer, crUpstreams, VariableNamer, len(splitClients),
-				vsc.cfgParams, errorPages, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings, vsc.DynamicWeightChangesReload)
+			cfg := generateDefaultSplitsConfig(rc, r, VariableNamer, len(splitClients), len(returnLocations), vsc.DynamicWeightChangesReload)
 			addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 			addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 			addAddHeaderInheritToLocations(r.AddHeaderInherit, cfg.Locations)
@@ -868,14 +894,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			keyVals = append(keyVals, cfg.KeyVals...)
 			twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 		} else {
-			upstreamName := virtualServerUpstreamNamer.GetNameForUpstreamFromAction(r.Action)
-			upstream := crUpstreams[upstreamName]
-
-			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsEx.VirtualServer.Namespace)
-			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
-
-			loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
-				proxySSLName, r.Path, vsLocSnippets, vsc.enableSnippets, len(returnLocations), isVSR, "", "", vsc.warnings)
+			loc, returnLoc := generateLocation(rc, r.Path, r.Action, false, len(returnLocations))
 			addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 			loc.Dos = dosRouteCfg
 			loc.AddHeaderInherit = r.AddHeaderInherit
@@ -940,6 +959,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					parentNamespace: vsEx.VirtualServer.Namespace,
 					parentName:      vsEx.VirtualServer.Name,
 					parentType:      "vs",
+					ownerType:       "vsr",
 				}
 				policyRefs = r.Policies
 				context = subRouteContext
@@ -1007,7 +1027,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 					upstreams, healthChecks, statusMatches = generateUpstreams(
-						sslConfig,
+						http2,
 						vsc,
 						proxyURLUpstream,
 						vsr,
@@ -1029,7 +1049,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						}
 					}
 				} else {
-					vsc.addWarningf(vsr, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
+					vsc.addWarningf(vsEx.VirtualServer, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
 				}
 			}
 
@@ -1046,6 +1066,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
+			limitConnZones = append(limitConnZones, routePoliciesCfg.ConnectionLimit.Zones...)
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
 			if routePoliciesCfg.OIDCProvider != nil {
 				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
@@ -1056,25 +1077,23 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
 
+			rc := locationContext{
+				upstreamNamer:  upstreamNamer,
+				crUpstreams:    crUpstreams,
+				cfgParams:      vsc.cfgParams,
+				errorPages:     errorPages,
+				originalPath:   r.Path,
+				locSnippets:    locSnippets,
+				enableSnippets: vsc.enableSnippets,
+				isVSR:          isVSR,
+				vsrName:        vsr.Name,
+				vsrNamespace:   vsr.Namespace,
+				warnings:       vsc.warnings,
+			}
+
 			if len(r.Matches) > 0 {
-				cfg := generateMatchesConfig(
-					r,
-					upstreamNamer,
-					crUpstreams,
-					VariableNamer,
-					matchesRoutes,
-					len(splitClients),
-					vsc.cfgParams,
-					errorPages,
-					locSnippets,
-					vsc.enableSnippets,
-					len(returnLocations),
-					isVSR,
-					vsr.Name,
-					vsr.Namespace,
-					vsc.warnings,
-					vsc.DynamicWeightChangesReload,
-				)
+				cfg := generateMatchesConfig(rc, r, VariableNamer, matchesRoutes, len(splitClients), len(returnLocations),
+					vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
@@ -1089,8 +1108,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 				matchesRoutes++
 			} else if len(r.Splits) > 0 {
-				cfg := generateDefaultSplitsConfig(r, upstreamNamer, crUpstreams, VariableNamer, len(splitClients), vsc.cfgParams,
-					errorPages, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings, vsc.DynamicWeightChangesReload)
+				cfg := generateDefaultSplitsConfig(rc, r, VariableNamer, len(splitClients), len(returnLocations), vsc.DynamicWeightChangesReload)
 				addPoliciesCfgToLocations(routePoliciesCfg, cfg.Locations)
 				addDosConfigToLocations(dosRouteCfg, cfg.Locations)
 				addAddHeaderInheritToLocations(addHeaderInherit, cfg.Locations)
@@ -1104,13 +1122,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				twoWaySplitClients = append(twoWaySplitClients, cfg.TwoWaySplitClients...)
 				maps = append(maps, cfg.Maps...)
 			} else {
-				upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
-				upstream := crUpstreams[upstreamName]
-				serviceNamespace, serviceName := ParseServiceReference(upstream.Service, vsr.Namespace)
-				proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
-
-				loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPages, false,
-					proxySSLName, r.Path, locSnippets, vsc.enableSnippets, len(returnLocations), isVSR, vsr.Name, vsr.Namespace, vsc.warnings)
+				loc, returnLoc := generateLocation(rc, r.Path, r.Action, false, len(returnLocations))
 				addPoliciesCfgToLocation(routePoliciesCfg, &loc)
 				loc.Dos = dosRouteCfg
 				loc.AddHeaderInherit = addHeaderInherit
@@ -1119,6 +1131,60 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				if returnLoc != nil {
 					returnLocations = append(returnLocations, *returnLoc)
 				}
+			}
+		}
+	}
+
+	// generate config for ACME challenge routes. No policies, error pages or snippets are applied,
+	// so the ACME server can always reach the solver.
+	// Challenge locations are exact-match (=) so that NGINX selects them before any regex route
+	// location, which would otherwise capture the token request. They are generated after all VS
+	// routes and VSR subroutes, so the paths collected here cover every route location: VS routes,
+	// VSR subroutes and split/match internal-redirect locations. Fixed locations added outside the
+	// route loops (for example OIDC) are out of scope.
+	acmeChallengeActive := false
+	renderedPaths := make(map[string]bool, len(locations)+len(internalRedirectLocations))
+	for _, l := range locations {
+		renderedPaths[l.Path] = true
+	}
+	for _, l := range internalRedirectLocations {
+		renderedPaths[l.Path] = true
+	}
+	for _, cr := range vsEx.ChallengeRoutes {
+		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, cr)
+		for _, r := range cr.Spec.Subroutes {
+			plainPath := strings.TrimLeftFunc(strings.TrimPrefix(r.Path, "="), unicode.IsSpace)
+			exactPath := "=" + plainPath
+			// NGINX rejects two exact-match locations with the same URI, which would fail the
+			// config test for every resource. Leave the user's location in place instead.
+			if renderedPath := generatePath(exactPath); renderedPaths[renderedPath] {
+				vsc.addWarningf(vsEx.VirtualServer, "ACME challenge path %s for %s/%s is already defined by a route; challenge location not generated",
+					renderedPath, cr.Namespace, cr.Name)
+				continue
+			}
+
+			rc := locationContext{
+				upstreamNamer: upstreamNamer,
+				crUpstreams:   crUpstreams,
+				cfgParams:     vsc.cfgParams,
+				errorPages:    errorPageDetails{owner: cr},
+				originalPath:  plainPath,
+				isVSR:         true,
+				vsrName:       cr.Name,
+				vsrNamespace:  cr.Namespace,
+				warnings:      vsc.warnings,
+			}
+			loc, returnLoc := generateLocation(rc, exactPath, r.Action, false, len(returnLocations))
+			renderedPaths[loc.Path] = true
+			// Drop global ConfigMap location-snippets too: they could duplicate the auth-off directives
+			// rendered for challenge locations and fail the NGINX config test.
+			loc.Snippets = nil
+			loc.ACMEChallenge = true
+			acmeChallengeActive = true
+
+			locations = append(locations, loc)
+			if returnLoc != nil {
+				returnLocations = append(returnLocations, *returnLoc)
 			}
 		}
 	}
@@ -1156,11 +1222,16 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
 
+	if policiesCfg.OIDC != nil {
+		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		Maps:             removeDuplicateMaps(maps),
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
+		LimitConnZones:   removeDuplicateLimitConnZones(limitConnZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
 		OIDCProviders:    dedupedOIDCProviders,
 		CacheZones:       cacheZones,
@@ -1168,6 +1239,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
+			HTTP2:                     http2,
 			AddHeaderInherit:          vsEx.VirtualServer.Spec.AddHeaderInherit,
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
@@ -1195,9 +1267,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			Deny:                      policiesCfg.Deny,
 			LimitReqOptions:           policiesCfg.RateLimit.Options,
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
+			LimitConnOptions:          policiesCfg.ConnectionLimit.Options,
+			LimitConns:                policiesCfg.ConnectionLimit.Conns,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
 			ExternalAuth:              policiesCfg.ExternalAuth,
-			ErrorPages:                getServerErrorPages(policiesCfg),
 			BasicAuth:                 policiesCfg.BasicAuth,
 			JWTAuthList:               policiesCfg.JWTAuth.List,
 			JWKSAuthEnabled:           policiesCfg.JWTAuth.JWKSEnabled,
@@ -1216,6 +1289,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			VSName:                    vsEx.VirtualServer.Name,
 			DisableIPV6:               vsc.isIPV6Disabled,
 			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
+			ACMEChallengeActive:       acmeChallengeActive,
 		},
 		DynamicSSLReloadEnabled: vsc.DynamicSSLReloadEnabled,
 		StaticSSLPath:           vsc.StaticSSLPath,
@@ -1223,6 +1297,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		KeyVals:                 keyVals,
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
+		AppProtectLoadModule:    vsc.appProtectLoadModule,
+		HTTP2:                   vsc.cfgParams.HTTP2,
 	}
 
 	return vsCfg, vsc.warnings
@@ -1235,6 +1311,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	loc := version2.Location{
 		Path:                    fmt.Sprintf("%q", policiesCfg.ExternalAuth.URI.InternalPath),
 		Internal:                true,
+		DisableWAF:              true,
 		Snippets:                generateSnippets(true, policiesCfg.ExternalAuth.Snippets, nil),
 		ProxyPass:               fmt.Sprintf("%q", proxyPass),
 		ProxyPassRequestHeaders: true,
@@ -1243,6 +1320,10 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 			{Name: "Content-Length", Value: "0"},
 			{Name: "Host", Value: "$host"},
 			{Name: "X-Scheme", Value: "$scheme"},
+			{Name: "X-Forwarded-Prefix", Value: ""},
+			{Name: "X-Forwarded-URI", Value: "$request_uri"},
+			{Name: "X-Forwarded-Method", Value: "$request_method"},
+			{Name: "X-Original-URI", Value: "$request_uri"},
 		},
 		ProxyConnectTimeout:      generateTimeWithDefault(vsc.cfgParams.ProxyConnectTimeout, vsc.cfgParams.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(vsc.cfgParams.ProxyReadTimeout, vsc.cfgParams.ProxyReadTimeout),
@@ -1316,19 +1397,6 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 	return loc
 }
 
-func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
-	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		return []version2.ErrorPage{
-			{
-				Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-				Codes:        "401",
-				ResponseCode: version2.ErrorPageResponseCodeInherit,
-			},
-		}
-	}
-	return nil
-}
-
 func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
 	for obj, msgs := range routeWarnings {
 		vsc.addWarnings(obj, msgs)
@@ -1336,7 +1404,7 @@ func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
 }
 
 func generateUpstreams(
-	sslConfig *version2.SSL,
+	http2 bool,
 	vsc *virtualServerConfigurator,
 	u conf_v1.Upstream,
 	owner runtime.Object,
@@ -1348,8 +1416,8 @@ func generateUpstreams(
 	healthChecks []version2.HealthCheck,
 	statusMatches []version2.StatusMatch,
 ) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
-	if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
-		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
+	if !http2 && isGRPC(u.Type) {
+		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2", u.Name)
 	}
 
 	upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
@@ -1361,6 +1429,7 @@ func generateUpstreams(
 	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
 	upstreams = append(upstreams, ups)
 	u.TLS.Enable = isTLSEnabled(u)
+	u.ProxyHTTPVersion = vsc.resolveUpstreamProxyHTTPVersion(owner, ownerNamespace, u, vsEx)
 	crUpstreams[upstreamName] = u
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
@@ -1373,6 +1442,30 @@ func generateUpstreams(
 		}
 	}
 	return upstreams, healthChecks, statusMatches
+}
+
+// resolveUpstreamProxyHTTPVersion determines the HTTP version used for connections to the
+// servers of a single upstream. gRPC upstreams are left unset: they are proxied with grpc_pass,
+// which always uses HTTP/2, and never render proxy_http_version.
+func (vsc *virtualServerConfigurator) resolveUpstreamProxyHTTPVersion(
+	owner runtime.Object,
+	ownerNamespace string,
+	upstream conf_v1.Upstream,
+	vsEx *VirtualServerEx,
+) string {
+	if isGRPC(upstream.Type) {
+		if upstream.ProxyHTTPVersion != "" {
+			vsc.addWarningf(owner,
+				"proxy-http-version is ignored for upstream %s because it has type grpc, which always uses HTTP/2",
+				upstream.Name)
+		}
+		return ""
+	}
+
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, ownerNamespace)
+	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
+
+	return resolveProxyHTTPVersion(upstream.ProxyHTTPVersion, vsEx.ServiceAppProtocols[endpointsKey])
 }
 
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
@@ -1440,6 +1533,20 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 		if !encountered[v.ZoneName] {
 			encountered[v.ZoneName] = true
 			result = append(result, v)
+		}
+	}
+
+	return result
+}
+
+func removeDuplicateLimitConnZones(zones []version2.LimitConnZone) []version2.LimitConnZone {
+	encountered := make(map[string]bool)
+	var result []version2.LimitConnZone
+
+	for _, z := range zones {
+		if !encountered[z.ZoneName] {
+			encountered[z.ZoneName] = true
+			result = append(result, z)
 		}
 	}
 
@@ -1537,6 +1644,8 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Deny = cfg.Deny
 	location.LimitReqOptions = cfg.RateLimit.Options
 	location.LimitReqs = cfg.RateLimit.Reqs
+	location.LimitConnOptions = cfg.ConnectionLimit.Options
+	location.LimitConns = cfg.ConnectionLimit.Conns
 	location.JWTAuth = cfg.JWTAuth.Auth
 	location.ExternalAuth = cfg.ExternalAuth
 	location.BasicAuth = cfg.BasicAuth
@@ -1552,11 +1661,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-			Codes:        "401",
-			ResponseCode: version2.ErrorPageResponseCodeInherit,
-		})
 		location.ProxyInterceptErrors = true
 	}
 
@@ -1565,11 +1669,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.AddHeaders = append(location.AddHeaders, cfg.CORSHeaders...)
 		location.CORSEnabled = true
 	}
-}
-
-func escapeForNGINXQuotedString(value string) string {
-	quoted := fmt.Sprintf("%q", value)
-	return quoted[1 : len(quoted)-1]
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
@@ -1999,30 +2098,47 @@ type errorPageDetails struct {
 	owner runtime.Object
 }
 
-func generateLocation(path string, upstreamName string, upstream conf_v1.Upstream, action *conf_v1.Action,
-	cfgParams *ConfigParams, errorPages errorPageDetails, internal bool, proxySSLName string,
-	originalPath string, locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string,
-	vsrNamespace string, vscWarnings Warnings,
+// locationContext holds the inputs shared by every location generated for one route or subroute:
+// the route location itself and its split and match locations.
+type locationContext struct {
+	upstreamNamer  *upstreamNamer
+	crUpstreams    map[string]conf_v1.Upstream
+	cfgParams      *ConfigParams
+	errorPages     errorPageDetails
+	originalPath   string
+	locSnippets    string
+	enableSnippets bool
+	isVSR          bool
+	vsrName        string
+	vsrNamespace   string
+	warnings       Warnings
+}
+
+func generateLocation(rc locationContext, path string, action *conf_v1.Action, internal bool, retLocIndex int,
 ) (version2.Location, *version2.ReturnLocation) {
-	locationSnippets := generateSnippets(enableSnippets, locSnippets, cfgParams.LocationSnippets)
+	locationSnippets := generateSnippets(rc.enableSnippets, rc.locSnippets, rc.cfgParams.LocationSnippets)
 
 	if action.Redirect != nil {
 		return generateLocationForRedirect(path, locationSnippets, action.Redirect), nil
 	}
 
 	if action.Return != nil {
-		return generateLocationForReturn(path, cfgParams.LocationSnippets, action.Return, retLocIndex)
+		return generateLocationForReturn(path, rc.cfgParams.LocationSnippets, action.Return, retLocIndex)
 	}
 
-	checkGrpcErrorPageCodes(errorPages, isGRPC(upstream.Type), upstream.Name, vscWarnings)
+	upstreamName := rc.upstreamNamer.GetNameForUpstreamFromAction(action)
+	upstream := rc.crUpstreams[upstreamName]
 
-	_, serviceName := ParseServiceReference(upstream.Service, "")
+	checkGrpcErrorPageCodes(rc.errorPages, isGRPC(upstream.Type), upstream.Name, rc.warnings)
 
-	return generateLocationForProxying(path, upstreamName, upstream, cfgParams, errorPages.pages, internal,
-		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, rc.upstreamNamer.namespace)
+	proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
+
+	return generateLocationForProxying(path, upstreamName, upstream, rc.cfgParams, rc.errorPages.pages, internal,
+		rc.errorPages.index, proxySSLName, action.Proxy, rc.originalPath, locationSnippets, rc.isVSR, rc.vsrName, rc.vsrNamespace, serviceName), nil
 }
 
-func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
+func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
 	var headers []version2.Header
 
 	hasHostHeader := false
@@ -2041,7 +2157,11 @@ func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
 	}
 
 	if !hasHostHeader {
-		headers = append(headers, version2.Header{Name: "Host", Value: "$host"})
+		hostVal := "$host"
+		if useForwardedHeaders {
+			hostVal = "$forwarded_host"
+		}
+		headers = append(headers, version2.Header{Name: "Host", Value: hostVal})
 	}
 
 	return headers
@@ -2126,10 +2246,11 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
 		ProxyInterceptErrors:     generateProxyInterceptErrors(errorPages),
 		ProxyPassRequestHeaders:  generateProxyPassRequestHeaders(proxy),
-		ProxySetHeaders:          generateProxySetHeaders(proxy),
+		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders),
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
+		ProxyHTTPVersion:         upstream.ProxyHTTPVersion,
 		AddHeaders:               generateProxyAddHeaders(proxy),
 		ProxyPassRewrite:         generateProxyPassRewrite(path, proxy, internal),
 		Rewrites:                 generateRewrites(path, proxy, internal, originalPath, isGRPC(upstream.Type)),
@@ -2140,6 +2261,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
 		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfgParams.UseForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}
@@ -2232,21 +2354,11 @@ type routingCfg struct {
 }
 
 func generateSplits(
+	rc locationContext,
 	splits []conf_v1.Split,
-	upstreamNamer *upstreamNamer,
-	crUpstreams map[string]conf_v1.Upstream,
 	VariableNamer *VariableNamer,
 	scIndex int,
-	cfgParams *ConfigParams,
-	errorPages errorPageDetails,
-	originalPath string,
-	locSnippets string,
-	enableSnippets bool,
 	retLocIndex int,
-	isVSR bool,
-	vsrName string,
-	vsrNamespace string,
-	vscWarnings Warnings,
 	WeightChangesDynamicReload bool,
 ) ([]version2.SplitClient, []version2.Location, []version2.ReturnLocation, []version2.Map, []version2.KeyValZone, []version2.KeyVal, []version2.TwoWaySplitClients) {
 	var distributions []version2.Distribution
@@ -2306,13 +2418,8 @@ func generateSplits(
 
 	for i, s := range splits {
 		path := fmt.Sprintf("/%vsplits_%d_split_%d", internalLocationPrefix, scIndex, i)
-		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(s.Action)
-		upstream := crUpstreams[upstreamName]
-		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
-		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
-		loc, returnLoc := generateLocation(path, upstreamName, upstream, s.Action, cfgParams, errorPages, true,
-			proxySSLName, originalPath, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+		loc, returnLoc := generateLocation(rc, path, s.Action, true, newRetLocIndex)
 		locations = append(locations, loc)
 		if returnLoc != nil {
 			returnLocations = append(returnLocations, *returnLoc)
@@ -2323,24 +2430,14 @@ func generateSplits(
 }
 
 func generateDefaultSplitsConfig(
+	rc locationContext,
 	route conf_v1.Route,
-	upstreamNamer *upstreamNamer,
-	crUpstreams map[string]conf_v1.Upstream,
 	VariableNamer *VariableNamer,
 	scIndex int,
-	cfgParams *ConfigParams,
-	errorPages errorPageDetails,
-	originalPath string,
-	locSnippets string,
-	enableSnippets bool,
 	retLocIndex int,
-	isVSR bool,
-	vsrName string,
-	vsrNamespace string,
-	vscWarnings Warnings,
 	weightChangesDynamicReload bool,
 ) routingCfg {
-	scs, locs, returnLocs, maps, keyValZones, keyVals, twoWaySplitClients := generateSplits(route.Splits, upstreamNamer, crUpstreams, VariableNamer, scIndex, cfgParams, errorPages, originalPath, locSnippets, enableSnippets, retLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings, weightChangesDynamicReload)
+	scs, locs, returnLocs, maps, keyValZones, keyVals, twoWaySplitClients := generateSplits(rc, route.Splits, VariableNamer, scIndex, retLocIndex, weightChangesDynamicReload)
 
 	var irl version2.InternalRedirectLocation
 	if weightChangesDynamicReload && len(route.Splits) == 2 {
@@ -2425,10 +2522,12 @@ func generateSplitsForWeightChangesDynamicReload(splits []conf_v1.Split, scIndex
 	return splitClients, weightsToSplits
 }
 
-func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, crUpstreams map[string]conf_v1.Upstream,
-	VariableNamer *VariableNamer, index int, scIndex int, cfgParams *ConfigParams, errorPages errorPageDetails,
-	locSnippets string, enableSnippets bool, retLocIndex int, isVSR bool, vsrName string, vsrNamespace string, vscWarnings Warnings, weightChangesDynamicReload bool,
+//nolint:gocyclo // complexity is pre-existing; only the signature changed
+func generateMatchesConfig(rc locationContext, route conf_v1.Route, VariableNamer *VariableNamer, index int, scIndex int,
+	retLocIndex int, weightChangesDynamicReload bool,
 ) routingCfg {
+	rc.originalPath = route.Path
+
 	// Generate maps
 	var maps []version2.Map
 	var twoWaySplitClients []version2.TwoWaySplitClients
@@ -2515,24 +2614,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 	for i, m := range route.Matches {
 		if len(m.Splits) > 0 {
 			newRetLocIndex := retLocIndex + len(returnLocations)
-			scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(
-				m.Splits,
-				upstreamNamer,
-				crUpstreams,
-				VariableNamer,
-				scIndex+scLocalIndex,
-				cfgParams,
-				errorPages,
-				route.Path,
-				locSnippets,
-				enableSnippets,
-				newRetLocIndex,
-				isVSR,
-				vsrName,
-				vsrNamespace,
-				vscWarnings,
-				weightChangesDynamicReload,
-			)
+			scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(rc, m.Splits, VariableNamer, scIndex+scLocalIndex,
+				newRetLocIndex, weightChangesDynamicReload)
 			scLocalIndex += len(scs)
 			splitClients = append(splitClients, scs...)
 			locations = append(locations, locs...)
@@ -2543,13 +2626,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 			twoWaySplitClients = append(twoWaySplitClients, twscs...)
 		} else {
 			path := fmt.Sprintf("/%vmatches_%d_match_%d", internalLocationPrefix, index, i)
-			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(m.Action)
-			upstream := crUpstreams[upstreamName]
-			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
-			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 			newRetLocIndex := retLocIndex + len(returnLocations)
-			loc, returnLoc := generateLocation(path, upstreamName, upstream, m.Action, cfgParams, errorPages, true,
-				proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+			loc, returnLoc := generateLocation(rc, path, m.Action, true, newRetLocIndex)
 			locations = append(locations, loc)
 			if returnLoc != nil {
 				returnLocations = append(returnLocations, *returnLoc)
@@ -2560,24 +2638,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 	// Generate default splits or default action
 	if len(route.Splits) > 0 {
 		newRetLocIndex := retLocIndex + len(returnLocations)
-		scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(
-			route.Splits,
-			upstreamNamer,
-			crUpstreams,
-			VariableNamer,
-			scIndex+scLocalIndex,
-			cfgParams,
-			errorPages,
-			route.Path,
-			locSnippets,
-			enableSnippets,
-			newRetLocIndex,
-			isVSR,
-			vsrName,
-			vsrNamespace,
-			vscWarnings,
-			weightChangesDynamicReload,
-		)
+		scs, locs, returnLocs, mps, kvzs, kvs, twscs := generateSplits(rc, route.Splits, VariableNamer, scIndex+scLocalIndex,
+			newRetLocIndex, weightChangesDynamicReload)
 		splitClients = append(splitClients, scs...)
 		locations = append(locations, locs...)
 		returnLocations = append(returnLocations, returnLocs...)
@@ -2587,13 +2649,8 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 		twoWaySplitClients = append(twoWaySplitClients, twscs...)
 	} else {
 		path := fmt.Sprintf("/%vmatches_%d_default", internalLocationPrefix, index)
-		upstreamName := upstreamNamer.GetNameForUpstreamFromAction(route.Action)
-		upstream := crUpstreams[upstreamName]
-		serviceNamespace, serviceName := ParseServiceReference(upstream.Service, upstreamNamer.namespace)
-		proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 		newRetLocIndex := retLocIndex + len(returnLocations)
-		loc, returnLoc := generateLocation(path, upstreamName, upstream, route.Action, cfgParams, errorPages, true,
-			proxySSLName, route.Path, locSnippets, enableSnippets, newRetLocIndex, isVSR, vsrName, vsrNamespace, vscWarnings)
+		loc, returnLoc := generateLocation(rc, path, route.Action, true, newRetLocIndex)
 		locations = append(locations, loc)
 		if returnLoc != nil {
 			returnLocations = append(returnLocations, *returnLoc)
@@ -2683,7 +2740,7 @@ func getNameForSourceForMatchesRouteMapFromCondition(condition conf_v1.Condition
 }
 
 func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tls *conf_v1.TLS, namespace string,
-	secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *version2.SSL {
 	if tls == nil {
 		return nil
@@ -2692,7 +2749,6 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	if tls.Secret == "" {
 		if vsc.isWildcardEnabled {
 			ssl := version2.SSL{
-				HTTP2:           cfgParams.HTTP2,
 				Certificate:     pemFileNameForWildcardTLSSecret,
 				CertificateKey:  pemFileNameForWildcardTLSSecret,
 				RejectHandshake: false,
@@ -2702,25 +2758,20 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 		return nil
 	}
 
-	secretRef := secretRefs[fmt.Sprintf("%s/%s", namespace, tls.Secret)]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
+	secretRef := secretRefs[secrets.RefKey(fmt.Sprintf("%s/%s", namespace, tls.Secret), secrets.RoleTLS)]
 	var name string
 	var rejectHandshake bool
-	if secretType != "" && secretType != api_v1.SecretTypeTLS {
-		rejectHandshake = true
-		vsc.addWarningf(owner, "TLS secret %s is of a wrong type '%s', must be '%s'", tls.Secret, secretType, api_v1.SecretTypeTLS)
-	} else if secretRef.Error != nil {
+	if secretRef != nil && secretRef.Error != nil {
 		rejectHandshake = true
 		vsc.addWarningf(owner, "TLS secret %s is invalid: %v", tls.Secret, secretRef.Error)
-	} else {
+	} else if secretRef != nil {
 		name = secretRef.Path
+	} else {
+		rejectHandshake = true
+		vsc.addWarningf(owner, "TLS secret %s is missing from secret references", tls.Secret)
 	}
 
 	ssl := version2.SSL{
-		HTTP2:           cfgParams.HTTP2,
 		Certificate:     name,
 		CertificateKey:  name,
 		RejectHandshake: rejectHandshake,
@@ -2815,6 +2866,24 @@ func createUpstreamsForPlus(
 				backupEndpoints = virtualServerEx.Endpoints[backupEndpointsKey]
 			}
 			ups := vsc.generateUpstream(vsr, upstreamName, u, isExternalNameSvc, endpoints, backupEndpoints)
+			upstreams = append(upstreams, ups)
+		}
+	}
+
+	for _, cr := range virtualServerEx.ChallengeRoutes {
+		upstreamNamer = NewUpstreamNamerForVirtualServerRoute(virtualServerEx.VirtualServer, cr)
+		for _, u := range cr.Spec.Upstreams {
+			isExternalNameSvc := virtualServerEx.ExternalNameSvcs[GenerateExternalNameSvcKey(cr.Namespace, u.Service)]
+			if isExternalNameSvc {
+				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", u.Service)
+				continue
+			}
+
+			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
+			serviceNamespace, serviceName := ParseServiceReference(u.Service, cr.Namespace)
+			endpoints := virtualServerEx.Endpoints[GenerateEndpointsKey(serviceNamespace, serviceName, u.Subselector, u.Port)]
+
+			ups := vsc.generateUpstream(cr, upstreamName, u, isExternalNameSvc, endpoints, []string{})
 			upstreams = append(upstreams, ups)
 		}
 	}

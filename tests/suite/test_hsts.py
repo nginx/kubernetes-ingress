@@ -9,7 +9,9 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
     generate_ingresses_with_annotation,
+    get_e2e_run_selector,
     replace_ingress,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -47,13 +49,14 @@ def hsts_setup(
     test_namespace,
 ) -> HSTSSetup:
     print("------------------------- Deploy HSTS-Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     if request.param in ["standard-tls", "mergeable-tls"]:
         create_items_from_yaml(kube_apis, f"{TEST_DATA}/hsts/{request.param}/tls-secret.yaml", test_namespace)
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml", test_namespace)
     ingress_name = get_name_from_yaml(f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml")
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/hsts/{request.param}/hsts-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )

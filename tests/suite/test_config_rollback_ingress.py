@@ -11,6 +11,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress,
     create_ingress_from_yaml,
@@ -19,6 +20,8 @@ from suite.utils.resources_utils import (
     delete_ingress,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -96,7 +99,7 @@ class TestConfigRollbackIngressCreate:
         # Step 2: conf file removed — no traffic served
         assert_ingress_conf_not_exists(
             kube_apis,
-            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR),
             ingress_controller_prerequisites.namespace,
             test_namespace,
             ingress_name,
@@ -151,17 +154,18 @@ class TestConfigRollbackIngress:
         test_namespace,
     ) -> IngressSetup:
         """Create an Ingress with a backend app for the test class."""
+        e2e_run_id = generate_e2e_run_id()
         create_items_from_yaml(kube_apis, ingress_src, test_namespace)
         ingress_name = get_name_from_yaml(ingress_src)
         ingress_host = get_first_ingress_host_from_yaml(ingress_src)
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -261,10 +265,13 @@ class TestConfigRollbackIngress:
             ({"http-snippets": "upstream;"}, 'directive "upstream" has no opening "{"'),
             # http log_format: unknown variable (no $ in error message)
             ({"log-format": "$invalid_nonexistent_var"}, 'unknown "invalid_nonexistent_var" variable'),
-            # http log_format: must set log-format too, otherwise escaping is never rendered
+            # http variables hash: NIC accepts any unsigned integer, but NGINX
+            # cannot build the variables hash with a maximum size of 0. The
+            # directive is rendered only in nginx.conf, so this exercises the
+            # main config rollback path.
             (
-                {"log-format": "$remote_addr", "log-format-escaping": "invalid_escape_value"},
-                'unknown log format escaping "invalid_escape_value"',
+                {"variables-hash-max-size": "0"},
+                "could not build variables_hash, you should increase variables_hash_max_size: 0",
             ),
         ],
     )
@@ -284,9 +291,9 @@ class TestConfigRollbackIngress:
         """Invalid ConfigMap setting causes nginx.conf to fail validation and roll back.
 
         Ingress and TS are unaffected. Parametrized across different ConfigMap keys and nginx
-        error types (invalid value, missing block, unknown variable, unknown escape value).
-        Note: log-format-escaping only takes effect when log-format is also set, so the
-        escaping case passes both keys together.
+        error types (invalid value, missing block, unknown variable, impossible hash size).
+        The variables-hash-max-size case passes NIC-side parsing but is a value that only
+        NGINX rejects during configuration testing.
         """
         ingress_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 

@@ -304,6 +304,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "ConnectionLimitPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{connectionLimitPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -459,6 +466,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				externalAuthPolicy,
 				hstsPolicy,
 				oidcNativePolicy,
+				connectionLimitPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -481,15 +489,16 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	}
 
 	nicResourceCounts := telemetry.NICResourceCounts{
-		RateLimitPolicies:    0,
-		WAFPolicies:          2,
-		OIDCPolicies:         1,
-		EgressMTLSPolicies:   2,
-		CachePolicies:        1,
-		CORSPolicies:         1,
-		ExternalAuthPolicies: 1,
-		HSTSPolicies:         1,
-		OIDCNativePolicies:   1,
+		RateLimitPolicies:       0,
+		WAFPolicies:             2,
+		OIDCPolicies:            1,
+		EgressMTLSPolicies:      2,
+		CachePolicies:           1,
+		CORSPolicies:            1,
+		ExternalAuthPolicies:    1,
+		HSTSPolicies:            1,
+		OIDCNativePolicies:      1,
+		ConnectionLimitPolicies: 1,
 	}
 
 	td := telemetry.Data{
@@ -1968,6 +1977,9 @@ func TestCountSecretsWithTwoSecrets(t *testing.T) {
 	cfg.SecretStore.AddOrUpdateSecret(secret1)
 	cfg.SecretStore.AddOrUpdateSecret(secret2)
 
+	cfg.SecretStore.GetSecret("default/jwk-secret-1", secrets.RoleJWK)
+	cfg.SecretStore.GetSecret("default/jwk-secret-2", secrets.RoleJWK)
+
 	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
 	if err != nil {
 		t.Fatal(err)
@@ -2018,6 +2030,9 @@ func TestCountSecretsAddTwoSecretsAndDeleteOne(t *testing.T) {
 	// Add multiple secrets.
 	cfg.SecretStore.AddOrUpdateSecret(secret1)
 	cfg.SecretStore.AddOrUpdateSecret(secret2)
+
+	cfg.SecretStore.GetSecret("default/jwk-secret-1", secrets.RoleJWK)
+	cfg.SecretStore.GetSecret("default/jwk-secret-2", secrets.RoleJWK)
 
 	// Delete one secret.
 	cfg.SecretStore.DeleteSecret(fmt.Sprintf("%s/%s", secret2.Namespace, secret2.Name))
@@ -2313,12 +2328,10 @@ func createCafeIngressEx() configs.IngressEx {
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &coreV1.Secret{
-					Type: coreV1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &coreV1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -2435,13 +2448,11 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &coreV1.Secret{
-						Type: coreV1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &coreV1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2457,7 +2468,7 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -2470,7 +2481,7 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -2579,13 +2590,11 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &coreV1.Secret{
-						Type: coreV1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &coreV1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2601,7 +2610,7 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -2614,7 +2623,7 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -2681,12 +2690,10 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &coreV1.Secret{
-					Type: coreV1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &coreV1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -3021,6 +3028,23 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			OIDCNative: &conf_v1.OIDCNative{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	connectionLimitPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "connection-limit-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ConnectionLimit: &conf_v1.ConnectionLimit{
+				Connections: 10,
+			},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}

@@ -3,6 +3,8 @@ package configs
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"regexp"
 	"sort"
 	"strconv"
@@ -11,6 +13,7 @@ import (
 	internalvalidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
 // There seems to be no composite interface in the kubernetes api package,
@@ -268,6 +271,93 @@ func ParseSize(s string) (string, error) {
 	return "", errors.New("invalid size string")
 }
 
+// ParseKeepaliveTimeout validates the timeout and optional header_timeout
+// arguments accepted by the keepalive_timeout directive.
+func ParseKeepaliveTimeout(s string) (string, error) {
+	values := strings.Fields(s)
+	if len(values) == 0 || len(values) > 2 {
+		return "", errors.New("keepalive timeout must contain one or two time values")
+	}
+
+	parsed := make([]string, 0, len(values))
+	for _, value := range values {
+		timeValue, err := ParseTime(value)
+		if err != nil {
+			return "", err
+		}
+		parsed = append(parsed, timeValue)
+	}
+	return strings.Join(parsed, " "), nil
+}
+
+// ParseUnsignedInteger validates an NGINX number while retaining its original
+// decimal representation.
+func ParseUnsignedInteger(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if _, err := ParseUint64(s); err != nil {
+		return "", err
+	}
+	return s, nil
+}
+
+// ParseLogFormatEscaping validates the escape argument of log_format.
+func ParseLogFormatEscaping(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	switch s {
+	case "default", "json", "none":
+		return s, nil
+	default:
+		return "", errors.New("must be one of: 'default', 'json' or 'none'")
+	}
+}
+
+// ParseErrorLogLevel validates the level argument of error_log.
+func ParseErrorLogLevel(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	switch s {
+	case "debug", "info", "notice", "warn", "error", "crit", "alert", "emerg":
+		return s, nil
+	default:
+		return "", errors.New("invalid error log level")
+	}
+}
+
+var appProtectCookieSeedRegexp = regexp.MustCompile(`^[A-Za-z0-9]{20,1000}$`)
+
+// ParseAppProtectCookieSeed validates the alphanumeric seed grammar accepted
+// by app_protect_cookie_seed.
+func ParseAppProtectCookieSeed(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if !appProtectCookieSeedRegexp.MatchString(s) {
+		return "", errors.New("must contain 20 to 1000 alphanumeric characters")
+	}
+	return s, nil
+}
+
+// ParseWorkerCPUAffinity validates the cpumask list and auto forms accepted by
+// worker_cpu_affinity.
+func ParseWorkerCPUAffinity(s string) (string, error) {
+	values := strings.Fields(s)
+	if len(values) == 0 {
+		return "", errors.New("worker CPU affinity must not be empty")
+	}
+	if values[0] == "auto" {
+		if len(values) > 2 {
+			return "", errors.New("auto accepts at most one CPU mask")
+		}
+		if len(values) == 1 {
+			return "auto", nil
+		}
+		values = values[1:]
+	}
+	for _, value := range values {
+		if value == "" || strings.Trim(value, "01") != "" {
+			return "", fmt.Errorf("invalid CPU mask %q", value)
+		}
+	}
+	return strings.Join(strings.Fields(s), " "), nil
+}
+
 // ParseHeaderList validates a comma-separated list of HTTP header names and
 // returns the trimmed names. The caller reports the key and the raw value, so
 // only the reason is returned here.
@@ -277,6 +367,118 @@ func ParseHeaderList(s string) ([]string, error) {
 		return nil, errors.New(strings.Join(msgs, "; "))
 	}
 	return names, nil
+}
+
+// ParseResolverAddresses validates the address list accepted by resolver.
+// Addresses may be separated by commas, NGINX whitespace, or both, and empty
+// entries are dropped: before validation existed the list was joined with
+// spaces, so "a,b," and "a b" both rendered a resolver NGINX loads.
+func ParseResolverAddresses(s string) ([]string, error) {
+	values := strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '\r' || r == '\n'
+	})
+	if len(values) == 0 {
+		return nil, errors.New("must contain at least one address")
+	}
+	for _, value := range values {
+		if err := validateHostOrIP(value); err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
+}
+
+// ParseSetRealIPFrom validates addresses, CIDRs, hostnames, and the special
+// unix: value accepted by set_real_ip_from.
+func ParseSetRealIPFrom(s string) ([]string, error) {
+	values := strings.Split(s, ",")
+	parsed := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "unix:" {
+			parsed = append(parsed, value)
+			continue
+		}
+		if _, err := netip.ParsePrefix(value); err != nil {
+			if address, addrErr := netip.ParseAddr(value); addrErr == nil && address.Zone() == "" {
+				parsed = append(parsed, value)
+				continue
+			}
+			if strings.Contains(value, ":") || validateHostname(value) != nil {
+				return nil, fmt.Errorf("invalid set-real-ip-from address %q", value)
+			}
+		}
+		parsed = append(parsed, value)
+	}
+	return parsed, nil
+}
+
+// ParseFQDN validates and trims a fully qualified domain name.
+func ParseFQDN(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if err := validateHostname(s); err != nil {
+		return "", err
+	}
+	return s, nil
+}
+
+// validateHostOrIP accepts the address forms the NGINX resolver directive takes:
+// a host, a bare IP, a bracketed IPv6 literal, and any of those with a port. The
+// error from ValidateHost is returned when none of them match, because it
+// describes the most common mistake.
+func validateHostOrIP(value string) error {
+	value = strings.TrimSpace(value)
+	hostErr := internalvalidation.ValidateHost(value)
+	if hostErr == nil {
+		return nil
+	}
+	if isUnzonedIP(value) || isBracketedUnzonedIP(value) || isUnzonedIPPort(value) || isDNSNameWithOptionalPort(value) {
+		return nil
+	}
+	return hostErr
+}
+
+// isUnzonedIP reports whether value is an IP literal carrying no zone. A zone is
+// meaningful only to the local host, so NGINX does not accept one here.
+func isUnzonedIP(value string) bool {
+	address, err := netip.ParseAddr(value)
+	return err == nil && address.Zone() == ""
+}
+
+func isBracketedUnzonedIP(value string) bool {
+	if len(value) <= 2 || value[0] != '[' || value[len(value)-1] != ']' {
+		return false
+	}
+	return isUnzonedIP(value[1 : len(value)-1])
+}
+
+func isUnzonedIPPort(value string) bool {
+	addrPort, err := netip.ParseAddrPort(value)
+	if err != nil {
+		return false
+	}
+	return addrPort.Addr().Zone() == "" && internalvalidation.ValidatePort(int(addrPort.Port())) == nil
+}
+
+func isDNSNameWithOptionalPort(value string) bool {
+	host := value
+	if splitHost, port, err := net.SplitHostPort(value); err == nil {
+		portNumber, parseErr := strconv.Atoi(port)
+		if parseErr != nil || internalvalidation.ValidatePort(portNumber) != nil {
+			return false
+		}
+		host = splitHost
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ".")
+	return len(k8svalidation.IsDNS1123Subdomain(host)) == 0
+}
+
+func validateHostname(value string) error {
+	host := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(value)), ".")
+	if host == "" || len(k8svalidation.IsDNS1123Subdomain(host)) != 0 {
+		return fmt.Errorf("invalid hostname %q", value)
+	}
+	return nil
 }
 
 var rateRegexp = regexp.MustCompile(`^(\d+)(r/s|r/m)$`)
@@ -440,8 +642,9 @@ func parseRewrites(service string) (serviceName string, rewrite string, err erro
 }
 
 var (
-	threshEx          = regexp.MustCompile(`high=([1-9]|[1-9][0-9]|100) low=([1-9]|[1-9][0-9]|100)\b`)
-	threshExR         = regexp.MustCompile(`low=([1-9]|[1-9][0-9]|100) high=([1-9]|[1-9][0-9]|100)\b`)
+	thresholdValueFmt = `(?:100|[1-9]?[0-9])`
+	threshEx          = regexp.MustCompile(`^high=` + thresholdValueFmt + ` low=` + thresholdValueFmt + `$`)
+	threshExR         = regexp.MustCompile(`^low=` + thresholdValueFmt + ` high=` + thresholdValueFmt + `$`)
 	pathRegexp        = regexp.MustCompile("^" + `/[^\s{};$]*` + "$")
 	stickyCookieRegex = regexp.MustCompile("^" + `([^"$\\]|\\[^$])*` + "$")
 )

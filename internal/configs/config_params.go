@@ -32,6 +32,7 @@ type ConfigParams struct {
 	MainAccessLog                          string
 	MainAddHeaders                         []version2.AddHeader
 	DisableForwardedHeaders                bool
+	UseForwardedHeaders                    bool
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
@@ -45,6 +46,7 @@ type ConfigParams struct {
 	MainOtelExporterHeaderName             string
 	MainOtelExporterHeaderValue            string
 	MainOtelServiceName                    string
+	MainOtelTraceContext                   string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
@@ -93,6 +95,7 @@ type ConfigParams struct {
 	ProxyNextUpstreamTries                 *uint64
 	ProxyRedirectFrom                      string
 	ProxyRedirectTo                        string
+	ProxyHTTPVersion                       string
 	CustomHTTPErrors                       []int
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
@@ -289,6 +292,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		VariablesHashBucketSize:       256,
 		VariablesHashMaxSize:          1024,
 		DisableForwardedHeaders:       false,
+		UseForwardedHeaders:           false,
 		LimitReqKey:                   "${binary_remote_addr}",
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",

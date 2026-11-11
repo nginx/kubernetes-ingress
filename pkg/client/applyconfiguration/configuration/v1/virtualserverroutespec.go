@@ -9,7 +9,12 @@ package v1
 type VirtualServerRouteSpecApplyConfiguration struct {
 	// Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource.
 	IngressClass *string `json:"ingressClassName,omitempty"`
-	// The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. Must be the same as the host of the VirtualServer that references this resource.
+	// The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as
+	// my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be
+	// contained in double quotes. When set, must be the same as the host of the VirtualServer that
+	// references this resource. When omitted (hostless mode), the VirtualServerRoute can be referenced
+	// by any VirtualServer regardless of host, enabling the same route configuration to be shared across
+	// multiple VirtualServers.
 	Host *string `json:"host,omitempty"`
 	// A list of upstreams.
 	Upstreams []UpstreamApplyConfiguration `json:"upstreams,omitempty"`

@@ -99,7 +99,7 @@ jobs:
 
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -122,9 +122,9 @@ jobs:
         if: ${{ steps.binary-cache.outputs.cache-hit != 'true' && (inputs.force || inputs.authenticated == 'true') }}
 
       - name: Build binaries
-        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: v2.12.3 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
+          version: v2.19.0 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
           args: build --snapshot --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -233,7 +233,7 @@ jobs:
     name: Build Docker OSS
     needs: [binaries]
     concurrency:
-      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -241,7 +241,9 @@ jobs:
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
       authenticated: ${{ inputs.authenticated }}
@@ -265,7 +267,7 @@ jobs:
     name: Build Docker Plus
     needs: [binaries]
     concurrency:
-      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -273,7 +275,9 @@ jobs:
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
@@ -298,7 +302,7 @@ jobs:
     name: Build Docker NAP
     needs: [binaries]
     concurrency:
-      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
@@ -306,7 +310,9 @@ jobs:
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
+      build-os: ${{ matrix.build_os }}
       image: ${{ matrix.image }}
+      tag-suffix: ${{ matrix.tag_suffix }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}

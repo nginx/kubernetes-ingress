@@ -1,0 +1,175 @@
+# In-cluster ACME test CA for the ACME HTTP-01 tests (tests/suite/test_acme_http01.py).
+# Pebble: https://github.com/letsencrypt/pebble. Test-only, never use in production.
+# __NIC_CLUSTER_IP__ is replaced by the create_pebble fixture with the NIC Service ClusterIP.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pebble
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pebble-config
+  namespace: pebble
+data:
+  pebble-config.json: |
+    {
+      "pebble": {
+        "listenAddress": "0.0.0.0:14000",
+        "managementListenAddress": "0.0.0.0:15000",
+        "certificate": "/test/certs/localhost/cert.pem",
+        "privateKey": "/test/certs/localhost/key.pem",
+        "httpPort": 80,
+        "tlsPort": 443,
+        "ocspResponderURL": "",
+        "externalAccountBindingRequired": false,
+        "keyAlgorithm": "ecdsa",
+        "profiles": {
+          "default": {
+            "description": "Default profile",
+            "validityPeriod": 7776000
+          }
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pebble
+  namespace: pebble
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pebble
+  template:
+    metadata:
+      labels:
+        app: pebble
+    spec:
+      containers:
+      - name: pebble
+        image: ghcr.io/letsencrypt/pebble:2.10.1@sha256:ddf230642b1a584f519f32e347de1b05a6e4c1f6c35c1863b33effeab5f78199
+        args:
+        - -config
+        - /etc/pebble/pebble-config.json
+        - -dnsserver
+        - pebble-challtestsrv.pebble:8053
+        env:
+        # No random 0-15s sleep before each validation attempt.
+        - name: PEBBLE_VA_NOSLEEP
+          value: "1"
+        # No deliberate badNonce rejections.
+        - name: PEBBLE_WFE_NONCEREJECT
+          value: "0"
+        # Never reuse a valid authorization: every order must solve a challenge through NIC.
+        - name: PEBBLE_AUTHZREUSE
+          value: "0"
+        ports:
+        - name: acme
+          containerPort: 14000
+        readinessProbe:
+          tcpSocket:
+            port: 14000
+          periodSeconds: 2
+        volumeMounts:
+        - name: config
+          mountPath: /etc/pebble
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: pebble-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pebble
+  namespace: pebble
+spec:
+  selector:
+    app: pebble
+  ports:
+  - name: acme
+    port: 14000
+    targetPort: 14000
+    protocol: TCP
+---
+# Pebble's listener certificate (in the image at /test/certs/localhost/cert.pem) has the DNS SANs
+# "localhost" and "pebble" only. This alias lets cert-manager reach Pebble as https://pebble:14000
+# from its own namespace, so the ClusterIssuer can verify the listener with Pebble's test CA.
+# The built-in listener cert expires 2027-10-03: if TLS to Pebble starts failing, update the image or mount a new cert.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pebble
+  namespace: cert-manager
+spec:
+  type: ExternalName
+  externalName: pebble.pebble.svc.cluster.local  # assumes the cluster DNS domain is cluster.local (true for kind)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pebble-challtestsrv
+  namespace: pebble
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pebble-challtestsrv
+  template:
+    metadata:
+      labels:
+        app: pebble-challtestsrv
+    spec:
+      containers:
+      - name: pebble-challtestsrv
+        image: ghcr.io/letsencrypt/pebble-challtestsrv:2.10.1@sha256:12ce21884def456bcf9786542113949e1f19dc7738d2c70e156c2d0c38a1405b
+        # DNS server only: every A query is answered with the NIC Service ClusterIP.
+        # AAAA answers are disabled; Pebble dials the first address it resolves, AAAA first.
+        args:
+        - -dnsserver
+        - :8053
+        - -defaultIPv4
+        - __NIC_CLUSTER_IP__
+        - -defaultIPv6
+        - ""
+        - -http01
+        - ""
+        - -https01
+        - ""
+        - -tlsalpn01
+        - ""
+        - -doh
+        - ""
+        ports:
+        - name: dns-tcp
+          containerPort: 8053
+          protocol: TCP
+        - name: dns-udp
+          containerPort: 8053
+          protocol: UDP
+        readinessProbe:
+          tcpSocket:
+            port: 8053
+          periodSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pebble-challtestsrv
+  namespace: pebble
+spec:
+  selector:
+    app: pebble-challtestsrv
+  ports:
+  - name: dns-tcp
+    port: 8053
+    targetPort: 8053
+    protocol: TCP
+  - name: dns-udp
+    port: 8053
+    targetPort: 8053
+    protocol: UDP

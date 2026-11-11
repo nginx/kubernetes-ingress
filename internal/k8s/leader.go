@@ -118,9 +118,18 @@ func (lbc *LoadBalancerController) addLeaderHandler(leaderHandler leaderelection
 
 func (lbc *LoadBalancerController) updatePoliciesStatus() error {
 	var allErrs []error
-	for _, nsi := range lbc.namespacedInformers {
+	// Collect under the read lock; the API calls below must not run under it.
+	var groups [][]*conf_v1.Policy
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
+		var group []*conf_v1.Policy
 		for _, obj := range nsi.policyLister.List() {
-			pol := obj.(*conf_v1.Policy)
+			group = append(group, obj.(*conf_v1.Policy))
+		}
+		groups = append(groups, group)
+	})
+
+	for _, group := range groups {
+		for _, pol := range group {
 
 			err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 			if err != nil {

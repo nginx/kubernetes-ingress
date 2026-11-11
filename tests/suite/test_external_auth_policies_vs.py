@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 import pytest
 import requests
 from kubernetes.client.rest import ApiException
@@ -23,6 +25,7 @@ from suite.utils.policy_resources_utils import (
 from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -95,6 +98,58 @@ class TestExternalAuthPolicies:
         )
 
         resp = requests.get(virtual_server_setup.backend_1_url, headers=headers)
+        print(resp.status_code)
+
+        if credentials == valid_credentials:
+            assert resp.status_code == 200
+            assert "Request ID:" in resp.text
+        else:
+            assert resp.status_code == 401
+            assert "Authorization Required" in resp.text
+
+    @pytest.mark.parametrize("credentials", [valid_credentials, invalid_credentials])
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_valid_src],)], indirect=True)
+    def test_external_auth_policy_spoofed_headers_and_non_get(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        ext_auth_setup,
+        ext_auth_restore_vs,
+        credentials,
+    ):
+        """
+        Test external-auth policy boundary on VirtualServer with client-supplied spoofed headers
+        and non-GET (POST) request.
+        Verifies that spoofed headers (X-Forwarded-Prefix, X-Forwarded-URI, X-Forwarded-Method,
+        X-Original-URI) are sanitized by NGINX and not forwarded to the auth backend,
+        and requests are successfully authenticated (or rejected if unauthorized).
+        """
+        _, _ = ext_auth_setup
+        headers = build_ext_auth_headers(virtual_server_setup.vs_host, credentials)
+        headers.update(
+            {
+                "X-Forwarded-Prefix": "/malicious-prefix",
+                "X-Forwarded-URI": "/malicious-uri",
+                "X-Forwarded-Method": "DELETE",
+                "X-Original-URI": "/malicious-uri",
+            }
+        )
+
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            ext_auth_vs_single_src,
+        )
+        ensure_response_from_backend(
+            virtual_server_setup.backend_1_url,
+            virtual_server_setup.vs_host,
+            additional_headers=valid_auth_headers(),
+        )
+
+        resp = requests.post(virtual_server_setup.backend_1_url, headers=headers)
         print(resp.status_code)
 
         if credentials == valid_credentials:
@@ -287,6 +342,7 @@ class TestExternalAuthPolicies:
         test_namespace,
         ext_auth_setup,
         ext_auth_restore_vs,
+        e2e_run_id,
     ):
         """
         Test that the VirtualServer recovers after external auth backend endpoints
@@ -324,7 +380,7 @@ class TestExternalAuthPolicies:
         # Phase 3: scale back to 1 -- endpoints recover -> 200
         print("Scale external-auth deployment back to 1")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "external-auth", test_namespace, 1)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         # Poll until the full auth path (backend + auth subrequest) returns 200,
         # giving NGINX time to pick up the recovered endpoints and reload.
         resp3 = None
@@ -456,16 +512,8 @@ class TestExternalAuthPolicies:
     ):
         """
         Test external-auth policy with authSigninURI set.
-        Verifies the policy and VS are accepted as Valid, and that
-        authenticated requests still pass through correctly.
-
-        Note: This test does NOT verify the actual signin redirect behavior
-        (error_page 401 -> internal redirect to authSigninURI) because the full
-        signin flow requires a real OAuth2 proxy deployed at authSigninRedirectBasePath
-        (default "/oauth2"). Without it, the error_page internal redirect to "/signin"
-        hits the same auth-protected location and produces another 401, making the
-        redirect behavior non-testable in this environment. Instead, we test that
-        the authSigninURI configuration is accepted and applied correctly.
+        Unauthenticated requests redirect to authSigninURI, while authenticated
+        requests still reach the protected backend.
         """
         _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(virtual_server_setup.vs_host, valid_credentials)
@@ -484,10 +532,17 @@ class TestExternalAuthPolicies:
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
 
+        unauthenticated_resp = requests.get(
+            virtual_server_setup.backend_1_url,
+            headers=build_ext_auth_headers(virtual_server_setup.vs_host),
+            allow_redirects=False,
+        )
         resp = requests.get(virtual_server_setup.backend_1_url, headers=headers)
         print(f"Status: {resp.status_code}")
 
         assert policy_info["status"]["state"] == "Valid"
+        assert unauthenticated_resp.status_code == 302
+        assert urlparse(unauthenticated_resp.headers["location"]).path == "/oauth2/signin"
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
 

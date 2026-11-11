@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
+
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmclient "github.com/cert-manager/cert-manager/pkg/client/clientset/versioned"
 	controllerpkg "github.com/cert-manager/cert-manager/pkg/controller"
@@ -137,7 +139,7 @@ func Test_controller_Register(t *testing.T) {
 			// Certificate event is received then HasSynced has not been setup
 			// properly.
 
-			ig := make(map[string]*namespacedInformer)
+			ig := nsregistry.New[namespacedInformer]()
 
 			nsi := &namespacedInformer{
 				cmSharedInformerFactory:   b.Context.SharedInformerFactory,
@@ -145,7 +147,7 @@ func Test_controller_Register(t *testing.T) {
 				vsSharedInformerFactory:   b.VsSharedInformerFactory,
 			}
 
-			ig[""] = nsi
+			ig.Set("", nsi)
 
 			cm := &CmController{
 				ctx:           b.RootContext,

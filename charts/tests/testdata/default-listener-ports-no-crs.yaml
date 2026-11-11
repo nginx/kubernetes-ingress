@@ -1,0 +1,4 @@
+controller:
+  enableCustomResources: false
+  defaultHTTPListenerPort: 8080
+  defaultHTTPSListenerPort: 8443

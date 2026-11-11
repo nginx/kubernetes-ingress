@@ -6,9 +6,12 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_reload_count,
     scale_deployment,
     wait_before_test,
+    wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml
 
@@ -41,7 +44,9 @@ def use_cluster_ip_setup(
         create_ingress_from_yaml(
             kube_apis.networking_v1, test_namespace, f"{test_data_path}/{request.param}/minion-ingress.yaml"
         )
-    create_example_app(kube_apis, "simple", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     wait_before_test(1)
 

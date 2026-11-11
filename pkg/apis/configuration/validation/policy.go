@@ -2,8 +2,10 @@ package validation
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -25,6 +27,8 @@ type PolicyValidationConfig struct {
 	EnableOIDC       bool
 	EnableAppProtect bool
 	EnableSnippets   bool
+	// PageSize is the memory page size in bytes. Zero means os.Getpagesize().
+	PageSize int
 }
 
 // ValidatePolicy validates a Policy.
@@ -64,6 +68,13 @@ func policyFields() []policyFieldValidator {
 			isSet: func(s *v1.PolicySpec) bool { return s.RateLimit != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
 				return validateRateLimit(s.RateLimit, p.Child("rateLimit"), cfg.IsPlus)
+			},
+		},
+		{
+			name:  "connectionLimit",
+			isSet: func(s *v1.PolicySpec) bool { return s.ConnectionLimit != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateConnectionLimit(s.ConnectionLimit, p.Child("connectionLimit"), cfg.PageSize)
 			},
 		},
 		{
@@ -217,7 +228,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `connectionLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
 		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcNative`, `waf`")
 		}
@@ -1570,6 +1581,91 @@ func validateRateLimitLogLevel(logLevel string, fieldPath *field.Path) field.Err
 	return nil
 }
 
+// connectionLimitKeySpecialVariables are the variable families allowed in a connectionLimit key.
+var connectionLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_"}
+
+// connectionLimitKeyVariables are the variables allowed in a connectionLimit key.
+var connectionLimitKeyVariables = map[string]bool{
+	"binary_remote_addr": true,
+	"request_uri":        true,
+	"uri":                true,
+	"args":               true,
+	"request_method":     true,
+}
+
+var connectionLimitZoneSizeRegexp = regexp.MustCompile(`^([0-9]+)([kKmM]?)$`)
+
+func validateConnectionLimit(cl *v1.ConnectionLimit, fieldPath *field.Path, pageSize int) field.ErrorList {
+	var allErrs field.ErrorList
+
+	if cl.Connections < 1 || cl.Connections > 65535 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("connections"), cl.Connections, "must be within the range [1-65535]"))
+	}
+	if cl.Key != "" {
+		allErrs = append(allErrs, validateConnectionLimitKey(cl.Key, fieldPath.Child("key"))...)
+	}
+	if cl.ZoneSize != "" {
+		allErrs = append(allErrs, validateConnectionLimitZoneSize(cl.ZoneSize, pageSize, fieldPath.Child("zoneSize"))...)
+	}
+	if cl.RejectCode != nil && (*cl.RejectCode < 400 || *cl.RejectCode > 599) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("rejectCode"), *cl.RejectCode, "must be within the range [400-599]"))
+	}
+	if cl.LogLevel != "" {
+		allErrs = append(allErrs, validateRateLimitLogLevel(cl.LogLevel, fieldPath.Child("logLevel"))...)
+	}
+
+	return allErrs
+}
+
+// connectionLimitKeyMaxLength is the longest key NGINX counts: limit_conn stores a key's length in one byte.
+const connectionLimitKeyMaxLength = 255
+
+// validateConnectionLimitKey accepts one NGINX token made of literal text and allowed ${name} references.
+func validateConnectionLimitKey(key string, fieldPath *field.Path) field.ErrorList {
+	if len(key) > connectionLimitKeyMaxLength {
+		return field.ErrorList{field.TooLong(fieldPath, key, connectionLimitKeyMaxLength)}
+	}
+	if strings.ContainsAny(key, `"'`) {
+		return field.ErrorList{field.Invalid(fieldPath, key, "must not contain quotes")}
+	}
+	if err := validation2.ValidateDirectiveToken(key); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, key, err.Error())}
+	}
+	return validateStringWithVariables(key, fieldPath, connectionLimitKeySpecialVariables, connectionLimitKeyVariables, false)
+}
+
+// validateConnectionLimitZoneSize accepts the sizes NGINX accepts for limit_conn_zone.
+func validateConnectionLimitZoneSize(zoneSize string, pageSize int, fieldPath *field.Path) field.ErrorList {
+	if allErrs := validateSize(zoneSize, fieldPath); len(allErrs) > 0 {
+		return allErrs
+	}
+	m := connectionLimitZoneSizeRegexp.FindStringSubmatch(zoneSize)
+	if m == nil {
+		return field.ErrorList{field.Invalid(fieldPath, zoneSize, "must not contain whitespace")}
+	}
+
+	unit := int64(1)
+	switch m[2] {
+	case "k", "K":
+		unit = 1 << 10
+	case "m", "M":
+		unit = 1 << 20
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil || n > math.MaxInt64/unit {
+		return field.ErrorList{field.Invalid(fieldPath, zoneSize, "must not exceed 9223372036854775807 bytes")}
+	}
+
+	if pageSize <= 0 {
+		pageSize = os.Getpagesize()
+	}
+	if minSize := 8 * int64(pageSize); n*unit < minSize {
+		return field.ErrorList{field.Invalid(fieldPath, zoneSize, fmt.Sprintf("must be at least %dk, eight memory pages", minSize/1024))}
+	}
+
+	return nil
+}
+
 const (
 	realmFmt              = `([^"$\\]|\\[^$])*`
 	realmFmtErrMsg string = `a valid realm must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`
@@ -1673,6 +1769,10 @@ func validateOriginFormat(origin string) error {
 		return validateWildcardOriginHost(origin, host)
 	}
 
+	if err := validateOriginPort(parsedOrigin.Port(), origin); err != nil {
+		return err
+	}
+
 	return validateExactOriginHost(host)
 }
 
@@ -1720,15 +1820,32 @@ func validateWildcardOriginHost(origin, host string) error {
 		if port == "" {
 			return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
 		}
-		// Validate port is numeric and in valid range
-		if _, err := strconv.Atoi(port); err != nil {
-			return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+		if err := validateOriginPort(port, origin); err != nil {
+			return err
 		}
 	}
 
 	// Validate domain part using Kubernetes DNS validation
 	if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
 		return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
+	}
+
+	return nil
+}
+
+func validateOriginPort(port, origin string) error {
+	if port == "" {
+		return nil
+	}
+
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+	}
+
+	errs := validation.IsValidPortNum(portNum)
+	if len(errs) > 0 {
+		return fmt.Errorf("port number out of range: %s", errs[0])
 	}
 
 	return nil

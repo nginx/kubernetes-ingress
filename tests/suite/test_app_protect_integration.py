@@ -11,6 +11,7 @@ from suite.utils.ap_resources_utils import (
     read_ap_custom_resource,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     clear_file_contents,
     create_example_app,
     create_ingress,
@@ -20,11 +21,12 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_file_contents,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_last_reload_time,
-    get_pod_name_that_contains,
     get_pods_amount,
     get_test_file_name,
     retry_get,
@@ -55,9 +57,10 @@ class AppProtectSetup:
         metrics_url (str):
     """
 
-    def __init__(self, req_url, metrics_url):
+    def __init__(self, req_url, metrics_url, e2e_run_id):
         self.req_url = req_url
         self.metrics_url = metrics_url
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -72,10 +75,11 @@ def appprotect_setup(request, kube_apis, ingress_controller_endpoint, test_names
     :return: BackendSetup
     """
     print("------------------------- Deploy simple backend application -------------------------")
-    create_example_app(kube_apis, "simple", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
     req_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,
@@ -96,7 +100,7 @@ def appprotect_setup(request, kube_apis, ingress_controller_endpoint, test_names
 
     print("------------------------- Deploy syslog server ---------------------------")
     src_syslog_yaml = f"{TEST_DATA}/appprotect/syslog.yaml"
-    create_items_from_yaml(kube_apis, src_syslog_yaml, test_namespace)
+    create_items_from_yaml(kube_apis, src_syslog_yaml, test_namespace, e2e_run_id=e2e_run_id)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -111,7 +115,7 @@ def appprotect_setup(request, kube_apis, ingress_controller_endpoint, test_names
 
     request.addfinalizer(fin)
 
-    return AppProtectSetup(req_url, metrics_url)
+    return AppProtectSetup(req_url, metrics_url, e2e_run_id)
 
 
 def assert_ap_crd_info(ap_crd_info, policy_name) -> None:
@@ -162,7 +166,14 @@ def assert_valid_responses(response) -> None:
     indirect=["crd_ingress_controller_with_ap"],
 )
 class TestAppProtect:
-    def test_ap_nginx_config_entries(self, kube_apis, crd_ingress_controller_with_ap, appprotect_setup, test_namespace):
+    def test_ap_nginx_config_entries(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller_with_ap,
+        appprotect_setup,
+        test_namespace,
+    ):
         """
         Test to verify AppProtect annotations in nginx config
         """
@@ -180,10 +191,11 @@ class TestAppProtect:
         ingress_host = get_first_ingress_host_from_yaml(src_ing_yaml)
         ensure_response_from_backend(appprotect_setup.req_url, ingress_host, check404=True)
 
-        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress")
+        ic_ns = ingress_controller_prerequisites.namespace
+        pod_name = get_first_pod_name(kube_apis.v1, ic_ns, IC_SELECTOR)
 
         result_conf = get_ingress_nginx_template_conf(
-            kube_apis.v1, test_namespace, "appprotect-ingress", pod_name, "nginx-ingress"
+            kube_apis.v1, test_namespace, "appprotect-ingress", pod_name, ic_ns
         )
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
 
@@ -318,7 +330,7 @@ class TestAppProtect:
         ns = ingress_controller_prerequisites.namespace
 
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 0)
-        while get_pods_amount(kube_apis.v1, ns) != 0:
+        while get_pods_amount(kube_apis.v1, ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)
@@ -328,7 +340,7 @@ class TestAppProtect:
 
     @pytest.mark.flaky(max_runs=3)
     def test_ap_multi_sec_logs(
-        self, request, kube_apis, crd_ingress_controller_with_ap, appprotect_setup, test_namespace
+        self, request, kube_apis, crd_ingress_controller_with_ap, appprotect_setup, test_namespace, e2e_run_id
     ):
         """
         Test corresponding log entries with multiple log destinations (in this case, two syslog servers)
@@ -337,7 +349,7 @@ class TestAppProtect:
         log_loc = "/var/log/messages"
 
         print("Create a second syslog server")
-        create_items_from_yaml(kube_apis, src_syslog2_yaml, test_namespace)
+        create_items_from_yaml(kube_apis, src_syslog2_yaml, test_namespace, e2e_run_id=e2e_run_id)
 
         syslog_dst = f"syslog-svc.{test_namespace}"
         syslog2_dst = f"syslog2-svc.{test_namespace}"
@@ -368,8 +380,8 @@ class TestAppProtect:
         print("----------------------- Send request ----------------------")
         response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
-        syslog_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog-")
-        syslog2_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog2")
+        syslog_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog")
+        syslog2_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog2")
         log_contents = ""
         log2_contents = ""
         retry = 0
