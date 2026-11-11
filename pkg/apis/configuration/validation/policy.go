@@ -395,6 +395,13 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		return append(allErrs, field.Forbidden(fieldPath.Child("secret"), "only either of Secret or JwksURI can be used"))
 	}
 
+	if jwt.Leeway != "" {
+		if ContainsWhitespaceOrQuotes(jwt.Leeway) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("leeway"), jwt.Leeway, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validateTime(jwt.Leeway, fieldPath.Child("leeway"))...)
+	}
+
 	// Verify a case when using JWT Secret
 	if jwt.Secret != "" {
 		allErrs = append(allErrs, validateSecretName(jwt.Secret, fieldPath.Child("secret"))...)

@@ -407,6 +407,9 @@ server {
     {{ if .KeyCache }}auth_jwt_key_cache {{ .KeyCache }};{{ end }}
     auth_jwt_key_request /_jwks_uri_server_{{ .Key }};
     {{- end }}
+    {{- if .Leeway }}
+    auth_jwt_leeway {{ .Leeway }};
+    {{- end }}
     {{- end }}
 
     {{- range $index, $element := $s.JWTAuthList }}
@@ -762,6 +765,9 @@ server {
         {{- if .JwksURI.JwksHost }}
         {{ if .KeyCache }}auth_jwt_key_cache {{ .KeyCache }};{{ end }}
         auth_jwt_key_request /_jwks_uri_server_{{ .Key }};
+        {{- end }}
+        {{- if .Leeway }}
+        auth_jwt_leeway {{ .Leeway }};
         {{- end }}
         {{- end }}
         {{- end }}

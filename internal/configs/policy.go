@@ -343,6 +343,7 @@ func (p *policiesCfg) addJWTAuthConfig(
 			Secret: secretRef.Path,
 			Realm:  jwtAuth.Realm,
 			Token:  jwtAuth.Token,
+			Leeway: jwtAuth.Leeway,
 		}
 		return res
 	} else if jwtAuth.JwksURI != "" {
@@ -393,6 +394,7 @@ func (p *policiesCfg) addJWTAuthConfig(
 			Realm:    jwtAuth.Realm,
 			Token:    jwtAuth.Token,
 			KeyCache: jwtAuth.KeyCache,
+			Leeway:   jwtAuth.Leeway,
 		}
 		p.JWTAuth.JWKSEnabled = true
 		return res

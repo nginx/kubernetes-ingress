@@ -550,6 +550,7 @@ type JWTAuth struct {
 	Realm    string
 	Token    string
 	KeyCache string
+	Leeway   string
 	JwksURI  JwksURI
 }
 
