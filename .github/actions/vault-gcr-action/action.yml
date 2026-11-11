@@ -9,9 +9,9 @@ inputs:
   tenant-id:
     description: 'The tenant ID for authentication'
     required: true
-    vault-name:
-      description: 'The name of the Vault instance'
-      required: true
+  vault-name:
+    description: 'The name of the Vault instance'
+    required: true
 
 runs:
   using: 'composite'
@@ -23,10 +23,11 @@ runs:
         client-id: ${{ inputs.client-id }}
         tenant-id: ${{ inputs.tenant-id }}
         vault-name: ${{ inputs.vault-name }}
-        secret-names: "gcp-workload-identity,gcp-service-account,gcp-project-id"
+        secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
         env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
     - name: Authenticate to Google Cloud
+      if: ${{ !github.event.pull_request.head.repo.fork }}
       id: auth
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
@@ -35,6 +36,7 @@ runs:
         service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
     - name: Login to GCR
+      if: ${{ !github.event.pull_request.head.repo.fork }}
       uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
       with:
         registry: gcr.io
