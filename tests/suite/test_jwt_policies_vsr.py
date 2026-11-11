@@ -1,9 +1,7 @@
-import time
-
 import pytest
 import requests
 from settings import TEST_DATA
-from suite.utils.custom_assertions import wait_and_assert_status_code
+from suite.utils.custom_assertions import assert_vsr_status, wait_and_assert_status_code
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
@@ -27,16 +25,6 @@ jwt_vs_override_spec_src = f"{TEST_DATA}/jwt-policy/route-subroute/virtual-serve
 jwt_vs_override_route_src = f"{TEST_DATA}/jwt-policy/route-subroute/virtual-server-vsr-route-override.yaml"
 valid_token = f"{TEST_DATA}/jwt-policy/token.jwt"
 invalid_token = f"{TEST_DATA}/jwt-policy/invalid-token.jwt"
-
-
-def wait_for_vsr_state(kube_apis, namespace, name, state, retry=30):
-    """Poll the VirtualServerRoute until status.state equals ``state``; return the last read resource."""
-    for _ in range(retry):
-        crd_info = read_custom_resource(kube_apis.custom_objects, namespace, "virtualserverroutes", name)
-        if crd_info.get("status", {}).get("state") == state:
-            break
-        time.sleep(1)
-    return crd_info
 
 
 @pytest.mark.skip_for_nginx_oss
@@ -352,7 +340,7 @@ class TestJWTPoliciesVsr:
             headers=headers,
         )
         print(resp2.status_code)
-        crd_info = wait_for_vsr_state(
+        crd_info = assert_vsr_status(
             kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning"
         )
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
@@ -416,7 +404,7 @@ class TestJWTPoliciesVsr:
             headers=headers,
         )
         print(resp2.status_code)
-        crd_info = wait_for_vsr_state(
+        crd_info = assert_vsr_status(
             kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning"
         )
         delete_secret(kube_apis.v1, secret, v_s_route_setup.route_m.namespace)
