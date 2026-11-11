@@ -860,7 +860,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 		dosRouteCfg := generateDosCfg(dosResources[r.Path])
-		policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg)
+		policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg, vsc.cfgParams.DisableForwardedHeaders)
 
 		rc := locationContext{
 			upstreamNamer:  virtualServerUpstreamNamer,
@@ -1089,7 +1089,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
 
 			dosRouteCfg := generateDosCfg(dosResources[r.Path])
-			policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg)
+			policyHeaders := jwtPolicyProxyHeaders(routePoliciesCfg, policiesCfg, vsc.cfgParams.DisableForwardedHeaders)
 
 			rc := locationContext{
 				upstreamNamer:  upstreamNamer,

@@ -96,8 +96,13 @@ func jwtVS(specPolicies []string, routePolicies map[string][]string, policies ..
 
 func generateJWTTestConfig(t *testing.T, vsEx VirtualServerEx) (version2.VirtualServerConfig, Warnings) {
 	t.Helper()
+	return generateJWTTestConfigWithParams(t, vsEx, false)
+}
 
-	cfgParams := ConfigParams{Context: context.Background(), ServerTokens: "off", Keepalive: 16}
+func generateJWTTestConfigWithParams(t *testing.T, vsEx VirtualServerEx, disableForwardedHeaders bool) (version2.VirtualServerConfig, Warnings) {
+	t.Helper()
+
+	cfgParams := ConfigParams{Context: context.Background(), ServerTokens: "off", Keepalive: 16, DisableForwardedHeaders: disableForwardedHeaders}
 	vsc := newVirtualServerConfigurator(&cfgParams, true, false, &StaticConfigParams{}, false, &fakeBV)
 	return vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
 }
@@ -408,6 +413,79 @@ func TestVirtualServerJWTAuthorization_OIDCRouteStripsPolicyHeaders(t *testing.T
 	coffee := locationByPath(t, cfg, "/coffee")
 	if got := coffee.ProxySetHeaders[0]; got.Name != "X-Role" || got.Value == "" {
 		t.Errorf("/coffee must still forward the checked claim, got %+v", got)
+	}
+}
+
+// The spec policy forwards a claim into headers NIC sets by default. A route where the policy does
+// not run must keep NIC's own value, not an empty one that suppresses it.
+func TestVirtualServerJWTAuthorization_StrippedRoutesKeepNICDefaultHeaders(t *testing.T) {
+	t.Parallel()
+
+	spec := jwtPolicy("spec-jwt", authzForClaims(
+		claimWithHeader("role", "X-Role", "admin"),
+		claimWithHeader("tenant", "X-Forwarded-Host", "acme"),
+		claimWithHeader("proto", "x-forwarded-proto", "https"),
+		claimWithHeader("ip", "X-Real-IP", "1.1.1.1"),
+		claimWithHeader("site", "Host", "site"),
+	))
+	routes := map[string][]string{"/tea": {"oidc"}, "/coffee": {"route-plain"}}
+	vsEx := withOIDCSecret(jwtVS([]string{"spec-jwt"}, routes, spec, jwtPolicy("route-plain", nil), oidcTestPolicy()))
+	vsEx.VirtualServer.Spec.Routes = append(vsEx.VirtualServer.Spec.Routes, conf_v1.Route{Path: "/jwt", Action: &conf_v1.Action{Pass: "tea"}})
+
+	tests := []struct {
+		name            string
+		disableForwards bool
+		want            []version2.Header
+	}{
+		{
+			// NIC emits the defaults, so no entry may hide them. Only X-Role is blanked.
+			name: "forwarded headers enabled",
+			want: []version2.Header{{Name: "X-Role", Value: ""}, {Name: "Host", Value: "$host"}},
+		},
+		{
+			// NIC emits no X-Forwarded-* defaults, so a client value would pass through: blank them.
+			// Host and X-Real-IP are always set by NIC.
+			name:            "forwarded headers disabled",
+			disableForwards: true,
+			want: []version2.Header{
+				{Name: "X-Role", Value: ""},
+				{Name: "X-Forwarded-Host", Value: ""},
+				{Name: "x-forwarded-proto", Value: ""},
+				{Name: "Host", Value: "$host"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, warnings := generateJWTTestConfigWithParams(t, vsEx, tc.disableForwards)
+			if len(warnings) != 0 {
+				t.Fatalf("unexpected warnings: %v", warnings)
+			}
+			if !locationByPath(t, cfg, "/tea").OIDC {
+				t.Fatal("the OIDC policy was not applied to /tea, so this test would prove nothing")
+			}
+			for _, path := range []string{"/tea", "/coffee"} {
+				if diff := cmp.Diff(tc.want, locationByPath(t, cfg, path).ProxySetHeaders); diff != "" {
+					t.Errorf("%s headers mismatch (-want +got):\n%s", path, diff)
+				}
+			}
+
+			// Where the policy runs, the claim still goes into the header the user chose.
+			var got []string
+			for _, h := range locationByPath(t, cfg, "/jwt").ProxySetHeaders {
+				if h.Value == "" {
+					t.Errorf("/jwt header %s is blank, the spec policy runs there", h.Name)
+				}
+				got = append(got, h.Name)
+			}
+			wantNames := []string{"X-Role", "X-Forwarded-Host", "x-forwarded-proto", "X-Real-IP", "Host"}
+			if diff := cmp.Diff(wantNames, got); diff != "" {
+				t.Errorf("/jwt header names mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

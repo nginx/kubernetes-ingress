@@ -313,7 +313,10 @@ func addJWTRequireReset(locations []version2.Location, serverAuth *version2.JWTA
 // its own JWT policy, or legacy OIDC, which validates the ID token instead), the spec's headers are
 // kept with an empty value: proxy_set_header then drops any copy the client sent, and an
 // unchecked claim cannot reach the backend.
-func jwtPolicyProxyHeaders(route, spec policiesCfg) []version2.Header {
+//
+// A header NIC sets itself is not blanked: an empty entry would suppress NIC's default (see
+// jwtNICDefaultHeader) and the backend would lose it.
+func jwtPolicyProxyHeaders(route, spec policiesCfg, disableForwardedHeaders bool) []version2.Header {
 	if route.JWTAuth.Auth == nil && route.OIDC == nil {
 		if spec.JWTAuth.Auth != nil {
 			return spec.JWTAuth.Auth.ProxySetHeaders
@@ -328,8 +331,24 @@ func jwtPolicyProxyHeaders(route, spec policiesCfg) []version2.Header {
 	if spec.JWTAuth.Auth != nil {
 		// A name the route also sets is dropped later: the first header of a name wins.
 		for _, h := range spec.JWTAuth.Auth.ProxySetHeaders {
+			if jwtNICDefaultHeader(h.Name, disableForwardedHeaders) {
+				continue
+			}
 			headers = append(headers, version2.Header{Name: h.Name, Value: ""})
 		}
 	}
 	return headers
+}
+
+// jwtNICDefaultHeader reports whether NIC sets the header itself on a proxied location: Host and
+// X-Real-IP always, and the X-Forwarded-* headers unless forwarded headers are disabled. Keep in step
+// with the default headers in nginx-plus.virtualserver.tmpl and generateProxySetHeaders.
+func jwtNICDefaultHeader(name string, disableForwardedHeaders bool) bool {
+	switch strings.ToLower(name) {
+	case "host", "x-real-ip":
+		return true
+	case "x-forwarded-for", "x-forwarded-host", "x-forwarded-port", "x-forwarded-proto":
+		return !disableForwardedHeaders
+	}
+	return false
 }

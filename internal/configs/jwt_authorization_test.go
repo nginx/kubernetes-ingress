@@ -979,30 +979,59 @@ func TestGenerateProxySetHeaders_PolicyHeaderMerge(t *testing.T) {
 func TestJWTPolicyProxyHeaders(t *testing.T) {
 	t.Parallel()
 
-	withHeaders := func(name string) policiesCfg {
-		return policiesCfg{JWTAuth: jwtAuth{Auth: &version2.JWTAuth{ProxySetHeaders: []version2.Header{{Name: name, Value: "$v"}}}}}
+	withHeaders := func(names ...string) policiesCfg {
+		var headers []version2.Header
+		for _, n := range names {
+			headers = append(headers, version2.Header{Name: n, Value: "$v"})
+		}
+		return policiesCfg{JWTAuth: jwtAuth{Auth: &version2.JWTAuth{ProxySetHeaders: headers}}}
 	}
 	withoutHeaders := policiesCfg{JWTAuth: jwtAuth{Auth: &version2.JWTAuth{}}}
+	oidc := policiesCfg{OIDC: &version2.OIDC{}}
 
 	tests := []struct {
-		name        string
-		route, spec policiesCfg
-		want        []version2.Header
+		name                    string
+		route, spec             policiesCfg
+		disableForwardedHeaders bool
+		want                    []version2.Header
 	}{
-		{"route policy only", withHeaders("X-Route"), policiesCfg{}, []version2.Header{{Name: "X-Route", Value: "$v"}}},
-		{"spec policy inherited when the route has none", policiesCfg{}, withHeaders("X-Spec"), []version2.Header{{Name: "X-Spec", Value: "$v"}}},
-		{"route policy overrides the spec policy and strips its headers", withHeaders("X-Route"), withHeaders("X-Spec"), []version2.Header{{Name: "X-Route", Value: "$v"}, {Name: "X-Spec"}}},
-		{"route policy without headers strips the spec headers", withoutHeaders, withHeaders("X-Spec"), []version2.Header{{Name: "X-Spec"}}},
-		{"route policy without headers and no spec policy", withoutHeaders, policiesCfg{}, nil},
-		{"OIDC route strips the spec headers", policiesCfg{OIDC: &version2.OIDC{}}, withHeaders("X-Spec"), []version2.Header{{Name: "X-Spec"}}},
-		{"OIDC route without a spec policy", policiesCfg{OIDC: &version2.OIDC{}}, policiesCfg{}, nil},
-		{"no JWT policy", policiesCfg{}, policiesCfg{}, nil},
+		{name: "route policy only", route: withHeaders("X-Route"), want: []version2.Header{{Name: "X-Route", Value: "$v"}}},
+		{name: "spec policy inherited when the route has none", spec: withHeaders("X-Spec"), want: []version2.Header{{Name: "X-Spec", Value: "$v"}}},
+		{name: "route policy overrides the spec policy and strips its headers", route: withHeaders("X-Route"), spec: withHeaders("X-Spec"), want: []version2.Header{{Name: "X-Route", Value: "$v"}, {Name: "X-Spec"}}},
+		{name: "route policy without headers strips the spec headers", route: withoutHeaders, spec: withHeaders("X-Spec"), want: []version2.Header{{Name: "X-Spec"}}},
+		{name: "route policy without headers and no spec policy", route: withoutHeaders},
+		{name: "OIDC route strips the spec headers", route: oidc, spec: withHeaders("X-Spec"), want: []version2.Header{{Name: "X-Spec"}}},
+		{name: "OIDC route without a spec policy", route: oidc},
+		{
+			name:  "NIC default headers are not stripped",
+			route: oidc,
+			spec:  withHeaders("host", "X-Real-IP", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Port", "X-Forwarded-Proto", "X-Spec"),
+			want:  []version2.Header{{Name: "X-Spec"}},
+		},
+		{
+			name:                    "X-Forwarded headers are stripped when NIC does not set them",
+			route:                   oidc,
+			spec:                    withHeaders("Host", "X-Real-IP", "X-Forwarded-For", "x-forwarded-host", "X-Forwarded-Port", "X-Forwarded-Proto"),
+			disableForwardedHeaders: true,
+			want:                    []version2.Header{{Name: "X-Forwarded-For"}, {Name: "x-forwarded-host"}, {Name: "X-Forwarded-Port"}, {Name: "X-Forwarded-Proto"}},
+		},
+		{
+			name:  "a default header the route's own policy forwards is kept",
+			route: withHeaders("X-Forwarded-Host"),
+			spec:  withHeaders("X-Forwarded-Host"),
+			want:  []version2.Header{{Name: "X-Forwarded-Host", Value: "$v"}},
+		},
+		{
+			name: "headers of a spec policy that runs are never stripped, even NIC defaults",
+			spec: withHeaders("X-Forwarded-Host", "Host"),
+			want: []version2.Header{{Name: "X-Forwarded-Host", Value: "$v"}, {Name: "Host", Value: "$v"}},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tc.want, jwtPolicyProxyHeaders(tc.route, tc.spec)); diff != "" {
+			if diff := cmp.Diff(tc.want, jwtPolicyProxyHeaders(tc.route, tc.spec, tc.disableForwardedHeaders)); diff != "" {
 				t.Errorf("jwtPolicyProxyHeaders() mismatch (-want +got):\n%s", diff)
 			}
 		})
