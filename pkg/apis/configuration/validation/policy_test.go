@@ -247,6 +247,67 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Invalid leeway with negative time",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:  "My Product API",
+						Secret: "my-secret",
+						Leeway: "-5s",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid leeway with non-time string",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:  "My Product API",
+						Secret: "my-secret",
+						Leeway: "invalid",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid leeway with whitespace between units",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:    "My Product API",
+						JwksURI:  "https://myjwksuri.com",
+						KeyCache: "1h",
+						Leeway:   "1m 30s",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid leeway with directive injection",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:  "My Product API",
+						Secret: "my-secret",
+						Leeway: "30s; return 200;",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid leeway with newline",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:  "My Product API",
+						Secret: "my-secret",
+						Leeway: "30s\n",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -385,6 +446,43 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						TrustedCertSecret: "my-ca-secret",
 						SNIEnabled:        true,
 						SNIName:           "login.mydomain.com",
+					},
+				},
+			},
+		},
+		{
+			name: "with Secret and Leeway",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:  "My Product API",
+						Secret: "my-secret",
+						Leeway: "30s",
+					},
+				},
+			},
+		},
+		{
+			name: "with JWKS and compound Leeway",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:    "My Product API",
+						KeyCache: "1h",
+						JwksURI:  "https://login.mydomain.com/keys",
+						Leeway:   "1m30s",
+					},
+				},
+			},
+		},
+		{
+			name: "with Secret and millisecond Leeway",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:  "My Product API",
+						Secret: "my-secret",
+						Leeway: "500ms",
 					},
 				},
 			},

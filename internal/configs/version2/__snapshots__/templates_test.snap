@@ -810,6 +810,7 @@ server {
     limit_req zone=pol_rl_test_test_test burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     location = /_validate_apikey_njs {
             internal;
             client_max_body_size 0;
@@ -1241,6 +1242,7 @@ server {
     limit_req zone=pol_rl_test_test_test burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -1825,6 +1827,7 @@ server {
     
     auth_jwt_key_cache 1h;
     auth_jwt_key_request /_jwks_uri_server_default/jwt-policy;
+    auth_jwt_leeway 30s;
     location = /_jwks_uri_server_default/jwt-policy {
         internal;
         client_max_body_size 0;
@@ -1864,6 +1867,7 @@ server {
         
         auth_jwt_key_cache 1h;
         auth_jwt_key_request /_jwks_uri_server_default/jwt-policy-route;
+        auth_jwt_leeway 1m30s;
 
         
         set $default_connection_header close;
@@ -6852,6 +6856,7 @@ server {
     limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -7262,6 +7267,7 @@ server {
     limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -7519,6 +7525,7 @@ server {
     limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     auth_basic "server realm";
     auth_basic_user_file /etc/nginx/secrets/server-htpasswd;
     auth_request "/_external_auth/oauth2/auth";
@@ -7788,6 +7795,7 @@ server {
     limit_conn pol_cl_default_downloads-total_vs_default_cafe_11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7 200;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -8314,6 +8322,7 @@ server {
     limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;
@@ -8914,6 +8923,7 @@ server {
     limit_req zone=pol_rl_test_test_test_sync burst=5 delay=10;
     auth_jwt "My Api";
     auth_jwt_key_file jwk-secret;
+    auth_jwt_leeway 30s;
     app_protect_enable on;
     app_protect_policy_file /etc/nginx/waf/nac-policies/default-dataguard-alarm;
     app_protect_security_log_enable on;

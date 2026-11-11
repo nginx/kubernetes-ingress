@@ -744,6 +744,89 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "jwt-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "My Test API",
+							Secret: "jwt-secret",
+							Leeway: "30s",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Secret: "/etc/nginx/secrets/default-jwt-secret",
+						Realm:  "My Test API",
+						Leeway: "30s",
+					},
+					JWKSEnabled: false,
+				},
+			},
+			msg: "jwt reference with leeway",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "jwt-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:    "My Test API",
+							JwksURI:  "https://idp.example.com:443/keys",
+							KeyCache: "1h",
+							Leeway:   "1m30s",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Key:   "default/jwt-policy-2",
+						Realm: "My Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "443",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
+						},
+						KeyCache: "1h",
+						Leeway:   "1m30s",
+					},
+					JWKSEnabled: true,
+				},
+			},
+			msg: "jwks example with leeway",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "basic-auth-policy",
 					Namespace: "default",
 				},

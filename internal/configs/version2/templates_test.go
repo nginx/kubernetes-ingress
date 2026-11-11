@@ -2014,6 +2014,7 @@ func vsConfig() VirtualServerConfig {
 			JWTAuth: &JWTAuth{
 				Realm:  "My Api",
 				Secret: "jwk-secret",
+				Leeway: "30s",
 			},
 			IngressMTLS: &IngressMTLS{
 				ClientCert:   "ingress-mtls-secret",
@@ -2739,6 +2740,7 @@ var (
 			JWTAuth: &JWTAuth{
 				Realm:  "My Api",
 				Secret: "jwk-secret",
+				Leeway: "30s",
 			},
 			IngressMTLS: &IngressMTLS{
 				ClientCert:   "ingress-mtls-secret",
@@ -3503,6 +3505,7 @@ var (
 				Realm:    "Spec Realm API",
 				Token:    "$http_token",
 				KeyCache: "1h",
+				Leeway:   "30s",
 				JwksURI: JwksURI{
 					JwksScheme: "https",
 					JwksHost:   "idp.spec.example.com",
@@ -3525,6 +3528,7 @@ var (
 						Realm:    "Route Realm API",
 						Token:    "$http_token",
 						KeyCache: "1h",
+						Leeway:   "1m30s",
 						JwksURI: JwksURI{
 							JwksScheme: "http",
 							JwksHost:   "idp.route.example.com",
