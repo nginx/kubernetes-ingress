@@ -495,7 +495,9 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          make -f tests/Makefile setup-venv
+          # no playwright/chromium here: check_container_packages.py only needs the docker client
+          python3 -m venv tests/venv
+          tests/venv/bin/pip install --require-hashes -r tests/requirements.txt --no-deps
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Run tests
