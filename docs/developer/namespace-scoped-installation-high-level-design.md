@@ -289,7 +289,7 @@ today's `controller-role.yaml`. Rules follow the conditions in today's
 | `discovery.k8s.io` | `endpointslices` | `get`, `list`, `watch` | Every watched namespace |
 | `networking.k8s.io` | `ingresses`; `ingresses/status` | `get`, `list`, `watch`; `update` | Every watched namespace; `ingresses/status` if `reportIngressStatus.enable` |
 | `k8s.nginx.org` | `virtualservers`, `virtualserverroutes`, `transportservers`, `policies`, `globalconfigurations`; their `/status` subresources (GlobalConfiguration has none) | `get`, `list`, `watch`; `update` on status | Every watched namespace, if custom resources are enabled |
-| `appprotect.f5.com`, `appprotectdos.f5.com`, `cert-manager.io`, `externaldns.nginx.org` | As in `clusterrole.yaml` | As in `clusterrole.yaml` | Every watched namespace, if the feature is enabled (cert-manager and ExternalDNS also need custom resources) |
+| `appprotect.f5.com`, `appprotectdos.f5.com`, `cert-manager.io`, ExternalDNS's configured group (`externaldns.nginx.org/v1` or `externaldns.k8s.io/v1alpha1`) | As in `clusterrole.yaml` | As in `clusterrole.yaml` | Every watched namespace, if the feature is enabled (cert-manager and ExternalDNS also need custom resources) |
 | `cis.f5.com` | `ingresslinks` | `get`, `list`, `watch` | Release namespace, if IngressLink is set |
 | `""` | `secrets` | `get` | Release namespace, always (license, management, default-server and wildcard Secrets) |
 | `""` | `services` | `create`, `update`, `patch`, `delete` | Release namespace |
