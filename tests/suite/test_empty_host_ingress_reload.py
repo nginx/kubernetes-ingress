@@ -18,6 +18,7 @@ from suite.utils.resources_utils import (
     get_ingress_nginx_template_conf,
     replace_ingress,
     wait_before_test,
+    wait_for_event,
     wait_until_all_pods_are_ready,
 )
 
@@ -376,6 +377,8 @@ class TestEmptyHostIngressStartupProtection:
         wait_and_assert_status_code(404, f"{request_url}/", verify=False)
         wait_and_assert_status_code(200, f"{health_url}/nginx-health")
 
+        # Events are written asynchronously, so poll instead of reading once.
+        assert wait_for_event(kube_apis.v1, "but was not applied", test_namespace), "no 'but was not applied' event"
         messages = " ".join(
             event.message
             for event in get_events_for_object(kube_apis.v1, test_namespace, invalid_empty_host_ingress_before_startup)
