@@ -1,0 +1,57 @@
+name: NGINX Package Secrets
+description: >-
+  Fetch the NGINX package repository certificate and key from Azure Key Vault and write them to
+  nginx-repo.crt and nginx-repo.key in the working directory. Optionally also export the Plus
+  license JWT and the Docker Hub credentials as environment variables for the rest of the job.
+
+# The calling job needs `permissions: id-token: write` for the OIDC login, and should delete
+# nginx-repo.crt and nginx-repo.key in an `if: always()` step when it no longer needs them.
+#
+# Environment variables exported to the rest of the job (values are masked in logs):
+#   PLUS_CERT, PLUS_KEY                 always
+#   PLUS_JWT                            when fetch-jwt is "true"
+#   DOCKER_USERNAME, DOCKER_PASSWORD    when fetch-docker is "true"
+
+inputs:
+  client-id:
+    description: Azure client ID used for the OIDC login to the vault
+    required: true
+  tenant-id:
+    description: Azure tenant ID of the vault
+    required: true
+  vault-name:
+    description: Name of the Azure Key Vault holding the NGINX package secrets
+    required: true
+  fetch-jwt:
+    description: Also fetch the NGINX Plus license JWT into PLUS_JWT
+    required: false
+    default: "false"
+  fetch-docker:
+    description: Also fetch the Docker Hub credentials into DOCKER_USERNAME and DOCKER_PASSWORD
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch secrets from vault
+      uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        vault-name: ${{ inputs.vault-name }}
+        secret-names: >-
+          nginx-pkg-certificate, nginx-pkg-key
+          ${{ inputs.fetch-jwt == 'true' && ', nginx-pkg-jwt' || '' }}
+          ${{ inputs.fetch-docker == 'true' && ', docker-username, docker-password' || '' }}
+        env-names: >-
+          PLUS_CERT, PLUS_KEY
+          ${{ inputs.fetch-jwt == 'true' && ', PLUS_JWT' || '' }}
+          ${{ inputs.fetch-docker == 'true' && ', DOCKER_USERNAME, DOCKER_PASSWORD' || '' }}
+
+    - name: Write NGINX repository certificate and key
+      shell: bash
+      run: |
+        umask 077
+        printf '%s\n' "$PLUS_CERT" > nginx-repo.crt
+        printf '%s\n' "$PLUS_KEY" > nginx-repo.key
