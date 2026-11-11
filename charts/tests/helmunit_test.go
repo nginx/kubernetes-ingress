@@ -320,6 +320,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "nic",
 			namespace:   "team-a",
 		},
+		"tenantExternalDNSUpstream": {
+			valuesFile:  "testdata/tenant-external-dns-upstream.yaml",
+			releaseName: "nic",
+			namespace:   "team-a",
+		},
 		"platform": {
 			valuesFile:  "testdata/platform.yaml",
 			releaseName: "nic-team-a-platform",
@@ -725,6 +730,7 @@ var installModeCases = map[string]struct {
 	"tenantMessyNamespaces":        {"testdata/tenant-messy-namespaces.yaml", "nic", "team-a"},
 	"tenantAllFeatures":            {"testdata/tenant-all-features.yaml", "nic", "team-a"},
 	"tenantNoCustomResources":      {"testdata/tenant-no-custom-resources.yaml", "nic", "team-a"},
+	"tenantExternalDNSUpstream":    {"testdata/tenant-external-dns-upstream.yaml", "nic", "team-a"},
 	"platform":                     {"testdata/platform.yaml", "nic-team-a-platform", "nic-platform"},
 	"platformExistingIngressClass": {"testdata/platform-existing-ingress-class.yaml", "nic-team-a-platform", "nic-platform"},
 	"platformNoTenantReader":       {"testdata/platform-no-tenant-reader.yaml", "nic-team-a-platform", "nic-platform"},
@@ -753,6 +759,7 @@ func TestHelmNICTenantRendersOnlyNamespacedResources(t *testing.T) {
 		"tenantMessyNamespaces":      {wantRoleNamespaces: []string{"team-a", "team-a-apps", "team-b"}},
 		"tenantAllFeatures":          {wantRoleNamespaces: []string{"team-a", "team-a-apps"}},
 		"tenantNoCustomResources":    {wantRoleNamespaces: []string{"team-a", "team-a-apps"}},
+		"tenantExternalDNSUpstream":  {wantRoleNamespaces: []string{"team-a", "team-a-apps"}},
 	}
 
 	for name, test := range tests {
@@ -830,7 +837,7 @@ func TestHelmNICTenantRoleIsSubsetOfFullRBAC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, name := range []string{"tenant", "tenantMessyNamespaces", "tenantAllFeatures", "tenantNoCustomResources"} {
+	for _, name := range []string{"tenant", "tenantMessyNamespaces", "tenantAllFeatures", "tenantNoCustomResources", "tenantExternalDNSUpstream"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tc := installModeCases[name]
@@ -1070,7 +1077,7 @@ func TestHelmNICTenantAggregateCoversTenantRole(t *testing.T) {
 	}
 
 	// Every tenant fixture, so each feature is covered both on and off.
-	for _, name := range []string{"tenant", "tenantMessyNamespaces", "tenantAllFeatures", "tenantNoCustomResources"} {
+	for _, name := range []string{"tenant", "tenantMessyNamespaces", "tenantAllFeatures", "tenantNoCustomResources", "tenantExternalDNSUpstream"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tc := installModeCases[name]

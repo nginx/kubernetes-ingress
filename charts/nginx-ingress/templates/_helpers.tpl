@@ -962,7 +962,7 @@ deployments/rbac/nic-tenant-aggregate.yaml; helm unit tests check both.
 {{- end }}
 {{- if and $v.enableCustomResources $v.enableExternalDNS }}
 - apiGroups:
-  - externaldns.nginx.org
+  - {{ index (splitList "/" $v.externalDNSGroupVersion) 0 }}
   resources:
   - dnsendpoints
   verbs:
@@ -973,7 +973,7 @@ deployments/rbac/nic-tenant-aggregate.yaml; helm unit tests check both.
   - update
   - delete
 - apiGroups:
-  - externaldns.nginx.org
+  - {{ index (splitList "/" $v.externalDNSGroupVersion) 0 }}
   resources:
   - dnsendpoints/status
   verbs:
