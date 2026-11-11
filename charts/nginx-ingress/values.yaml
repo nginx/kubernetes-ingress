@@ -252,7 +252,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.7.0"
+    # tag: "5.7.1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -866,6 +866,8 @@ nginxAgent:
   endpointHost: "agent.connect.nginx.com"
   endpointPort: 443
   tlsSkipVerify: false
+  ## Custom labels to associate with the NGINX instance in NGINX One Console (for example, display-name: my-instance).
+  labels: {}
 
   # Agent V2 configuration
   ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used

@@ -28,6 +28,7 @@
 .github/workflows/cherry-pick.yml
 .github/workflows/codeql-analysis.yml
 .github/workflows/create-release-branch.yml
+.github/workflows/cve-publish.yml
 .github/workflows/dependency-review.yml
 .github/workflows/dockerhub-description.yml
 .github/workflows/docs-build-push.yml
