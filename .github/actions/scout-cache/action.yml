@@ -1,0 +1,200 @@
+name: Docker Scout Cache
+description: Download the docker/scout-action binary once per workflow run and share it with the scanning jobs as an artifact.
+
+# Why: docker/scout-action downloads its ~187 MB binary from GitHub releases on
+# every call, through an unauthenticated API request. Unauthenticated requests
+# share a 60/hour limit per IP, so a build matrix fanning out into many parallel
+# scans behind a shared NAT gets HTTP 403s. Seeding once per run, before the
+# matrix starts, turns N downloads into one; every scan job then pulls the
+# binary from the run's artifacts.
+#
+# Artifacts, not the Actions cache: an artifact is only visible to its own run
+# (including re-runs of failed jobs, for 7 days), so this does not add to the
+# repository's 10 GB cache (evicting build layers), does not count against the
+# cache rate limits, and cannot be read by other PRs.
+#
+# This file is the single home of the contract (artifact name, install
+# location, download fallback). Do not fetch the artifact by hand elsewhere;
+# call `mode: restore`.
+#
+# Contract:
+#   artifact: docker-scout-action_<os>_<arch>-<version>   e.g. docker-scout-action_linux_amd64-v1.27.0
+#   install:  <runner>/_actions/docker/scout-action/<sha>/dist/docker-scout-action_<os>_<arch>
+#
+# ---------------------------------------------------------------------------
+# 1. Seed: one dedicated job per workflow run
+# ---------------------------------------------------------------------------
+# Add a job that runs once, and add it to the `needs:` of the job that fans out
+# into the scans. Keep it a separate job: seeding inside a matrix job brings
+# back one download per matrix entry.
+#
+#   scout-cache:
+#     name: Docker Scout Cache
+#     if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+#     runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
+#     timeout-minutes: 15
+#     permissions:
+#       contents: read
+#     steps:
+#       - uses: actions/checkout@<sha> # vX       # local actions need the repo
+#         with:
+#           sparse-checkout: .github/actions/scout-cache
+#       - uses: ./.github/actions/scout-cache
+#         continue-on-error: true  # step level, so the job stays green and `needs:` jobs still run
+#         with:
+#           mode: seed
+#           version: v1.27.0
+#           sha: a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # renovate-digest: datasource=github-tags depName=docker/scout-action
+#
+#   build:
+#     needs: [scout-cache]
+#
+# Pin `version` and `sha` to the same release as the `uses: docker/scout-action@`
+# pin of the scanning jobs, and keep them on adjacent lines in that order with
+# the `# renovate-digest:` comment: renovate.json bumps the pair together with
+# the `uses:` pins.
+#
+# To seed another platform (e.g. arm64 runners scan too), add a matrix over
+# `platform` to the seed job.
+#
+# ---------------------------------------------------------------------------
+# 2. Restore: in each job that runs docker/scout-action
+# ---------------------------------------------------------------------------
+# Call it in the same job (after checkout), before the scan step, with the same
+# version and sha as that job's `uses: docker/scout-action@<sha>`:
+#
+#   - uses: ./.github/actions/scout-cache
+#     with:
+#       mode: restore
+#       version: v1.27.0
+#       sha: a4119c5a8c5076236a54e4ce99531f7e4dd2ef84
+#   - uses: docker/scout-action@a4119c5a8c5076236a54e4ce99531f7e4dd2ef84 # v1.27.0
+#     with: ...
+#
+# Restore copies the binary into the `dist/` directory of the downloaded
+# docker/scout-action, which the action uses instead of downloading. Restore
+# never fails the job:
+#   1. It downloads the run's artifact.
+#   2. If that fails (no seed job in this run, e.g. cache-update.yml calling
+#      build-oss.yml, or the seed failed), it downloads the release itself,
+#      authenticated with `github-token` and checksum-verified.
+#   3. If that fails too, or docker/scout-action's directory is not found, it
+#      warns and docker/scout-action downloads the binary as it would without
+#      this action.
+# The artifact name includes the version, so a stale binary is never paired
+# with a newer action.
+
+inputs:
+  mode:
+    description: "`seed` (download and upload as an artifact) or `restore` (install into docker/scout-action)"
+    required: true
+  version:
+    description: "docker/scout-action release tag, e.g. v1.27.0"
+    required: true
+  sha:
+    description: "Commit SHA that `version` points to (the docker/scout-action `uses:` pin)"
+    required: true
+  platform:
+    description: "<os>_<arch> release asset suffix. Defaults to the runner's platform"
+    required: false
+    default: ""
+  github-token:
+    description: "Token for the authenticated release download. Needs no permissions: docker/scout-action is public"
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve artifact name
+      id: name
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        PLATFORM: ${{ inputs.platform }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "${MODE}" in
+          seed | restore) ;;
+          *) echo "::error::mode must be 'seed' or 'restore', got '${MODE}'"; exit 1 ;;
+        esac
+        if [ -z "${PLATFORM}" ]; then
+          os="$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')"
+          case "${RUNNER_ARCH}" in
+            X64) arch=amd64 ;;
+            ARM64) arch=arm64 ;;
+            *) echo "::error::unsupported runner arch ${RUNNER_ARCH}"; exit 1 ;;
+          esac
+          PLATFORM="${os}_${arch}"
+        fi
+        echo "asset=docker-scout-action_${PLATFORM}" >> "$GITHUB_OUTPUT"
+        echo "artifact=docker-scout-action_${PLATFORM}-${VERSION}" >> "$GITHUB_OUTPUT"
+        echo "dir=${RUNNER_TEMP}/docker-scout" >> "$GITHUB_OUTPUT"
+
+    # ---- seed ----
+
+    - name: Download docker/scout-action binary
+      if: inputs.mode == 'seed'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+        SHA: ${{ inputs.sha }}
+        ASSET: ${{ steps.name.outputs.asset }}
+        DEST: ${{ steps.name.outputs.dir }}
+      run: bash "${GITHUB_ACTION_PATH}/fetch.sh" "${VERSION}" "${SHA}" "${ASSET}" "${DEST}"
+
+    - name: Upload docker/scout-action binary
+      if: inputs.mode == 'seed'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ steps.name.outputs.artifact }}
+        path: ${{ steps.name.outputs.dir }}/${{ steps.name.outputs.asset }}
+        if-no-files-found: error
+        retention-days: 7 # covers re-runs of failed jobs; after a week the base has usually moved and a new run seeds again
+        overwrite: true # a re-run of the seed job replaces the artifact instead of failing
+
+    # ---- restore ----
+
+    - name: Download docker/scout-action artifact
+      id: artifact
+      if: inputs.mode == 'restore'
+      continue-on-error: true
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: ${{ steps.name.outputs.artifact }}
+        path: ${{ steps.name.outputs.dir }}
+
+    - name: Download docker/scout-action binary (authenticated fallback)
+      if: inputs.mode == 'restore' && steps.artifact.outcome != 'success'
+      continue-on-error: true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+        SHA: ${{ inputs.sha }}
+        ASSET: ${{ steps.name.outputs.asset }}
+        DEST: ${{ steps.name.outputs.dir }}
+      run: bash "${GITHUB_ACTION_PATH}/fetch.sh" "${VERSION}" "${SHA}" "${ASSET}" "${DEST}"
+
+    - name: Install binary into docker/scout-action
+      if: inputs.mode == 'restore'
+      continue-on-error: true
+      shell: bash
+      env:
+        BINARY: ${{ steps.name.outputs.dir }}/${{ steps.name.outputs.asset }}
+        ASSET: ${{ steps.name.outputs.asset }}
+        SHA: ${{ inputs.sha }}
+      run: |
+        set -euo pipefail
+        # The runner downloads `uses:` actions into _actions/<owner>/<repo>/<ref>, next to the workspace.
+        action_dir="$(dirname "${RUNNER_WORKSPACE}")/_actions/docker/scout-action/${SHA}"
+        if [ ! -f "${BINARY}" ]; then
+          echo "::warning::No docker/scout-action binary available; docker/scout-action will download it unauthenticated"
+        elif [ ! -d "${action_dir}" ]; then
+          echo "::warning::${action_dir} not found; docker/scout-action will download its binary"
+        else
+          install -D -m 0755 "${BINARY}" "${action_dir}/dist/${ASSET}"
+          echo "Installed ${ASSET} into ${action_dir}/dist"
+        fi
