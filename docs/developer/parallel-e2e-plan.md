@@ -369,7 +369,7 @@ above. Effects are as estimated in #10492.
 - #10492 — durations tooling, design doc
   `docs/developer/parallel-e2e-tests-design.md`, and the proof of concept
   for several kind clusters per runner
-- `tests/suite/FLAKY_RELOAD_REQUESTS.md` — retrying requests that hit a
+- `docs/developer/e2e-flaky-tests.md` — flaky e2e plan; retrying requests that hit a
   reload
 - Smoke matrix: `.github/data/matrix-smoke-{oss,plus,nap}.json`
 - Smoke action: `.github/actions/smoke-tests/action.yaml`
