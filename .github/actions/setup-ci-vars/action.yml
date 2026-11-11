@@ -1,0 +1,33 @@
+name: Setup CI vars
+description: Resolve the test-runner image and runner label in one step
+
+inputs:
+  test-runner-registry:
+    description: Test-runner image registry (pass vars.TEST_RUNNER_REGISTRY)
+    required: false
+    default: ""
+  runner:
+    description: Runner label (pass vars.RUNNER)
+    required: false
+    default: ""
+
+outputs:
+  test_runner_image:
+    description: Resolved test-runner image reference
+    value: ${{ steps.vars.outputs.test_runner_image }}
+  runner:
+    description: Resolved runner label
+    value: ${{ steps.vars.outputs.runner }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute CI vars
+      id: vars
+      shell: bash
+      env:
+        TEST_RUNNER_IMAGE: ${{ inputs.test-runner-registry || 'ghcr.io/nginx/kubernetes-ingress' }}/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}
+        RUNNER: ${{ inputs.runner || 'ubuntu-26.04' }}
+      run: |
+        echo "test_runner_image=${TEST_RUNNER_IMAGE}" >> "$GITHUB_OUTPUT"
+        echo "runner=${RUNNER}" >> "$GITHUB_OUTPUT"
