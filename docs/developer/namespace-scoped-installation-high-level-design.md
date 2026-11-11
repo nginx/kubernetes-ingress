@@ -91,7 +91,9 @@ The design relies on the following Kubernetes and Helm behaviour.
 
 | Read | Code | Scope | When denied today |
 | --- | --- | --- | --- |
-| IngressClass `get` | `mustValidateIngressClass()` in `cmd/nginx-ingress/main.go` | Cluster | **Exit** |
+| IngressClass `get` | `validateIngressClass()` in `cmd/nginx-ingress/main.go` | Cluster | **Exit** (`strict`); not read (`skip`) |
+| Own Pod `get` | `getControllerPod()` in `cmd/nginx-ingress` | Release namespace | **Exit** |
+| ConfigMap `get` (`-nginx-configmaps`, `-mgmt-configmap`, zone sync) | `getStartupConfigMap()` in `cmd/nginx-ingress` | The namespace each flag points to | **Exit** |
 | Namespace `kube-system` `get` | `GetClusterID()` in `internal/common_cluster_info` | Cluster | Agent v3: **exit** (`internal/nginx/manager.go`); license report: empty `cluster_id`; telemetry: empty field |
 | Nodes `list` | `GetNodeCount()`, `getControllerZone()`, telemetry | Cluster | License: node count 0; zone routing off; telemetry: empty fields |
 | IngressClasses `list`, Services `list` (all namespaces) | `IngressClassCount()`, `ServiceCounts()` in `internal/telemetry/cluster.go` | Cluster | Debug log, counts 0 |
@@ -133,6 +135,10 @@ Tenant mode is available from two charts:
 `controller.ingressClass.create` keeps its meaning in `platform` mode. Set it
 to `false` to grant the reader role for an IngressClass the platform already
 manages.
+
+In `tenant` mode, `rbac.create` renders the tenant Roles in place of
+`controller-role.yaml` and `controller-rolebinding.yaml`; the ServiceAccount is
+still rendered.
 
 Chart validation (`fail` in `_helpers.tpl`) rejects:
 
@@ -178,8 +184,10 @@ same two phases:
   ServiceAccount, ConfigMap, Deployment and Service manifests from
   `deployments/`, in their own namespace with `-watch-namespace` set. They
   don't apply the `Namespace` from `common/ns-and-sa.yaml` or
-  `common/ingress-class.yaml`. `tenant-role.yaml` covers custom resources;
-  uncomment the feature blocks you use.
+  `common/ingress-class.yaml`. `tenant-role.yaml` covers Ingress and NIC custom
+  resources, with placeholder names `nginx-ingress` and `watched-namespace`.
+  Tenants that use App Protect, cert-manager, ExternalDNS or IngressLink render
+  their own with `helm template --show-only templates/tenant-role.yaml`.
 
 #### Examples
 
@@ -243,28 +251,34 @@ creates every informer with `WithNamespace(ns)` for each namespace in
    flag, a CRD discovery check, and clearer messages for "forbidden" errors on
    startup reads.
 2. **Informers** (`internal/k8s/`): a watch error handler on each namespaced
-   informer, so missing namespace permissions are logged by NIC.
+   informer and the IngressLink informer, so missing namespace permissions are
+   logged by NIC.
 3. **Chart**: `installMode`, the tenant Roles, the platform templates, and
-   validation. RBAC rules are built from fragments in `_helpers.tpl` that the
-   `full` ClusterRole, the tenant Role and the aggregate manifest each compose.
-4. **Static manifests**: `deployments/rbac/nic-tenant-aggregate.yaml`,
+   validation. The tenant Role and the reader ClusterRole are built from rule
+   fragments in `_helpers.tpl`. The `full` ClusterRole and Role are unchanged,
+   so `full` output doesn't change; a Helm test checks that each tenant Role
+   is a subset of them.
+4. **Static manifests**: `make update-rbac-manifests` generates
    `deployments/rbac/tenant-role.yaml` and
-   `deployments/rbac/platform-tenant-reader.yaml`, generated from the chart by
-   one `make` target.
+   `deployments/rbac/platform-tenant-reader.yaml` from the chart, and a Helm
+   test fails when they're out of date.
+   `deployments/rbac/nic-tenant-aggregate.yaml` is written by hand.
 5. **Packaging**: `publish-helm.yml` is a reusable workflow that publishes one
    chart per call, named by its `chart_name` input. A new `tenant` input
    removes the `crds` symlink and sets `installMode: tenant` in `values.yaml`
    before `helm package`, using the same `sed` approach the workflow already
-   uses for values changes. Each regular release workflow that calls
-   `publish-helm.yml` gets one more call with `chart_name: nginx-ingress-tenant`
-   and `tenant: true`. This only repackages the existing chart; it adds no
-   build step.
+   uses for values changes. A `nginx-ingress-tenant` job runs after the main
+   chart job in `release-prep.yml` (staging), `release-publish.yml` (Helm repo
+   and OCI, part of `release-gate`) and `image-promotion.yml` (edge, OCI only);
+   the LTS workflows are unchanged. This only repackages the existing chart; it
+   adds no build step.
 
 ### Tenant RBAC
 
 The tenant release renders a Role and RoleBinding in each watched namespace.
-The release namespace is always watched. Rules follow the conditions in
-today's `clusterrole.yaml`, limited to namespaced resources:
+The release namespace is always watched, and its Role also holds the rules of
+today's `controller-role.yaml`. Rules follow the conditions in today's
+`clusterrole.yaml`, limited to namespaced resources:
 
 | API group | Resources | Verbs | Where |
 | --- | --- | --- | --- |
@@ -273,9 +287,9 @@ today's `clusterrole.yaml`, limited to namespaced resources:
 | `""` | `secrets` | `get`, `list`, `watch` | Every watched namespace where Secrets are watched (`watchSecretNamespace`, which can only narrow the watched set) |
 | `""` | `events` | `create`, `patch`, `list` | Every watched namespace |
 | `discovery.k8s.io` | `endpointslices` | `get`, `list`, `watch` | Every watched namespace |
-| `networking.k8s.io` | `ingresses`; `ingresses/status` | `get`, `list`, `watch`; `update` | Every watched namespace |
+| `networking.k8s.io` | `ingresses`; `ingresses/status` | `get`, `list`, `watch`; `update` | Every watched namespace; `ingresses/status` if `reportIngressStatus.enable` |
 | `k8s.nginx.org` | `virtualservers`, `virtualserverroutes`, `transportservers`, `policies`, `globalconfigurations`; their `/status` subresources (GlobalConfiguration has none) | `get`, `list`, `watch`; `update` on status | Every watched namespace, if custom resources are enabled |
-| `appprotect.f5.com`, `appprotectdos.f5.com`, `cert-manager.io`, `externaldns.nginx.org` | As in `clusterrole.yaml` | As in `clusterrole.yaml` | Every watched namespace, if the feature is enabled |
+| `appprotect.f5.com`, `appprotectdos.f5.com`, `cert-manager.io`, `externaldns.nginx.org` | As in `clusterrole.yaml` | As in `clusterrole.yaml` | Every watched namespace, if the feature is enabled (cert-manager and ExternalDNS also need custom resources) |
 | `cis.f5.com` | `ingresslinks` | `get`, `list`, `watch` | Release namespace, if IngressLink is set |
 | `""` | `secrets` | `get` | Release namespace, always (license, management, default-server and wildcard Secrets) |
 | `""` | `services` | `create`, `update`, `patch`, `delete` | Release namespace |
@@ -307,36 +321,47 @@ Namespace admins then hold the tenant Role's permissions, so they can create
 it, and can manage VirtualServers, Policies and the other NIC resources.
 
 The manifest is static and unconditional, like `deploy/crds.yaml`, so it
-belongs to no Helm release and is shared by every tenant. A `make` target
-generates it from the chart's rule fragments, and a Helm unit test checks that
-it still covers every rule the tenant Role can render. Rules that the tenant
+belongs to no Helm release and is shared by every tenant. It is written by
+hand, and a Helm unit test checks that it still covers every rule the tenant
+Role can render, for every feature combination. Rules that the tenant
 Role limits with `resourceNames`, such as the leader-election Lease, are
 written without `resourceNames` in the aggregate, so they cover every
-release's lock name. Namespace admins also already hold Lease read/write
-through the built-in `edit` role. Rules for resources whose CRDs aren't
-installed are harmless.
+release's lock name. The aggregate also grants `list`, `patch` and `delete` on
+Leases, because Helm creates and owns the tenant release's Lease and the
+built-in `admin` role doesn't cover Leases. Rules for resources whose CRDs
+aren't installed are harmless.
 
 ### Startup Behaviour
 
 - **IngressClass:** controlled by `-ingress-class-validation`, as in
   [CLI Flags](#cli-flags).
-- **CRD check:** after the IngressClass check, NIC uses API discovery to check
-  the group, version and resource that each enabled informer uses. A missing
-  CRD is logged as an error that names it and where it comes from, for example
-  `CRD virtualservers.k8s.nginx.org is not installed; the platform admin must apply deploy/crds.yaml`.
-  The check logs in every mode and doesn't change whether NIC starts.
+- **CRD check:** after App Protect setup, NIC uses API discovery to check the
+  group, version and resource that each enabled informer uses. It runs after
+  App Protect setup so that the App Protect CRDs are checked at the version NIC
+  watches (`v1` with PLM, `v1beta1` otherwise). A missing CRD is logged as an
+  error that names it and where it comes from, for example
+  `CRD virtualservers.k8s.nginx.org is not installed (version v1 is required); the platform admin must apply deploy/crds.yaml`.
+  If discovery itself fails for a group, NIC logs a warning and skips that
+  group. The check logs in every mode and doesn't change whether NIC starts.
 - **Forbidden errors:** the direct startup reads in
-  [What NIC Reads Today](#what-nic-reads-today) (IngressClass, `kube-system`,
-  Nodes, startup Secrets) keep their current behaviour.
-  When one fails with "forbidden", the message names the missing permission
-  and namespace.
-- **Watch errors:** each namespaced informer gets a watch error handler, set
-  in its `add*Handler()` before the informer starts. On a "forbidden" list or
-  watch, NIC logs one error per resource and namespace, for example
-  `missing permission: list ingresses.networking.k8s.io in namespace team-a-apps; check the tenant Role`.
+  [What NIC Reads Today](#what-nic-reads-today) (IngressClass, own Pod,
+  startup ConfigMaps, startup Secrets, `kube-system`, Nodes) keep their
+  current behaviour. When one fails with "forbidden", the message names the
+  missing permission and namespace, for example
+  `missing permission: get configmaps "nic-nginx-ingress" in namespace team-a; grant it to the NIC ServiceAccount in a Role or ClusterRole`.
+  The original error is wrapped, so it is still a "forbidden" error.
+- **Watch errors:** each namespaced informer, and the IngressLink informer,
+  gets a watch error handler, set in its `add*Handler()` before the informer
+  starts. On a "forbidden" list or watch, NIC logs one error per resource and
+  namespace, for example
+  `missing permission: list and watch ingresses.networking.k8s.io in namespace team-a-apps; check the Role or ClusterRole bound to the NIC ServiceAccount`.
   Further failures for the same resource and namespace are suppressed until a
   list succeeds. Other errors go to client-go's default handler. This applies
-  in every mode.
+  in every mode. The `-nginx-configmaps`, `-mgmt-configmap` and
+  `-global-configuration` informers keep client-go's default logging: they are
+  built with `cache.NewInformerWithOptions`, which has no watch error handler
+  option, and the ConfigMaps are already read once at startup with the
+  message above.
 
 Failures during `helm install`, such as a forbidden Role create, happen before
 NIC runs. `NOTES.txt` for the tenant release lists the prerequisites: CRDs, the
@@ -453,14 +478,16 @@ doesn't, and its `helm upgrade` then fails with a forbidden error.
 
 | Order | Pull request | Contents |
 | --- | --- | --- |
-| 1 | IngressClass validation (#10783) | `-ingress-class-validation` flag, error-returning refactor of `mustValidateIngressClass()`, chart value `controller.ingressClass.validation`, unit and Helm tests, CHANGELOG |
-| 2 | Startup errors | CRD discovery check that logs missing CRDs, clearer "forbidden" messages on startup reads, watch error handler on namespaced informers, unit tests |
-| 3 | Install modes | `installMode`, RBAC rule fragments, tenant Roles, platform templates, chart validation, `NOTES.txt`, schema, generated `deployments/rbac/nic-tenant-aggregate.yaml`, `deployments/rbac/tenant-role.yaml` and `deployments/rbac/platform-tenant-reader.yaml`, `tenant` input in `publish-helm.yml` and an `nginx-ingress-tenant` call in each regular release workflow that uses it, Helm tests, `examples/shared-examples/multi-tenant/`, integration tests |
+| 1 | IngressClass validation (#10783) | `-ingress-class-validation` flag, error-returning refactor of `mustValidateIngressClass()`, chart value `controller.ingressClass.validation`, unit and Helm tests |
+| 2 | Startup errors | CRD discovery check that logs missing CRDs, clearer "forbidden" messages on startup reads (including `internal/common_cluster_info`), watch error handler on namespaced informers and the IngressLink informer, unit tests |
+| 3 | Install modes | `installMode`, tenant and platform templates, chart validation, `NOTES.txt`, schema, `make update-rbac-manifests` and the generated `deployments/rbac/tenant-role.yaml` and `platform-tenant-reader.yaml`, hand-written `nic-tenant-aggregate.yaml`, `tenant` input in `publish-helm.yml` and `nginx-ingress-tenant` jobs, Helm tests, `examples/shared-examples/multi-tenant/` |
+| 4 | Integration tests | Tenant install fixtures in `tests/suite/`, Helm in the test image, marker `tenant_install`, one OSS smoke entry, the scenarios in [Integration Tests](#integration-tests) |
 
 Once pull request 1 merges, #10783 is resolved. Pull request 2 adds read-only
 API discovery and log output, and doesn't change whether NIC starts. Pull
 request 3 depends on pull requests 1 and 2. Until it merges, tenant installs
-need manual RBAC. All three are planned for the 5.8.0 milestone.
+need manual RBAC. Pull request 4 depends on pull request 3 and adds no
+production code. All four are planned for the 5.8.0 milestone.
 
 ### Requirements Traceability
 
@@ -473,7 +500,7 @@ need manual RBAC. All three are planned for the 5.8.0 milestone.
 | #10640: watch a specific namespace | Existing `-watch-namespace`, [Helm Values](#helm-values) |
 | #10640: tenant references a platform-provisioned IngressClass | `controller.ingressClass.name`, [Platform RBAC](#platform-rbac) |
 | #10640: clear errors when prerequisites are missing | [Startup Behaviour](#startup-behaviour) |
-| #10640: several teams deploy independent installs | One platform release per tenant, [Verification](#verification) |
+| #10640: several teams deploy independent installs | One platform release per tenant, [Integration Tests](#integration-tests) |
 | #10640: Helm values and manifests for the platform-admin and tenant phases | [Helm Values](#helm-values), and static manifests in `deployments/rbac/` ([Platform Prerequisites](#platform-prerequisites)) |
 | #10640: platform and tenant documentation and examples | Pull request 3 examples; user docs in `nginx/documentation` |
 | #10640: ownership conflicts | [Compatibility and Upgrade](#compatibility-and-upgrade) |
@@ -486,11 +513,17 @@ need manual RBAC. All three are planned for the 5.8.0 milestone.
     error; a valid one doesn't;
   - `skip`: no IngressClass API call;
   - CRD check: a missing CRD for each enabled feature is logged with its
-    source, and startup continues;
-  - a "forbidden" startup read names the permission and namespace.
+    source, App Protect CRDs are checked at the PLM-dependent version, and a
+    discovery failure logs a warning without a missing-CRD error;
+  - a "forbidden" startup read names the permission and namespace, and still
+    satisfies `IsForbidden`; other errors are unchanged.
+- Unit tests in `internal/common_cluster_info`: a forbidden `kube-system` get
+  or Node list names the permission.
 - Unit tests in `internal/k8s`: a forbidden list on an informer logs one named
-  error per resource and namespace, and other errors reach client-go's default
-  handler.
+  error per resource and namespace, is logged again only after a successful
+  list, and other errors reach client-go's default handler. One test runs a
+  real namespaced informer against a fake clientset that forbids listing
+  Ingresses.
 - Helm unit tests:
   - `full` output is unchanged (existing snapshots don't change);
   - `tenant` with one and several watched namespaces; the release namespace is
@@ -501,8 +534,8 @@ need manual RBAC. All three are planned for the 5.8.0 milestone.
     once, with no empty entry;
   - `tenant` with a `watchSecretNamespace` entry outside `watchNamespace` and
     the release namespace fails;
-  - with `.Chart.Name` set to `nginx-ingress-tenant`, any `installMode` other
-    than `tenant` fails;
+  - packaging: a copy of the chart with the `tenant` input's edits applied has
+    no CRDs, defaults to `installMode: tenant`, and fails with any other mode;
   - `tenant` rendered templates contain no cluster-scoped kind;
   - `platform` renders only the IngressClass and the reader role and binding,
     and only the reader with `controller.ingressClass.create: false`;
@@ -510,25 +543,29 @@ need manual RBAC. All three are planned for the 5.8.0 milestone.
   - each tenant Role is a subset of the `full` ClusterRole and Role together,
     for the same settings (the named Lease rules come from today's
     `controller-role.yaml`);
-  - all three static manifests in `deployments/rbac/` match the generator
-    output, and `nic-tenant-aggregate.yaml` covers every tenant Role rule;
-    an unscoped rule covers a `resourceNames`-scoped one.
-- Packaging check in CI: package the chart with the `tenant` input, then
-  `helm show crds` on the result prints nothing and `helm show values` shows
-  `installMode: tenant`.
-- Integration tests in kind, with a namespace-admin identity for tenant
-  installs:
-  - two tenants with their own IngressClasses each serve only their own
-    namespaces;
-  - a namespace admin installs `nginx-ingress-tenant` with no extra flags; the
-    main chart with `installMode: tenant` and no `--skip-crds` attempts the CRD
-    install and fails for that user;
-  - a tenant install with a watched namespace where the installer isn't admin
-    fails with a forbidden error;
-  - with the reader role removed and `validation: skip`, NIC starts and serves
-    traffic;
-  - NIC started with a CRD missing logs the named error;
-  - with a tenant Role removed from one namespace, NIC logs the named
-    permission error.
+  - the two generated manifests in `deployments/rbac/` match a fresh render,
+    and `nic-tenant-aggregate.yaml` covers every tenant Role rule; an unscoped
+    rule covers a `resourceNames`-scoped one.
+- The `tenant` input in `publish-helm.yml` fails the job if CRDs remain or
+  `installMode: tenant` wasn't set.
 - Gates: `make test`, `make lint`, and `make test-update-snaps` with snapshot
   changes only for the new cases.
+
+### Integration Tests
+
+Pull request 4 runs these in kind, in a new OSS smoke entry with the marker
+`tenant_install`. Tenant installs run as a namespace admin through
+impersonation (`helm --kube-as-user`), bound to the built-in `admin` role in
+the tenant's namespaces; platform steps run as cluster admin.
+
+- two tenants with their own IngressClasses each serve only their own
+  namespaces;
+- a namespace admin installs `nginx-ingress-tenant` with no extra flags; the
+  main chart with `installMode: tenant` and no `--skip-crds` attempts the CRD
+  install and fails for that user;
+- a tenant install with a watched namespace where the installer isn't admin
+  fails with a forbidden error.
+
+The other cases (the reader role removed with `validation: skip`, a missing
+CRD, a missing namespace Role) are covered by the unit tests from pull
+requests 1 and 2.
