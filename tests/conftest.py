@@ -3,6 +3,7 @@
 import os
 
 import pytest
+from kubernetes.client.rest import ApiException
 from kubernetes.config.kube_config import KUBE_CONFIG_DEFAULT_LOCATION
 from settings import (
     BATCH_RELOAD_NUMBER,
@@ -274,8 +275,47 @@ def pytest_runtest_makereport(item) -> None:
         print("Make sure to remove resources from this test run manually using kubectl utility\n")
 
 
+# Test classes that left the shared nginx-config ConfigMap non-default, as {class nodeid: changed data}.
+LEAKED_CONFIGMAP = {}
+_last_leak = None
+
+
+def leaked_configmap_data(live, default):
+    """Return the live ConfigMap data if it differs from the default, else None."""
+    live, default = live or {}, default or {}
+    return live if live != default else None
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item, nextitem) -> None:
+    """
+    Report test classes that leave the shared nginx-config ConfigMap changed.
+
+    The ConfigMap lives for the whole session, so a leak breaks a later, unrelated test.
+    Checked at class boundaries, after class fixtures are torn down. Each distinct leak is
+    reported once, against the class that was running when it was first seen.
+    Only the ConfigMap is checked: every IC fixture recreates the Deployment, so replicas cannot leak.
+    """
+    global _last_leak
+    yield
+    if nextitem is not None and nextitem.parent is item.parent:
+        return
+    try:
+        prereq = item.funcargs["ingress_controller_prerequisites"]
+        live = item.funcargs["kube_apis"].v1.read_namespaced_config_map("nginx-config", prereq.namespace).data
+    except (KeyError, TypeError, ApiException):
+        return  # test did not use the cluster, or the IC namespace is already gone
+    leak = leaked_configmap_data(live, prereq.config_map.get("data"))
+    if leak != _last_leak and leak is not None:
+        LEAKED_CONFIGMAP[item.parent.nodeid] = leak
+        print(f"\n::warning title=Leaked nginx-config::{item.parent.nodeid} left nginx-config as {leak}")
+    _last_leak = leak
+
+
 def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
     """Write failed test summary table to GITHUB_STEP_SUMMARY if running in GitHub Actions."""
+    for nodeid, leak in LEAKED_CONFIGMAP.items():
+        terminalreporter.write_line(f"LEAKED nginx-config after {nodeid}: {leak}")
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_file or exitstatus == 0:
         return
