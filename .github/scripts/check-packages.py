@@ -663,7 +663,8 @@ def parse_matrix_file(path):
 
     # Included entries
     for inc in data.get("include", []):
-        img = inc.get("image", "")
+        # The OS lives in build_os; image is now the repository path (nginx-ic/...).
+        img = inc.get("build_os") or inc.get("image", "")
         p = inc.get("platforms", base_platforms)
         process_entry(img, p)
 
@@ -1082,7 +1083,7 @@ def print_package_results(deps, distro_versions):
     print_table(headers, rows)
 
 
-def print_image_results(deps):
+def print_image_results(deps, title="Images", label=lambda d: d.name):
     headers = ["Dependency", "Declared", "Resolved", "Newest", "Platforms", "Status"]
     rows = []
     for d in deps:
@@ -1096,7 +1097,7 @@ def print_image_results(deps):
             cell = paint("-", GREY)
         rows.append(
             [
-                d.name,
+                label(d),
                 d.declared or "-",
                 d.resolved or "-",
                 d.newest or "-",
@@ -1105,7 +1106,7 @@ def print_image_results(deps):
             ]
         )
 
-    print(f"\n{paint('Images', BOLD)}")
+    print(f"\n{paint(title, BOLD)}")
     print_table(headers, rows)
 
 
@@ -1362,6 +1363,15 @@ PULL_HOSTS = {
     "docker-mgmt.nginx.com": "private-registry.nginx.com",
     "docker-mgmt-test.nginx.com": STAGING_REGISTRY,
 }
+# Section headings for the --released report.
+REGISTRY_NAMES = {
+    DOCKER_HUB_HOST: "Docker Hub",
+    "public.ecr.aws": "Amazon ECR Public",
+    "quay.io": "Quay",
+    "ghcr.io": "GitHub Container Registry",
+    "private-registry.nginx.com": "NGINX registry",
+    STAGING_REGISTRY: "NGINX staging registry",
+}
 # NAP and DoS images are built for amd64 only (matrix-images-nap.json).
 AMD64_ONLY_RE = re.compile(r"(^|/)nginx-ic-(nap|dos)")
 PUSH_LINE_RE = re.compile(r"Pushing image .* (\S+)\.\.\.$")
@@ -1424,10 +1434,12 @@ def released_dependencies(repo_root, environment, version, chart_version):
             f"{host}/{repository}:{tag}", {"kind": KIND_IMAGE, "host": host, "uri": repository, "platforms": platforms}
         )
         dep.declared = tag
+        dep.group = f"{REGISTRY_NAMES.get(host, host)} ({host})"
         deps.append(dep)
     for host, repository in RELEASE_CHARTS[environment]:
         dep = Dependency(f"{host}/{repository}:{chart_version}", {"kind": KIND_IMAGE, "host": host, "uri": repository})
         dep.declared = chart_version
+        dep.group = "Helm charts"
         deps.append(dep)
     return deps
 
@@ -1462,7 +1474,11 @@ def run_released(args):
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(check, deps))
 
-    print_image_results(deps)
+    # One table per registry, then charts; the heading names the host, so rows drop it.
+    for group in dict.fromkeys(d.group for d in deps):
+        members = [d for d in deps if d.group == group]
+        label = (lambda d: f"{d.host}/{d.uri}") if group == "Helm charts" else (lambda d: d.uri)
+        print_image_results(members, title=group, label=label)
     print()
     print_details([d for d in deps if d.status != STATUS_OK])
 

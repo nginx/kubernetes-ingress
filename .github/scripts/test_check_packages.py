@@ -319,6 +319,11 @@ class TestReleasedImages(unittest.TestCase):
             ["linux/amd64", "linux/arm64"],
         )
         self.assertEqual(deps["ghcr.io/nginx/charts/nginx-ingress:4.5.6"].platforms, [])
+        self.assertEqual(deps["ghcr.io/nginx/charts/nginx-ingress:4.5.6"].group, "Helm charts")
+        self.assertEqual(
+            deps["private-registry.nginx.com/nginx-ic/nginx-plus-ingress:1.2.3"].group,
+            "NGINX registry (private-registry.nginx.com)",
+        )
 
     def test_jwt_only_sent_to_nginx_registries(self):
         sent = {}
