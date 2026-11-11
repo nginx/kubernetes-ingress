@@ -650,6 +650,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateTime(u.ProxyNextUpstreamTimeout, idxPath.Child("next-upstream-timeout"))...)
 		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(&u.ProxyNextUpstreamTries, idxPath.Child("next-upstream-tries"))...)
 		allErrs = append(allErrs, validateUpstreamLBMethod(u.LBMethod, idxPath.Child("lb-method"), vsv.isPlus)...)
+		allErrs = append(allErrs, validateHashSubset(u, idxPath)...)
 		allErrs = append(allErrs, validateTime(u.FailTimeout, idxPath.Child("fail-timeout"))...)
 		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxFails, idxPath.Child("max-fails"))...)
 		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.Keepalive, idxPath.Child("keepalive"))...)
@@ -676,6 +677,43 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 
 	}
 	return allErrs, upstreamNames
+}
+
+func validateHashSubset(upstream v1.Upstream, fieldPath *field.Path) field.ErrorList {
+	if upstream.HashSubset == nil {
+		return nil
+	}
+
+	allErrs := field.ErrorList{}
+	hashSubsetPath := fieldPath.Child("hash-subset")
+
+	if upstream.HashSubset.Key == "" {
+		allErrs = append(allErrs, field.Required(hashSubsetPath.Child("key"), "cannot be empty"))
+	} else if _, err := configs.ParseLBMethod("hash " + upstream.HashSubset.Key + " consistent"); err != nil {
+		allErrs = append(allErrs, field.Invalid(hashSubsetPath.Child("key"), upstream.HashSubset.Key, err.Error()))
+	}
+
+	if upstream.HashSubset.Size < 1 {
+		allErrs = append(allErrs, field.Invalid(hashSubsetPath.Child("size"), upstream.HashSubset.Size, "must be greater than zero"))
+	}
+
+	if upstream.LBMethod != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("lb-method"), "cannot be used with hash-subset"))
+	}
+	if upstream.UseClusterIP {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("use-cluster-ip"), "cannot be used with hash-subset"))
+	}
+	if upstream.Backup != "" || upstream.BackupPort != nil {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("backup"), "cannot be used with hash-subset"))
+	}
+	if upstream.SessionCookie != nil && upstream.SessionCookie.Enable {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sessionCookie"), "cannot be used with hash-subset"))
+	}
+	if upstream.SlowStart != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("slow-start"), "cannot be used with hash-subset"))
+	}
+
+	return allErrs
 }
 
 // ValidateProxyHTTPVersion validates the HTTP protocol version used for connections to

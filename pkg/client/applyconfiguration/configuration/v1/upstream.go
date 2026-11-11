@@ -17,6 +17,8 @@ type UpstreamApplyConfiguration struct {
 	Port *uint16 `json:"port,omitempty"`
 	// The load balancing method. To use the round-robin method, specify round_robin. The default is specified in the lb-method ConfigMap key.
 	LBMethod *string `json:"lb-method,omitempty"`
+	// HashSubset configures deterministic routing to a subset of the service endpoints. The hash key selects a subset and NGINX randomly selects a healthy endpoint within that subset.
+	HashSubset *HashSubsetApplyConfiguration `json:"hash-subset,omitempty"`
 	// The time during which the specified number of unsuccessful attempts to communicate with an upstream server should happen to consider the server unavailable. The default is set in the fail-timeout ConfigMap key.
 	FailTimeout *string `json:"fail-timeout,omitempty"`
 	// The number of unsuccessful attempts to communicate with an upstream server that should happen in the duration set by the fail-timeout to consider the server unavailable. The default is set in the max-fails ConfigMap key.
@@ -129,6 +131,14 @@ func (b *UpstreamApplyConfiguration) WithPort(value uint16) *UpstreamApplyConfig
 // If called multiple times, the LBMethod field is set to the value of the last call.
 func (b *UpstreamApplyConfiguration) WithLBMethod(value string) *UpstreamApplyConfiguration {
 	b.LBMethod = &value
+	return b
+}
+
+// WithHashSubset sets the HashSubset field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HashSubset field is set to the value of the last call.
+func (b *UpstreamApplyConfiguration) WithHashSubset(value *HashSubsetApplyConfiguration) *UpstreamApplyConfiguration {
+	b.HashSubset = value
 	return b
 }
 

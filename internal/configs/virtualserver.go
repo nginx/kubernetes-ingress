@@ -38,6 +38,7 @@ const (
 	// others is not a compile error.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
+	subsetHashLBMethod                              = "random"
 	// oidcNativeSessionZoneSize is the shared memory allocated to each
 	// auto-generated OIDCNative session store keyval zone.
 	oidcNativeSessionZoneSize = "10m"
@@ -222,6 +223,14 @@ func (namer *upstreamNamer) GetNameForUpstreamFromAction(action *conf_v1.Action)
 
 func (namer *upstreamNamer) GetNameForUpstream(upstream string) string {
 	return fmt.Sprintf("%s_%s", namer.prefix, upstream)
+}
+
+func generateHashSubsetVariableName(upstreamName string) string {
+	return fmt.Sprintf("$%s_hash_subset", strings.ReplaceAll(upstreamName, "-", "_"))
+}
+
+func generateHashSubsetUpstreamName(upstreamName string, index int) string {
+	return fmt.Sprintf("%s_hash_subset_%d", upstreamName, index)
 }
 
 // VariableNamer is a namer which generates unique variable names for a VirtualServer.
@@ -509,6 +518,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var upstreams []version2.Upstream
 	var statusMatches []version2.StatusMatch
 	var healthChecks []version2.HealthCheck
+	var subsetHashSplitClients []version2.SplitClient
 	var limitReqZones []version2.LimitReqZone
 	var limitConnZones []version2.LimitConnZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
@@ -539,6 +549,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			crUpstreams,
 			healthChecks,
 			statusMatches,
+			&subsetHashSplitClients,
 		)
 	}
 	// generate upstreams for each VirtualServerRoute
@@ -557,6 +568,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				crUpstreams,
 				healthChecks,
 				statusMatches,
+				&subsetHashSplitClients,
 			)
 		}
 	}
@@ -576,6 +588,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				crUpstreams,
 				healthChecks,
 				statusMatches,
+				&subsetHashSplitClients,
 			)
 		}
 	}
@@ -584,6 +597,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var internalRedirectLocations []version2.InternalRedirectLocation
 	var returnLocations []version2.ReturnLocation
 	var splitClients []version2.SplitClient
+	if len(subsetHashSplitClients) > 0 {
+		splitClients = append(splitClients, subsetHashSplitClients...)
+	}
 	var errorPageLocations []version2.ErrorPageLocation
 	var keyValZones []version2.KeyValZone
 	var keyVals []version2.KeyVal
@@ -631,6 +647,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			crUpstreams,
 			healthChecks,
 			statusMatches,
+			&subsetHashSplitClients,
 		)
 
 		// generate config for external auth signin URL if configured
@@ -812,6 +829,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					crUpstreams,
 					healthChecks,
 					statusMatches,
+					&subsetHashSplitClients,
 				)
 
 				// generate config for route-level external auth signin URL if configured
@@ -1038,6 +1056,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						crUpstreams,
 						healthChecks,
 						statusMatches,
+						&subsetHashSplitClients,
 					)
 					// generate config for subroute-level external auth signin URL if configured
 					if routePoliciesCfg.ExternalAuth.SigninURL != "" {
@@ -1415,6 +1434,7 @@ func generateUpstreams(
 	crUpstreams map[string]conf_v1.Upstream,
 	healthChecks []version2.HealthCheck,
 	statusMatches []version2.StatusMatch,
+	subsetHashSplitClients *[]version2.SplitClient,
 ) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
 	if !http2 && isGRPC(u.Type) {
 		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2", u.Name)
@@ -1426,11 +1446,27 @@ func generateUpstreams(
 
 	// isExternalNameSvc is always false for OSS
 	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(ownerNamespace, u.Service)]
-	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
-	upstreams = append(upstreams, ups)
 	u.TLS.Enable = isTLSEnabled(u)
 	u.ProxyHTTPVersion = vsc.resolveUpstreamProxyHTTPVersion(owner, ownerNamespace, u, vsEx)
 	crUpstreams[upstreamName] = u
+
+	if u.HashSubset != nil {
+		subsetUpstreams, subsetHealthChecks, subsetStatusMatches, splitClient := vsc.generateHashSubsetUpstreams(
+			owner,
+			upstreamName,
+			u,
+			isExternalNameSvc,
+			endpoints,
+		)
+		upstreams = append(upstreams, subsetUpstreams...)
+		healthChecks = append(healthChecks, subsetHealthChecks...)
+		statusMatches = append(statusMatches, subsetStatusMatches...)
+		*subsetHashSplitClients = append(*subsetHashSplitClients, splitClient)
+		return upstreams, healthChecks, statusMatches
+	}
+
+	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
+	upstreams = append(upstreams, ups)
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
 		healthChecks = append(healthChecks, *hc)
@@ -1442,6 +1478,97 @@ func generateUpstreams(
 		}
 	}
 	return upstreams, healthChecks, statusMatches
+}
+
+func (vsc *virtualServerConfigurator) generateHashSubsetUpstreams(
+	owner runtime.Object,
+	upstreamName string,
+	upstream conf_v1.Upstream,
+	isExternalNameSvc bool,
+	endpoints []string,
+) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch, version2.SplitClient) {
+	endpointGroups := buildHashSubsetEndpointGroups(endpoints, upstream.HashSubset.Size)
+	if len(endpointGroups) == 0 {
+		endpointGroups = [][]string{nil}
+	}
+
+	if len(endpoints) > 0 && len(endpoints) < upstream.HashSubset.Size {
+		vsc.addWarningf(
+			owner,
+			"hash-subset size %d for upstream %s exceeds the %d available endpoints; all endpoints will be used",
+			upstream.HashSubset.Size,
+			upstream.Name,
+			len(endpoints),
+		)
+	}
+
+	subsetUpstream := upstream
+	subsetUpstream.HashSubset = nil
+	subsetUpstream.LBMethod = subsetHashLBMethod
+
+	subsetUpstreams := make([]version2.Upstream, 0, len(endpointGroups))
+	healthChecks := make([]version2.HealthCheck, 0, len(endpointGroups))
+	statusMatches := make([]version2.StatusMatch, 0, len(endpointGroups))
+	distributions := make([]version2.Distribution, 0, len(endpointGroups))
+	weightBasisPoints := 10000 / len(endpointGroups)
+
+	for index, endpointGroup := range endpointGroups {
+		subsetUpstreamName := generateHashSubsetUpstreamName(upstreamName, index+1)
+		subsetUpstreams = append(
+			subsetUpstreams,
+			vsc.generateUpstream(owner, subsetUpstreamName, subsetUpstream, isExternalNameSvc, endpointGroup, nil),
+		)
+
+		if healthCheck := generateHealthCheck(subsetUpstream, subsetUpstreamName, vsc.cfgParams); healthCheck != nil {
+			healthChecks = append(healthChecks, *healthCheck)
+			if subsetUpstream.HealthCheck.StatusMatch != "" {
+				statusMatches = append(
+					statusMatches,
+					generateUpstreamStatusMatch(subsetUpstreamName, subsetUpstream.HealthCheck.StatusMatch),
+				)
+			}
+		}
+
+		weight := "*"
+		if index < len(endpointGroups)-1 {
+			weight = fmt.Sprintf("%.2f%%", float64(weightBasisPoints)/100)
+		}
+		distributions = append(distributions, version2.Distribution{
+			Weight: weight,
+			Value:  subsetUpstreamName,
+		})
+	}
+
+	return subsetUpstreams, healthChecks, statusMatches, version2.SplitClient{
+		Source:        upstream.HashSubset.Key,
+		Variable:      generateHashSubsetVariableName(upstreamName),
+		Distributions: distributions,
+	}
+}
+
+func buildHashSubsetEndpointGroups(endpoints []string, subsetSize int) [][]string {
+	if len(endpoints) == 0 || subsetSize < 1 {
+		return nil
+	}
+
+	sortedEndpoints := append([]string(nil), endpoints...)
+	sort.Strings(sortedEndpoints)
+	if subsetSize > len(sortedEndpoints) {
+		subsetSize = len(sortedEndpoints)
+	}
+
+	setCount := int(math.Ceil(float64(len(sortedEndpoints)) / float64(subsetSize)))
+	paddedEndpointCount := setCount * subsetSize
+	for index := len(sortedEndpoints); index < paddedEndpointCount; index++ {
+		sortedEndpoints = append(sortedEndpoints, sortedEndpoints[index%len(endpoints)])
+	}
+
+	endpointGroups := make([][]string, 0, setCount)
+	for index := 0; index < paddedEndpointCount; index += subsetSize {
+		endpointGroups = append(endpointGroups, sortedEndpoints[index:index+subsetSize])
+	}
+
+	return endpointGroups
 }
 
 // resolveUpstreamProxyHTTPVersion determines the HTTP version used for connections to the
@@ -2226,6 +2353,11 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 	cfgParams *ConfigParams, errorPages []conf_v1.ErrorPage, internal bool, errPageIndex int,
 	proxySSLName string, proxy *conf_v1.ActionProxy, originalPath string, locationSnippets []string, isVSR bool, vsrName string, vsrNamespace string, serviceName string,
 ) version2.Location {
+	proxyPassUpstreamName := upstreamName
+	if upstream.HashSubset != nil {
+		proxyPassUpstreamName = generateHashSubsetVariableName(upstreamName)
+	}
+
 	return version2.Location{
 		Path:                     generatePath(path),
 		Internal:                 internal,
@@ -2240,7 +2372,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyBuffers:             generateBuffers(upstream.ProxyBuffers, cfgParams.ProxyBuffers),
 		ProxyBufferSize:          generateString(upstream.ProxyBufferSize, cfgParams.ProxyBufferSize),
 		ProxyBusyBuffersSize:     generateString(upstream.ProxyBusyBuffersSize, cfgParams.ProxyBusyBuffersSize),
-		ProxyPass:                generateProxyPass(upstream.TLS.Enable, upstreamName, internal, proxy),
+		ProxyPass:                generateProxyPass(upstream.TLS.Enable, proxyPassUpstreamName, internal, proxy),
 		ProxyNextUpstream:        generateString(upstream.ProxyNextUpstream, "error timeout"),
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(upstream.ProxyNextUpstreamTimeout, "0s"),
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
@@ -2263,7 +2395,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
 		UseForwardedHeaders:      cfgParams.UseForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
-		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
+		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, proxyPassUpstreamName),
 	}
 }
 

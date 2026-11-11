@@ -133,6 +133,8 @@ type Upstream struct {
 	Port uint16 `json:"port"`
 	// The load balancing method. To use the round-robin method, specify round_robin. The default is specified in the lb-method ConfigMap key.
 	LBMethod string `json:"lb-method"`
+	// HashSubset configures deterministic routing to a subset of the service endpoints. The hash key selects a subset and NGINX randomly selects a healthy endpoint within that subset.
+	HashSubset *HashSubset `json:"hash-subset"`
 	// The time during which the specified number of unsuccessful attempts to communicate with an upstream server should happen to consider the server unavailable. The default is set in the fail-timeout ConfigMap key.
 	FailTimeout string `json:"fail-timeout"`
 	// The number of unsuccessful attempts to communicate with an upstream server that should happen in the duration set by the fail-timeout to consider the server unavailable. The default is set in the max-fails ConfigMap key.
@@ -198,6 +200,15 @@ type Upstream struct {
 	Backup string `json:"backup"`
 	// The port of the backup service. The backup port is required if the backup service name is provided. The port must fall into the range 1..65535.
 	BackupPort *uint16 `json:"backupPort"`
+}
+
+// HashSubset configures subset hashing for an upstream.
+type HashSubset struct {
+	// Key is the NGINX variable, text, or combination used to select a subset.
+	Key string `json:"key"`
+	// Size is the number of endpoints in each subset.
+	// +kubebuilder:validation:Minimum=1
+	Size int `json:"size"`
 }
 
 // UpstreamBuffers defines Buffer Configuration for an Upstream.
