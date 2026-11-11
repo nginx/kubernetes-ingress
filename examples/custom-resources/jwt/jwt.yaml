@@ -7,3 +7,26 @@ spec:
     realm: MyProductAPI
     secret: jwk-secret
     token: $http_token
+    # Optional claim validation. Remove the authorization block to only validate the token signature.
+    authorization:
+      require: Any # a request is allowed when at least one rule passes
+      rules:
+      - claims: # rule 0: internal gateway (token.jwt)
+        - name: iss
+          values: ["My API Gateway"]
+      - require: All # rule 1: first-party staff
+        claims:
+        - name: iss
+          values: ["https://login.example.com"]
+        - name: email
+          match: Regex
+          values: ['^[^@]+@example\.com$']
+      - require: All # rule 2: partner services, never delegated
+        claims:
+        - name: iss
+          values: ["https://partners.example.net"]
+        - name: tenant.tier # nested claim, separated by '.'
+          values: [Gold, Platinum]
+        - name: act # RFC 8693 delegation claim
+          match: Present
+          negate: true # must be absent
