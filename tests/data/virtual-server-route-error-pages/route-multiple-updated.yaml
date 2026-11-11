@@ -14,16 +14,16 @@ spec:
   subroutes:
   - path: "/backends/backend1"
     errorPages:
-      - codes: [502, 404]
-        redirect:
-          url: ${scheme}://virtual-server-route.example.com/error_${http_x_forwarded_proto}.html
+    - codes: [502, 404]
+      redirect:
+        url: ${scheme}://virtual-server-route.example.com/error_${http_x_forwarded_proto}.html
     action:
       pass: backend1
   - path: "/backends/backend3"
     errorPages:
-      - codes: [502]
-        return:
-          body: |
-            Hello World!
+    - codes: [502]
+      return:
+        body: |
+          Hello World!
     action:
       pass: backend3

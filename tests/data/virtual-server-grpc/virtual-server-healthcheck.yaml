@@ -17,7 +17,8 @@ spec:
       jitter: "2s"
       port: 50051
       grpcStatus: 12
-      grpcService: "none.None" # This does not need to exist to be a valid health check, as grpc status 12 means "Unimplemented"
+      # This does not need to exist to be a valid health check, as grpc status 12 means "Unimplemented"
+      grpcService: "none.None"
   - name: grpc2
     service: grpc2-svc
     port: 50051

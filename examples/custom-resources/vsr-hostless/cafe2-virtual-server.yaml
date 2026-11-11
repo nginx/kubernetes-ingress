@@ -10,4 +10,4 @@ spec:
   - path: /coffee
     routeSelector:
       matchLabels:
-       app: cafe
+        app: cafe

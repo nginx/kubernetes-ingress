@@ -6,7 +6,7 @@ metadata:
 data:
   proxy-buffering: "invalid"
   real-ip-recursive: "invalid"
-#  server-tokens: "there is no invalid value in nginx plus case"
+  # server-tokens: "there is no invalid value in nginx plus case"
   lb-method: "invalid method"
   max-fails: "invalid"
   keepalive: "invalid"

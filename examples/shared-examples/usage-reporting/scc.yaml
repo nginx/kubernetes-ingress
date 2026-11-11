@@ -21,10 +21,10 @@ readOnlyRootFilesystem: false
 seccompProfiles:
 - runtime/default
 volumes:
- - secret
+- secret
 requiredDropCapabilities:
- - ALL
+- ALL
 users:
- - 'system:serviceaccount:*:nginx-cluster-connector'
+- 'system:serviceaccount:*:nginx-cluster-connector'
 allowedCapabilities:
-  - NET_BIND_SERVICE
+- NET_BIND_SERVICE

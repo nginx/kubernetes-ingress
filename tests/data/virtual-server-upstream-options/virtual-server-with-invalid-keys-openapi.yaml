@@ -8,7 +8,7 @@ spec:
   - name: backend2
     service: backend2-svc
     port: 80
-    lb-method: False
+    lb-method: false
     max-fails: "10"
     fail-timeout: 20
     connect-timeout: 1.5
@@ -17,8 +17,8 @@ spec:
     keepalive: "one"
     max-conns: "two"
     next-upstream: 100
-    next-upstream-timeout: False
-    next-upstream-tries: True
+    next-upstream-timeout: false
+    next-upstream-tries: true
     client-max-body-size: 10
     buffers:
       number: "1"
@@ -28,16 +28,16 @@ spec:
     proxy-http-version: "2.0"
     tls: "yes"
     sessionCookie:
-      name: True
+      name: true
       path: 100
-      expires: False
+      expires: false
       domain: 0
       httpOnly: "yes"
       secure: "no"
   - name: backend1
     service: backend1-svc
     port: 80
-    lb-method: False
+    lb-method: false
     max-fails: "10"
     fail-timeout: 20
     connect-timeout: 1.5
@@ -46,8 +46,8 @@ spec:
     keepalive: "one"
     max-conns: "two"
     next-upstream: 100
-    next-upstream-timeout: False
-    next-upstream-tries: True
+    next-upstream-timeout: false
+    next-upstream-tries: true
     client-max-body-size: 10
     buffers:
       number: "1"
@@ -57,9 +57,9 @@ spec:
     proxy-http-version: 2
     tls: "no"
     sessionCookie:
-      name: True
+      name: true
       path: 100
-      expires: False
+      expires: false
       domain: 0
       httpOnly: "yes"
       secure: "no"

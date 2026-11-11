@@ -11,4 +11,4 @@ spec:
   - path: /
     routeSelector:
       matchLabels:
-       app: cafe
+        app: cafe
