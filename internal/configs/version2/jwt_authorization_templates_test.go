@@ -343,3 +343,31 @@ func TestVirtualServerForNginxOSSIgnoresJWTAuthorization(t *testing.T) {
 	assertCount(t, conf, "auth_jwt", 0)
 	assertCount(t, conf, "jwt_authz", 0)
 }
+
+// The OIDC include sits at server level, so its locations inherit a server-level auth_jwt and
+// auth_jwt_require. A login request carries no token, so the locations that run the access phase
+// (js_content) turn auth_jwt off. return and subrequest-only locations never reach it.
+func TestExecuteOIDCTemplateServerJWTAuth(t *testing.T) {
+	t.Parallel()
+
+	executor := newTestTemplateExecutor(t)
+	render := func(serverJWT bool) string {
+		got, err := executor.ExecuteOIDCTemplate(&OIDC{RedirectURI: "/_codexch", ServerJWTAuth: serverJWT})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(got)
+	}
+
+	withJWT := render(true)
+	for _, loc := range []string{"@do_oidc_flow", `= "/_codexch"`, "= /logout", "= /front_channel_logout"} {
+		assertCount(t, locationBlock(t, withJWT, loc), "auth_jwt off;", 1)
+	}
+	for _, loc := range []string{"= /_logout", "@oidc_error", "= /_jwks_uri", "= /_token", "= /_refresh"} {
+		assertCount(t, locationBlock(t, withJWT, loc), "auth_jwt", 0)
+	}
+	// The token validation location keeps its own auth_jwt.
+	assertCount(t, locationBlock(t, withJWT, "= /_token_validation"), `auth_jwt "" token=$arg_token;`, 1)
+
+	assertCount(t, render(false), "auth_jwt off;", 0)
+}
