@@ -34,6 +34,9 @@ inputs:
   plus-jwt:
     description: JWT for NGINX Plus
     required: false
+  pytest-args:
+    description: Extra pytest arguments, e.g. --maxfail=1000 to keep running after the first failure
+    required: false
 
 outputs:
   test-results-name:
@@ -112,6 +115,7 @@ runs:
         -rfE \
         --show-ic-logs=yes \
         --plus-jwt=${{ inputs.plus-jwt }} \
+        ${{ inputs.pytest-args }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}
       working-directory: ./tests
       shell: bash

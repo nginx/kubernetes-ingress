@@ -21,6 +21,7 @@ from suite.utils.resources_utils import (
     IC_SELECTOR,
     are_all_pods_in_ready_state,
     get_first_pod_name,
+    get_pod_list,
     wait_before_test,
 )
 
@@ -229,12 +230,45 @@ def pytest_collection_modifyitems(config, items) -> None:
                 item.add_marker(multi_ns)
 
 
+def _container_state(state) -> str:
+    """One-line summary of a V1ContainerState."""
+    for name in ("running", "waiting", "terminated"):
+        detail = getattr(state, name, None) if state else None
+        if detail:
+            fields = {k: getattr(detail, k, None) for k in ("reason", "exit_code", "message")}
+            return f"{name} " + " ".join(f"{k}={v}" for k, v in fields.items() if v is not None)
+    return "unknown"
+
+
+def print_ic_pod_diagnostics(v1, namespace) -> None:
+    """Print state, logs (also of the previous container) and events of every IC pod."""
+    for pod in get_pod_list(v1, namespace, IC_SELECTOR):
+        name = pod.metadata.name
+        print(f"\nPod {name}: phase={pod.status.phase}")
+        for cs in pod.status.container_statuses or []:
+            print(
+                f"  container {cs.name}: ready={cs.ready} restarts={cs.restart_count} "
+                f"state=[{_container_state(cs.state)}] last_state=[{_container_state(cs.last_state)}]"
+            )
+            for previous in (False, True):
+                try:
+                    logs = v1.read_namespaced_pod_log(name, namespace, container=cs.name, previous=previous)
+                except ApiException as e:  # e.g. container waiting to start, or never restarted
+                    logs = f"<no logs: {e.reason}>"
+                print(f"  --- {'previous ' if previous else ''}logs of {cs.name} ---\n{logs}")
+        events = v1.list_namespaced_event(namespace, field_selector=f"involvedObject.name={name}").items
+        for ev in events:
+            print(f"  event {ev.type} {ev.reason}: {ev.message}")
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item) -> None:
     """
     Print out IC Pod logs on test failure.
 
-    Only look at actual failing test calls, not setup/teardown.
+    Failing test calls print the first IC pod's logs. Failing setups print the state, logs and
+    events of all IC pods, because a fixture timing out on an IC pod that never became Ready
+    is otherwise invisible. Teardown is not looked at.
     Only show the logs if commandline argument `--show-ic-logs` is set to 'yes'
 
     :param item:
@@ -250,6 +284,19 @@ def pytest_runtest_makereport(item) -> None:
         print(f"\n::error file={file_path},line={line_no + 1},title=Test Failed: {item.nodeid}::{summary}")
 
     # we only look at actual failing test calls, not setup/teardown
+    if rep.when == "setup" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
+        try:
+            prereq, apis = item.funcargs["ingress_controller_prerequisites"], item.funcargs["kube_apis"]
+        except KeyError:
+            pass  # setup failed before the IC prerequisites existed, nothing to show
+        else:
+            try:
+                print("\n::group::NGINX Ingress Controller Pod Diagnostics")
+                print_ic_pod_diagnostics(apis.v1, prereq.namespace)
+                print("::endgroup::")
+            except Exception as e:
+                print(f"\nFailed to retrieve NGINX Ingress Controller pod diagnostics: {e}")
+
     if rep.when == "call" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
         try:
             pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace

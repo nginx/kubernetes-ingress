@@ -147,14 +147,27 @@ because the nightly will then reach tests it has not run in weeks.
 
 1. Find out why the LTS image never becomes Ready (row 1). Probably image or CI
    config, not test code. May belong to another owner.
-2. ~~Fix `test_rl_policy_scaled` (row 2).~~ Done: the cause was the leaked
-   zone-sync ConfigMap, fixed in `test_rl_ingress.py`. Confirm with a
-   `workflow_dispatch` regression run.
-3. Run the nightly with the leak detector and fix every class it names.
-4. Let the nightly regression job run past failures (`--maxfail=<large>` on the
-   workflow command line) and keep `-x` for PR runs. CI change, needs sign-off.
-   Do this before step 3 pays off: with `-x` the nightly stops at the first
-   failure and the detector never sees the rest of the suite.
+   - Known: the LTS job was added 2026-05-22 and has never passed. It fails the
+     same way on LTS tags r6 to r10. The dev-image Plus jobs pass the same test.
+   - Cause found in the workflow: the job checked out main (tests, manifests,
+     CRDs) but ran the LTS image. Fixed: `regression.yml` now checks out the LTS
+     tag (`matrix.images.lts_tag`) for LTS entries. The first test's flags,
+     `create_ingress_controller` and the RBAC were already compatible, so
+     whether this alone makes the pod Ready is unconfirmed.
+   - Side effects of checking out the tag: the local `smoke-tests` action, the
+     test-runner image hash and `tests/` all come from the tag. The test-runner
+     image for the tag's hash must exist in GHCR (it does for `2026-lts-r10`).
+     A new LTS tag whose `tests/requirements.txt` or `tests/Dockerfile` changed
+     needs its LTS branch CI to have built the image first.
+   - The test-suite changes in this plan (leak detector, pod diagnostics,
+     `pytest-args`, test fixes) are on main only. To get them in the LTS job,
+     cherry-pick them to `release-2026-lts` and cut a new LTS tag.
+   - Diagnostics: a failing fixture setup prints the state, logs (including the
+     previous container) and events of the IC pods
+     (`print_ic_pod_diagnostics` in `tests/conftest.py`, needs
+     `--show-ic-logs=yes`, which CI sets).
+   - Next: run the nightly. If the LTS job still fails in setup, cherry-pick the
+     diagnostics to the LTS branch to see why.
 
 ### Phase B: fix the top flaky tests (about 3-4 days)
 
@@ -188,11 +201,9 @@ Protect and DoS suites need licensed images.
 
 ## Open questions
 
-1. Is changing the nightly regression workflow to keep going after the first
-   failure (Phase A4) acceptable?
-2. Is the LTS nightly in scope (row 1)?
-3. One PR per test or area, or one batched PR like #10850?
-4. Should the ranking script be committed (for example under `tests/scripts/`)?
+1. Is the LTS nightly in scope (row 1)?
+2. One PR per test or area, or one batched PR like #10850?
+3. Should the ranking script be committed (for example under `tests/scripts/`)?
 
 ## Not checked
 
