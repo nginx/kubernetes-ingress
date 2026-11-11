@@ -36,7 +36,6 @@ import (
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	cr_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	dos_v1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
-	externaldns_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	conf_scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	"github.com/nginx/nginx-plus-go-client/v3/client"
@@ -1497,6 +1496,10 @@ type requiredCRD struct {
 }
 
 // crdFeatures are the startup settings that decide which CRDs NIC watches.
+//
+// DNSEndpoint is intentionally not one of these: its CRD lives in whichever
+// API group -external-dns-group-version selects, and is validated against
+// that group by mustValidateExternalDNSCRD, not by checkCRDs.
 type crdFeatures struct {
 	customResources     bool
 	globalConfiguration bool
@@ -1504,7 +1507,6 @@ type crdFeatures struct {
 	plm                 bool
 	appProtectDos       bool
 	certManager         bool
-	externalDNS         bool
 	ingressLink         bool
 }
 
@@ -1517,7 +1519,6 @@ func crdFeaturesFromFlags() crdFeatures {
 		plm:                 *plmStorageURL != "",
 		appProtectDos:       *appProtectDos,
 		certManager:         *enableCertManager,
-		externalDNS:         *enableExternalDNS,
 		ingressLink:         *ingressLink != "",
 	}
 }
@@ -1538,9 +1539,6 @@ func requiredCRDs(f crdFeatures) []requiredCRD {
 		}
 		if f.certManager {
 			add(cmapi.SchemeGroupVersion.WithResource("certificates"), crdSourceCertManager)
-		}
-		if f.externalDNS {
-			add(externaldns_v1.SchemeGroupVersion.WithResource("dnsendpoints"), crdSourceNIC)
 		}
 	}
 

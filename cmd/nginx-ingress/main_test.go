@@ -962,8 +962,8 @@ func TestRequiredCRDs(t *testing.T) {
 			},
 		},
 		{
-			name:     "custom resources with global configuration, cert-manager and external-dns",
-			features: crdFeatures{customResources: true, globalConfiguration: true, certManager: true, externalDNS: true},
+			name:     "custom resources with global configuration and cert-manager",
+			features: crdFeatures{customResources: true, globalConfiguration: true, certManager: true},
 			want: []string{
 				"virtualservers.k8s.nginx.org/v1",
 				"virtualserverroutes.k8s.nginx.org/v1",
@@ -971,12 +971,11 @@ func TestRequiredCRDs(t *testing.T) {
 				"policies.k8s.nginx.org/v1",
 				"globalconfigurations.k8s.nginx.org/v1",
 				"certificates.cert-manager.io/v1",
-				"dnsendpoints.externaldns.nginx.org/v1",
 			},
 		},
 		{
 			name:     "custom resource features need custom resources",
-			features: crdFeatures{globalConfiguration: true, certManager: true, externalDNS: true},
+			features: crdFeatures{globalConfiguration: true, certManager: true},
 			want:     []string{},
 		},
 		{
@@ -1028,16 +1027,15 @@ func TestRequiredCRDsSources(t *testing.T) {
 	t.Parallel()
 
 	reqs := requiredCRDs(crdFeatures{
-		customResources: true, certManager: true, externalDNS: true,
+		customResources: true, certManager: true,
 		appProtect: true, appProtectDos: true, ingressLink: true,
 	})
 	wantSources := map[string]string{
-		"k8s.nginx.org":         crdSourceNIC,
-		"externaldns.nginx.org": crdSourceNIC,
-		"cert-manager.io":       crdSourceCertManager,
-		"appprotect.f5.com":     crdSourceNAPWAF,
-		"appprotectdos.f5.com":  crdSourceNAPDoS,
-		"cis.f5.com":            crdSourceCIS,
+		"k8s.nginx.org":        crdSourceNIC,
+		"cert-manager.io":      crdSourceCertManager,
+		"appprotect.f5.com":    crdSourceNAPWAF,
+		"appprotectdos.f5.com": crdSourceNAPDoS,
+		"cis.f5.com":           crdSourceCIS,
 	}
 	for _, req := range reqs {
 		if want := wantSources[req.gvr.Group]; req.source != want {
