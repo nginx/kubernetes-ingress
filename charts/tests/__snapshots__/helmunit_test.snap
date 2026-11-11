@@ -20035,6 +20035,8 @@ data:
     collector:
       log:
         path: "stdout"
+    labels:
+      display-name: my-nginx-instance
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -20331,7 +20333,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: plus-agent-all
-        agent-configuration-revision-hash: "36d57a7e"
+        agent-configuration-revision-hash: "751c3c9a"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
