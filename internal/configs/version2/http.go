@@ -181,6 +181,10 @@ type OIDC struct {
 	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
+	// ServerJWTAuth is set when the VirtualServer has a server-level JWT policy. Its auth_jwt and
+	// auth_jwt_require are inherited by the locations below, and a login request carries no token,
+	// so oidc.tmpl turns auth_jwt off in the ones that run the access phase.
+	ServerJWTAuth bool
 }
 
 // APIKey holds API key configuration.

@@ -1239,6 +1239,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	if policiesCfg.OIDC != nil {
 		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+		policiesCfg.OIDC.ServerJWTAuth = policiesCfg.JWTAuth.Auth != nil
 	}
 
 	// auth_jwt_require cannot be turned off, so these locations reset the inherited one.

@@ -559,6 +559,43 @@ func TestVirtualServerJWTAuthorization_RouteAuthorizationStripsOnlyTheSpecsOther
 	}
 }
 
+// The OIDC helper locations inherit the server-level JWT policy, so the OIDC config must say when
+// there is one. A JWT policy that only applies to a route is not server-level.
+func TestVirtualServerJWTAuthorization_OIDCConfigKnowsAboutServerJWTPolicy(t *testing.T) {
+	t.Parallel()
+
+	spec := jwtPolicy("spec-jwt", authzForClaims(claimEq("iss", "a")))
+	plain := jwtPolicy("plain", nil)
+
+	tests := []struct {
+		name         string
+		specPolicies []string
+		routes       map[string][]string
+		want         bool
+	}{
+		{"spec JWT with authorization, route OIDC", []string{"spec-jwt"}, map[string][]string{"/tea": {"oidc"}}, true},
+		{"spec JWT without authorization, route OIDC", []string{"plain"}, map[string][]string{"/tea": {"oidc"}}, true},
+		{"spec JWT and spec OIDC", []string{"spec-jwt", "oidc"}, nil, true},
+		{"route OIDC only", nil, map[string][]string{"/tea": {"oidc"}}, false},
+		{"JWT only on another route", nil, map[string][]string{"/tea": {"oidc"}, "/coffee": {"plain"}}, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vsEx := withOIDCSecret(jwtVS(tc.specPolicies, tc.routes, spec, plain, oidcTestPolicy()))
+			cfg, _ := generateJWTTestConfig(t, vsEx)
+			if cfg.Server.OIDC == nil {
+				t.Fatal("no OIDC config was generated, so this test would prove nothing")
+			}
+			if cfg.Server.OIDC.ServerJWTAuth != tc.want {
+				t.Errorf("OIDC.ServerJWTAuth = %v, want %v", cfg.Server.OIDC.ServerJWTAuth, tc.want)
+			}
+		})
+	}
+}
+
 func TestVirtualServerJWTAuthorization_PolicySharedByTwoVirtualServers(t *testing.T) {
 	t.Parallel()
 
