@@ -1,6 +1,7 @@
 import pytest
 import requests
 from settings import TEST_DATA
+from suite.utils.custom_assertions import assert_vsr_status, wait_and_assert_status_code
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
@@ -333,16 +334,14 @@ class TestJWTPoliciesVsr:
         print(resp1.status_code)
 
         delete_secret(kube_apis.v1, secret, v_s_route_setup.route_m.namespace)
+        wait_and_assert_status_code(500, f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         resp2 = requests.get(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             headers=headers,
         )
         print(resp2.status_code)
-        crd_info = read_custom_resource(
-            kube_apis.custom_objects,
-            v_s_route_setup.route_m.namespace,
-            "virtualserverroutes",
-            v_s_route_setup.route_m.name,
+        crd_info = assert_vsr_status(
+            kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning"
         )
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
 
@@ -399,16 +398,14 @@ class TestJWTPoliciesVsr:
         print(resp1.status_code)
         delete_policy(kube_apis.custom_objects, pol_name, v_s_route_setup.route_m.namespace)
 
+        wait_and_assert_status_code(500, f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers=headers)
         resp2 = requests.get(
             f"{req_url}{v_s_route_setup.route_m.paths[0]}",
             headers=headers,
         )
         print(resp2.status_code)
-        crd_info = read_custom_resource(
-            kube_apis.custom_objects,
-            v_s_route_setup.route_m.namespace,
-            "virtualserverroutes",
-            v_s_route_setup.route_m.name,
+        crd_info = assert_vsr_status(
+            kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning"
         )
         delete_secret(kube_apis.v1, secret, v_s_route_setup.route_m.namespace)
 
