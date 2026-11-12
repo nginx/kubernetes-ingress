@@ -92,6 +92,8 @@ data:
         default_type text/plain;
         expires -1;
         # Echo the headers the upstream received, one per line, so tests can assert on them.
-        return 200 'Request ID: $request_id\nX-Token-Scope: [$http_x_token_scope]\nX-Role: [$http_x_role]\nX-Injected: [$http_x_injected]\nX-Real-IP: [$http_x_real_ip]\nHost: [$http_host]\n';
+        set $body 'Request ID: $request_id\nX-Token-Scope: [$http_x_token_scope]\nX-Role: [$http_x_role]\n';
+        set $body '${body}X-Injected: [$http_x_injected]\nX-Real-IP: [$http_x_real_ip]\nHost: [$http_host]\n';
+        return 200 $body;
       }
     }
