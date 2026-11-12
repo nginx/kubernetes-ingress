@@ -66,7 +66,7 @@ kubectl apply -f basic-auth.yaml
    | ----- | ----- |
    | **Application name** | `nginx-ingress-demo` (or any name) |
    | **Homepage URL** | `https://cafe.example.com` |
-   | **Authorization callback URL** | `https://cafe.example.com/oauth2/callback` |
+   | **Redirect URI** | `https://cafe.example.com/oauth2/callback` |
 
 1. Click **Register application**.
 1. Note the **Client ID** and generate a **client secret**.

@@ -5,7 +5,7 @@ metadata:
 spec:
   externalAuth:
     authURI: "/oauth2/auth"
-    authSigninURI: "/oauth2/signin"
+    authSigninURI: "/oauth2/start?rd=/coffee"
     authServiceName: "default/oauth2-proxy-svc"
     sslEnabled: true
     sslVerify: true
