@@ -290,6 +290,9 @@ type Location struct {
 	ACMEChallenge bool
 	// JWTRequireReset clears an inherited auth_jwt_require, which has no "off" value.
 	JWTRequireReset string
+	// StrippedAuthResponseHeaders are the names that an ExternalAuth Policy of the server lists but the location
+	// does not forward. The location removes the client's copies. Set only by the resolution pass.
+	StrippedAuthResponseHeaders []string
 }
 
 // ReturnLocation defines a location for returning a fixed response.

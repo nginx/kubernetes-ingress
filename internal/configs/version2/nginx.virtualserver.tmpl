@@ -568,6 +568,9 @@ server {
         {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ $h.Variable }};
         {{- end }}
         {{- end }}
+        {{- range $name := $l.StrippedAuthResponseHeaders }}
+        {{ $proxyOrGRPC }}_set_header {{ $name }} "";
+        {{- end }}
 
             {{- range $h := $l.ProxyHideHeaders }}
         {{ $proxyOrGRPC }}_hide_header {{ $h }};

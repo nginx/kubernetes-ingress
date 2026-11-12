@@ -7508,6 +7508,22 @@ func authResponseHeadersByPath(server version1.Server) map[string]string {
 	return got
 }
 
+// strippedAuthResponseHeadersByPath returns, for each location of a server that strips client copies, the names, or
+// nil when no location strips any.
+func strippedAuthResponseHeadersByPath(server version1.Server) map[string]string {
+	var got map[string]string
+	for _, loc := range server.Locations {
+		if len(loc.StrippedAuthResponseHeaders) == 0 {
+			continue
+		}
+		if got == nil {
+			got = map[string]string{}
+		}
+		got[loc.Path] = strings.Join(loc.StrippedAuthResponseHeaders, ", ")
+	}
+	return got
+}
+
 // TestGenerateNginxCfgAuthResponseHeaders covers the standard Ingress scenarios of the ExternalAuth response headers
 // design.
 func TestGenerateNginxCfgAuthResponseHeaders(t *testing.T) {
@@ -7641,6 +7657,10 @@ func TestGenerateNginxCfgAuthResponseHeaders(t *testing.T) {
 			got := map[string]map[string]string{}
 			for _, server := range result.Servers {
 				got[server.Name] = authResponseHeadersByPath(server)
+				// A standard Ingress has one Policy, which every location forwards, so no location strips names.
+				if stripped := strippedAuthResponseHeadersByPath(server); stripped != nil {
+					t.Errorf("locations of %s strip names, want none: %v", server.Name, stripped)
+				}
 				if diff := cmp.Diff(tc.wantNames, server.AuthResponseHeaderNames); diff != "" {
 					t.Errorf("AuthResponseHeaderNames of %s mismatch (-want +got):\n%s", server.Name, diff)
 				}
@@ -7676,7 +7696,9 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 		name  string
 		setup func(m *MergeableIngresses)
 		// want holds every location of the merged server that forwards a list.
-		want               map[string]string
+		want map[string]string
+		// wantStripped holds the names whose client copies each location of the merged server removes, by path.
+		wantStripped       map[string]string
 		wantNames          []string
 		wantDefaultBackend bool
 		wantCoffeeWarnings []string
@@ -7695,8 +7717,9 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 			setup: func(m *MergeableIngresses) {
 				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
 			},
-			want:      map[string]string{"/coffee": p},
-			wantNames: []string{"Tenant-UUID", "User-UUID"},
+			want:         map[string]string{"/coffee": p},
+			wantStripped: map[string]string{"/tea": "Tenant-UUID, User-UUID"},
+			wantNames:    []string{"Tenant-UUID", "User-UUID"},
 		},
 		{
 			name: "Every attachment point forwards: P on the master and a minion",
@@ -7713,8 +7736,9 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "X-Session-ID"))
 				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("q", "/auth2", "X-Session-ID"))
 			},
-			want:      map[string]string{"/coffee": "default/q: X-Session-ID", "/tea": "default/p: Tenant-UUID, X-Session-ID"},
-			wantNames: []string{"Tenant-UUID", "X-Session-ID"},
+			want:         map[string]string{"/coffee": "default/q: X-Session-ID", "/tea": "default/p: Tenant-UUID, X-Session-ID"},
+			wantStripped: map[string]string{"/coffee": "Tenant-UUID"},
+			wantNames:    []string{"Tenant-UUID", "X-Session-ID"},
 		},
 		{
 			name: "The closer Policy wins: minion Policy without a list",
@@ -7722,8 +7746,19 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
 				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("q", "/auth2"))
 			},
-			want:      map[string]string{"/tea": p},
-			wantNames: []string{"Tenant-UUID", "User-UUID"},
+			want:         map[string]string{"/tea": p},
+			wantStripped: map[string]string{"/coffee": "Tenant-UUID, User-UUID"},
+			wantNames:    []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Client copies are removed: a minion Policy on the master Policy's auth path forwards nothing",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("q", "/auth", "X-Session-ID"))
+			},
+			want:         map[string]string{"/tea": p},
+			wantStripped: map[string]string{"/coffee": "Tenant-UUID, User-UUID, X-Session-ID", "/tea": "X-Session-ID"},
+			wantNames:    []string{"Tenant-UUID", "User-UUID", "X-Session-ID"},
 		},
 		{
 			name: "Configured values are replaced, with one warning: master annotation, keyed by each minion",
@@ -7747,6 +7782,7 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 				m.Minions[1].Ingress.Annotations[CustomHTTPErrorsAnnotation] = "403"
 			},
 			want:               map[string]string{"/coffee": p},
+			wantStripped:       map[string]string{"/tea": "Tenant-UUID, User-UUID"},
 			wantNames:          []string{"Tenant-UUID", "User-UUID"},
 			wantDefaultBackend: true,
 		},
@@ -7769,6 +7805,9 @@ func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) 
 			server := result.Servers[0]
 			if diff := cmp.Diff(tc.want, authResponseHeadersByPath(server)); diff != "" {
 				t.Errorf("forwarding locations mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantStripped, strippedAuthResponseHeadersByPath(server)); diff != "" {
+				t.Errorf("stripping locations mismatch (-want +got):\n%s", diff)
 			}
 			if diff := cmp.Diff(tc.wantNames, server.AuthResponseHeaderNames); diff != "" {
 				t.Errorf("AuthResponseHeaderNames mismatch (-want +got):\n%s", diff)

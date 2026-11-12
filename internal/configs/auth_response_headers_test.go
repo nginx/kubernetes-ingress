@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -117,19 +116,91 @@ func TestWithoutForwardedHeaders(t *testing.T) {
 	}
 }
 
-func TestAuthResponseHeaderNames(t *testing.T) {
+func TestListedAuthResponseHeaderNames(t *testing.T) {
 	t.Parallel()
 
-	locations := []version1.Location{
-		{AuthResponseHeaders: newAuthResponseHeaders("default/a", []string{"X-Session-ID", "Tenant-UUID"})},
+	policies := []*version2.ExternalAuth{
+		{ResponseHeaders: newAuthResponseHeaders("default/a", []string{"X-Session-ID", "Tenant-UUID"})},
+		nil,
 		{},
-		{AuthResponseHeaders: newAuthResponseHeaders("default/b", []string{"tenant-uuid", "Accept-Groups"})},
+		{ResponseHeaders: newAuthResponseHeaders("default/b", []string{"tenant-uuid", "Accept-Groups"})},
 	}
-	if diff := cmp.Diff([]string{"Accept-Groups", "Tenant-UUID", "X-Session-ID"}, authResponseHeaderNames(locations)); diff != "" {
-		t.Errorf("authResponseHeaderNames() mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"Accept-Groups", "Tenant-UUID", "X-Session-ID"}, listedAuthResponseHeaderNames(policies)); diff != "" {
+		t.Errorf("listedAuthResponseHeaderNames() mismatch (-want +got):\n%s", diff)
 	}
-	if got := authResponseHeaderNames([]version1.Location{{}}); got != nil {
-		t.Errorf("authResponseHeaderNames() = %q for locations that forward nothing, want nil", got)
+	if got := listedAuthResponseHeaderNames([]*version2.ExternalAuth{nil, {}}); got != nil {
+		t.Errorf("listedAuthResponseHeaderNames() = %q for Policies that list nothing, want nil", got)
+	}
+}
+
+func TestStrippedAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	listed := []string{"Authorization", "Tenant-UUID", "username", "X-Session-ID"}
+	forwarded := newAuthResponseHeaders("default/q", []string{"x-session-id"})
+	set := []version2.Header{{Name: "Host", Value: "$host"}, {Name: "TENANT-UUID", Value: "static"}}
+
+	tests := []struct {
+		name      string
+		forwarded *version2.AuthResponseHeaders
+		set       []version2.Header
+		skip      []string
+		want      []string
+	}{
+		{name: "a location that forwards nothing strips every listed name", want: listed},
+		{
+			name:      "forwarded names, names the location sets, and names another feature sets stay",
+			forwarded: forwarded,
+			set:       set,
+			skip:      []string{"Username"},
+			want:      []string{"Authorization"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if diff := cmp.Diff(tc.want, strippedAuthResponseHeaders(listed, tc.forwarded, tc.set, tc.skip)); diff != "" {
+				t.Errorf("strippedAuthResponseHeaders() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSharesServerAuthLocation(t *testing.T) {
+	t.Parallel()
+
+	externalAuth := func(path, policy string, names ...string) *version2.ExternalAuth {
+		return &version2.ExternalAuth{
+			URI:             &version2.AuthURI{InternalPath: path},
+			ResponseHeaders: newAuthResponseHeaders(policy, names),
+		}
+	}
+	server := externalAuth("/_external_auth/auth", "default/p", "Tenant-UUID")
+
+	tests := []struct {
+		name        string
+		own, server *version2.ExternalAuth
+		want        bool
+	}{
+		{name: "another Policy with the server's auth URI", own: externalAuth("/_external_auth/auth", "default/q", "X-Session-ID"), server: server, want: true},
+		{
+			name:   "a Policy with a list and the auth URI of a server Policy without one",
+			own:    externalAuth("/_external_auth/auth", "default/q", "X-Session-ID"),
+			server: externalAuth("/_external_auth/auth", "default/p"),
+			want:   true,
+		},
+		{name: "the server's Policy", own: externalAuth("/_external_auth/auth", "default/p", "Tenant-UUID"), server: server},
+		{name: "another auth URI", own: externalAuth("/_external_auth/auth2", "default/q", "X-Session-ID"), server: server},
+		{name: "no server ExternalAuth", own: externalAuth("/_external_auth/auth", "default/q", "X-Session-ID")},
+		{name: "no own ExternalAuth", server: server},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sharesServerAuthLocation(tc.own, tc.server); got != tc.want {
+				t.Errorf("sharesServerAuthLocation() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -166,11 +237,11 @@ func describeAuthResponseHeaders(headers *version2.AuthResponseHeaders) string {
 	return headers.Policy + ": " + strings.Join(names, ", ")
 }
 
-// authResponseHeaderWarnings returns the warnings of a resource about headers that auth response headers replace.
+// authResponseHeaderWarnings returns the warnings of a resource about auth response headers.
 func authResponseHeaderWarnings(warnings Warnings, owner runtime.Object) []string {
 	var msgs []string
 	for _, w := range warnings[owner] {
-		if strings.Contains(w, "is replaced by the auth response header") {
+		if strings.Contains(strings.ToLower(w), "auth response header") {
 			msgs = append(msgs, w)
 		}
 	}

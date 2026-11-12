@@ -5734,6 +5734,80 @@ func TestVirtualServerWithAuthResponseHeaders(t *testing.T) {
 	}
 }
 
+// TestVirtualServerWithStrippedAuthResponseHeaders covers the scenario "Client copies are removed": a location renders
+// an empty header for each listed name that it does not forward, for proxy and gRPC backends.
+func TestVirtualServerWithStrippedAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	sessionID := AuthResponseHeader{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"}
+	cfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "vs_default_cafe_tea", Servers: []UpstreamServer{{Address: "10.0.0.20:80"}}},
+			{Name: "vs_default_cafe_coffee", Servers: []UpstreamServer{{Address: "10.0.0.30:80"}}},
+			{Name: "vs_default_cafe_grpc", Servers: []UpstreamServer{{Address: "10.0.0.50:50051"}}},
+		},
+		Server: Server{
+			ServerName: "cafe.example.com",
+			StatusZone: "cafe.example.com",
+			Locations: []Location{
+				{
+					Path:                        "/tea",
+					ProxyPass:                   "http://vs_default_cafe_tea",
+					ServiceName:                 "tea-svc",
+					StrippedAuthResponseHeaders: []string{"Tenant-UUID", "X-Session-ID"},
+				},
+				{
+					Path:                        "/helloworld.Greeter",
+					GRPCPass:                    "grpc://vs_default_cafe_grpc",
+					ServiceName:                 "grpc-svc",
+					StrippedAuthResponseHeaders: []string{"Tenant-UUID"},
+				},
+				{
+					Path:                        "/coffee",
+					ProxyPass:                   "http://vs_default_cafe_coffee",
+					ServiceName:                 "coffee-svc",
+					AuthResponseHeaders:         &AuthResponseHeaders{Policy: "default/q", Headers: []AuthResponseHeader{sessionID}},
+					StrippedAuthResponseHeaders: []string{"Tenant-UUID"},
+				},
+			},
+		},
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+			conf := string(data)
+
+			tea := locationBlock(t, conf, `"/tea"`)
+			assertCount(t, tea, `proxy_set_header Tenant-UUID "";`, 1)
+			assertCount(t, tea, `proxy_set_header X-Session-ID "";`, 1)
+
+			grpc := locationBlock(t, conf, `"/helloworld.Greeter"`)
+			assertCount(t, grpc, `grpc_set_header Tenant-UUID "";`, 1)
+			assertCount(t, grpc, "proxy_set_header Tenant-UUID", 0)
+
+			coffee := locationBlock(t, conf, `"/coffee"`)
+			assertCount(t, coffee, "proxy_set_header X-Session-ID $auth_resp_x_session_id;", 1)
+			assertCount(t, coffee, `proxy_set_header Tenant-UUID "";`, 1)
+
+			// Stripped names read no captured value.
+			assertCount(t, conf, "auth_request_set", 1)
+
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
 // TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders covers the scenario "Legacy OIDC headers are replaced":
 // a location that forwards username or Authorization renders no legacy OIDC line for it.
 func TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders(t *testing.T) {

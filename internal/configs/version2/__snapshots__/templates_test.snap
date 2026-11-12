@@ -10929,3 +10929,271 @@ server {
 }
 
 ---
+
+[TestVirtualServerWithStrippedAuthResponseHeaders/nginx - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_coffee {
+    zone vs_default_cafe_coffee ;
+    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_grpc {
+    zone vs_default_cafe_grpc ;
+    server 10.0.0.50:50051 max_fails=0 fail_timeout= max_conns=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Tenant-UUID "";
+        proxy_set_header X-Session-ID "";
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/helloworld.Greeter" {
+        set $service "grpc-svc";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_set_header Tenant-UUID "";
+        grpc_pass grpc://vs_default_cafe_grpc;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;
+        proxy_set_header X-Session-ID $auth_resp_x_session_id;
+        proxy_set_header Tenant-UUID "";
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerWithStrippedAuthResponseHeaders/nginx-plus - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_coffee {
+    zone vs_default_cafe_coffee ;
+    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_default_cafe_grpc {
+    zone vs_default_cafe_grpc ;
+    server 10.0.0.50:50051 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Tenant-UUID "";
+        proxy_set_header X-Session-ID "";
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/helloworld.Greeter" {
+        set $service "grpc-svc";
+        status_zone "grpc-svc";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_set_header Tenant-UUID "";
+        grpc_pass grpc://vs_default_cafe_grpc;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;
+        proxy_set_header X-Session-ID $auth_resp_x_session_id;
+        proxy_set_header Tenant-UUID "";
+        proxy_pass http://vs_default_cafe_coffee;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---

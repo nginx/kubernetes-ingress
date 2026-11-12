@@ -609,12 +609,15 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// Track generated ExternalAuth proxy URLs to avoid duplicate upstream/location generation
 	generatedExternalAuthURLs := make(map[string]bool)
+	// authLocationPolicies records, for each internal auth path, the Policy its generated auth location was built for.
+	authLocationPolicies := make(map[string]string)
 	generatedOAuth2Location := false
 
 	// generate config for external auth if referenced in policiesCfg, adds an upstream for the
 	// external auth server and a location for the external auth requests
 	if policiesCfg.ExternalAuth != nil {
 		generatedExternalAuthURLs[policiesCfg.ExternalAuth.URI.InternalPath] = true
+		authLocationPolicies[policiesCfg.ExternalAuth.URI.InternalPath] = listPolicy(policiesCfg.ExternalAuth)
 		proxyURLUpstreamName := policiesCfg.ExternalAuth.URI.Upstream
 		proxyURLUpstream := conf_v1.Upstream{
 			Name:    proxyURLUpstreamName,
@@ -796,6 +799,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if routePoliciesCfg.ExternalAuth != nil {
 			if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] {
 				generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] = true
+				authLocationPolicies[routePoliciesCfg.ExternalAuth.URI.InternalPath] = listPolicy(routePoliciesCfg.ExternalAuth)
 				proxyURLUpstreamName := routePoliciesCfg.ExternalAuth.URI.Upstream
 				proxyURLUpstream := conf_v1.Upstream{
 					Name:    proxyURLUpstreamName,
@@ -1026,6 +1030,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			if routePoliciesCfg.ExternalAuth != nil {
 				if !generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] {
 					generatedExternalAuthURLs[routePoliciesCfg.ExternalAuth.URI.InternalPath] = true
+					authLocationPolicies[routePoliciesCfg.ExternalAuth.URI.InternalPath] = listPolicy(routePoliciesCfg.ExternalAuth)
 					proxyURLUpstreamName := routePoliciesCfg.ExternalAuth.URI.Upstream
 					proxyURLUpstream := conf_v1.Upstream{
 						Name:    proxyURLUpstreamName,
@@ -1204,7 +1209,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 	}
 
-	vsc.resolveAuthResponseHeaders(vsEx, policiesCfg.ExternalAuth, policiesCfg.OIDC, locations)
+	vsc.resolveAuthResponseHeaders(vsEx, policiesCfg.ExternalAuth, policiesCfg.OIDC, locations, authLocationPolicies)
 
 	for mapName, apiKeyClients := range policiesCfg.APIKey.ClientMap {
 		maps = append(maps, *generateAPIKeyClientMap(mapName, apiKeyClients))

@@ -392,6 +392,9 @@ server {
 		grpc_set_header {{ $h.Name }} {{ $h.Variable }};
 		{{- end }}
 		{{- end }}
+		{{- range $name := $location.StrippedAuthResponseHeaders }}
+		grpc_set_header {{ $name }} "";
+		{{- end }}
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
 		{{- end}}
@@ -460,6 +463,9 @@ server {
 		auth_request_set {{ $h.Variable }} {{ $h.Source }};
 		proxy_set_header {{ $h.Name }} {{ $h.Variable }};
 		{{- end }}
+		{{- end }}
+		{{- range $name := $location.StrippedAuthResponseHeaders }}
+		proxy_set_header {{ $name }} "";
 		{{- end }}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
