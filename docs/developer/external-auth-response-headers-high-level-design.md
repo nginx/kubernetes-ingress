@@ -128,7 +128,9 @@ server {
   `_`, because
   [`underscores_in_headers`](https://nginx.org/en/docs/http/ngx_http_core_module.html#underscores_in_headers)
   is `off` by default, and NIC does not change it. A client cannot send
-  `Tenant_UUID` to a backend that treats it as `Tenant-UUID`.
+  `Tenant_UUID` to a backend that treats it as `Tenant-UUID`. A snippet that
+  sets `underscores_in_headers on` lets it through, and the user
+  documentation warns about this.
 
 ## User Contract
 
@@ -322,10 +324,10 @@ and `test_external_auth_policies_ingress.py`. Their data joins the existing
   `tenant-uuid: tenant-123`.
 - **The closer Policy wins** *(unit)*: with P on the VirtualServer spec and
   a Policy Q that lists only `X-Session-ID` on a route, or P on a master and
-  Q on a minion, the route and the minion forward only Q's list, and leave
-  names that only P lists untouched.
+  Q on a minion, the route and the minion forward only Q's list, and clear
+  names that only P lists.
 - **APIKey on a route** *(unit)*: with P on the VirtualServer spec, a route
-  with an APIKey Policy forwards nothing.
+  with an APIKey Policy forwards nothing, and clears every name that P lists.
 - **Non-backend locations forward nothing** *(unit)*: the internal auth,
   OAuth2 sign-in (P with `authSigninURI`), `@external_auth_*`, ACME
   challenge, `action.redirect`, and `action.return` locations render no
@@ -661,8 +663,10 @@ server {
 
 - **No spoofing.** Every location that forwards a list, and
   `@custom_default_backend`, removes the listed names from the client
-  request, including when the auth service does not return them. Names are
-  compared ignoring case, and NGINX ignores underscore variants by default.
+  request, including when the auth service does not return them. Every
+  location that proxies to a backend also clears the names that its server's
+  Policies list and that it does not forward. Names are compared ignoring
+  case, and NGINX ignores underscore variants by default.
 - **Only after a 2xx response.** Captured values can come from a rejected
   auth response, so NIC forwards them only where a request arrives after the
   auth subrequest allowed it. NIC renders no `satisfy` directive, so the
