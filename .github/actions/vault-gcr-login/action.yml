@@ -1,23 +1,37 @@
-# Action to authenticate with Vault and GCR
 name: 'GCR Authentication'
-description: 'Authenticates with Google Container Registry'
+description: >-
+  Fetch the GCR workload identity provider and service account from Azure Key Vault,
+  exchange them for a short-lived Google access token, and log Docker in to gcr.io.
+
+# The calling job needs `permissions: id-token: write` for the Azure and Google OIDC logins.
+# Secrets are not available to fork pull requests, so gate the calling step on that, e.g.
+# `if: ${{ needs.checks.outputs.forked_workflow == 'false' }}`.
+#
+# Usage:
+#   - uses: ./.github/actions/vault-gcr-login
+#     with:
+#       client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+#       tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+#       vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+#
+# Environment variables exported to the rest of the job:
+#   GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT
 
 inputs:
   client-id:
-    description: 'The client ID for authentication'
+    description: 'Azure client ID used for the OIDC login to the vault'
     required: true
   tenant-id:
-    description: 'The tenant ID for authentication'
+    description: 'Azure tenant ID of the vault'
     required: true
   vault-name:
-    description: 'The name of the Vault instance'
+    description: 'Name of the Azure Key Vault holding the GCR secrets'
     required: true
 
 runs:
   using: 'composite'
   steps:
     - name: Get secrets
-      if: ${{ !github.event.pull_request.head.repo.fork }}
       uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
       with:
         client-id: ${{ inputs.client-id }}
@@ -27,7 +41,6 @@ runs:
         env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
     - name: Authenticate to Google Cloud
-      if: ${{ !github.event.pull_request.head.repo.fork }}
       id: auth
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
@@ -36,7 +49,6 @@ runs:
         service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
     - name: Login to GCR
-      if: ${{ !github.event.pull_request.head.repo.fork }}
       uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
         registry: gcr.io
