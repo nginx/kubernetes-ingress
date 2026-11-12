@@ -41,11 +41,20 @@ type rateLimit struct {
 	AuthJWTClaimSets []version2.AuthJWTClaimSet
 }
 
+// connectionLimit holds the ConnectionLimit configuration of one context.
+type connectionLimit struct {
+	Zones   []version2.LimitConnZone
+	Conns   []version2.LimitConn
+	Options version2.LimitConnOptions
+}
+
 // jwtAuth hold the configuration for the JWTAuth & JWKSAuth Policies
 type jwtAuth struct {
 	Auth        *version2.JWTAuth
 	List        map[string]*version2.JWTAuth
 	JWKSEnabled bool
+	ClaimSets   []version2.AuthJWTClaimSet
+	Maps        []version2.Map
 }
 
 type apiKeyClient struct {
@@ -66,6 +75,7 @@ type policiesCfg struct {
 	Context         context.Context
 	Deny            []string
 	RateLimit       rateLimit
+	ConnectionLimit connectionLimit
 	JWTAuth         jwtAuth
 	ExternalAuth    *version2.ExternalAuth
 	BasicAuth       *version2.BasicAuth
@@ -90,6 +100,9 @@ type policyOwnerDetails struct {
 	parentNamespace string
 	parentName      string
 	parentType      string
+	// ownerType is "vsr" for a VirtualServerRoute subroute with its own policies and "ing" for a
+	// mergeable minion. It is empty when the references belong to the parent itself.
+	ownerType string
 }
 
 type policyOptions struct {
@@ -172,6 +185,7 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 // references for that policy type.
 func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
 	return pol.Spec.AccessControl != nil ||
+		pol.Spec.ConnectionLimit != nil ||
 		pol.Spec.CORS != nil ||
 		pol.Spec.ExternalAuth != nil ||
 		pol.Spec.IngressMTLS != nil ||
@@ -199,11 +213,18 @@ func (p *policiesCfg) addRateLimitConfig(
 	zoneSync bool,
 	context string,
 	path string,
+	jwtClaims jwtClaimRegistry,
 ) *validationResults {
 	res := newValidationResults()
 	rateLimit := policy.Spec.RateLimit
 	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
 	l := nl.LoggerFromContext(p.Context)
+
+	claimConflict := rateLimitJWTClaimConflict(rateLimit, ownerDetails, jwtClaims)
+	if claimConflict != "" {
+		// The rate limit is kept, but it keys on the authorization claim.
+		res.addWarningf("RateLimit policy %s keys on a claim that collides with a JWT authorization claim and will read that claim instead: %s", polKey, claimConflict)
+	}
 
 	rlZoneName := rfc1123ToSnake(fmt.Sprintf("pol_rl_%v_%v_%v_%v_%v", policy.Namespace, policy.Name, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType))
 	if zoneSync {
@@ -215,7 +236,9 @@ func (p *policiesCfg) addRateLimitConfig(
 			nl.Warn(l, warningText)
 		}
 		p.RateLimit.PolicyGroupMaps = append(p.RateLimit.PolicyGroupMaps, *generateLRZPolicyGroupMap(lrz))
-		if rateLimit.Condition.JWT != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" {
+		if rateLimit.Condition.JWT != nil && rateLimit.Condition.JWT.Claim != "" && rateLimit.Condition.JWT.Match != "" && claimConflict == "" {
+			// On a conflict the variable already resolves to the authorization's claim set. A second
+			// set differing only in case would be emitted as a duplicate variable.
 			p.RateLimit.AuthJWTClaimSets = append(p.RateLimit.AuthJWTClaimSets, generateAuthJwtClaimSet(*rateLimit.Condition.JWT, ownerDetails))
 		}
 		p.RateLimit.Zones = append(p.RateLimit.Zones, lrz)
@@ -245,12 +268,82 @@ func (p *policiesCfg) addRateLimitConfig(
 	return res
 }
 
+// connectionLimitZoneName returns a zone name unique to the Policy, the parent whose configuration
+// file defines the zone, the referencing object, and the key.
+func connectionLimitZoneName(policy *conf_v1.Policy, owner policyOwnerDetails, key string) string {
+	name := fmt.Sprintf("pol_cl_%s_%s_%s_%s_%s", policy.Namespace, policy.Name, owner.parentType, owner.parentNamespace, owner.parentName)
+	if owner.ownerType != "" {
+		name = fmt.Sprintf("%s_%s_%s_%s", name, owner.ownerType, owner.ownerNamespace, owner.ownerName)
+	}
+	sum := sha256.Sum256([]byte(key))
+	return name + "_" + hex.EncodeToString(sum[:])
+}
+
+func (p *policiesCfg) addConnectionLimitConfig(policy *conf_v1.Policy, ownerDetails policyOwnerDetails, podReplicas int) *validationResults {
+	res := newValidationResults()
+	// The CRD schema defaults key, zoneSize, rejectCode, and logLevel, so they are never empty here.
+	cl := policy.Spec.ConnectionLimit
+	polKey := fmt.Sprintf("%v/%v", policy.Namespace, policy.Name)
+	zoneName := connectionLimitZoneName(policy, ownerDetails, cl.Key)
+
+	connections := cl.Connections
+	if cl.Scale && podReplicas > 0 {
+		connections = cl.Connections / podReplicas
+		if connections < 1 {
+			connections = 1
+			res.addWarningf("ConnectionLimit policy %s: scaling %d connections across %d replicas gives less than one connection per replica; using 1",
+				polKey, cl.Connections, podReplicas)
+		}
+	}
+
+	p.ConnectionLimit.Zones = append(p.ConnectionLimit.Zones, version2.LimitConnZone{Key: cl.Key, ZoneName: zoneName, ZoneSize: cl.ZoneSize})
+	p.ConnectionLimit.Conns = append(p.ConnectionLimit.Conns, version2.LimitConn{ZoneName: zoneName, Connections: connections})
+
+	options := version2.LimitConnOptions{DryRun: cl.DryRun, LogLevel: cl.LogLevel}
+	if cl.RejectCode != nil {
+		options.RejectCode = *cl.RejectCode
+	}
+
+	if len(p.ConnectionLimit.Conns) == 1 {
+		p.ConnectionLimit.Options = options
+		return res
+	}
+	first := p.ConnectionLimit.Options
+	if options.DryRun != first.DryRun {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option dryRun='%v' is overridden to dryRun='%v' by the first policy reference in this context",
+			polKey, options.DryRun, first.DryRun)
+	}
+	if options.LogLevel != first.LogLevel {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option logLevel='%v' is overridden to logLevel='%v' by the first policy reference in this context",
+			polKey, options.LogLevel, first.LogLevel)
+	}
+	if options.RejectCode != first.RejectCode {
+		res.addWarningf("ConnectionLimit policy %s with limit connection option rejectCode='%v' is overridden to rejectCode='%v' by the first policy reference in this context",
+			polKey, options.RejectCode, first.RejectCode)
+	}
+	return res
+}
+
+// rateLimitJWTClaimConflict registers the rate limit's claim and returns a description if it
+// collides with an authorization claim.
+func rateLimitJWTClaimConflict(rateLimit *conf_v1.RateLimit, ownerDetails policyOwnerDetails, jwtClaims jwtClaimRegistry) string {
+	cond := rateLimit.Condition
+	if cond == nil || cond.JWT == nil || cond.JWT.Claim == "" || cond.JWT.Match == "" {
+		return ""
+	}
+	claimSet := generateAuthJwtClaimSet(*cond.JWT, ownerDetails)
+	return jwtClaims.claimRateLimit(claimSet)
+}
+
 // nolint:gocyclo
 func (p *policiesCfg) addJWTAuthConfig(
 	jwtAuth *conf_v1.JWTAuth,
 	polKey string,
 	polNamespace string,
+	polName string,
 	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
+	ownerDetails policyOwnerDetails,
+	jwtClaims jwtClaimRegistry,
 ) *validationResults {
 	res := newValidationResults()
 	if p.JWTAuth.Auth != nil {
@@ -276,6 +369,7 @@ func (p *policiesCfg) addJWTAuthConfig(
 			Realm:  jwtAuth.Realm,
 			Token:  jwtAuth.Token,
 		}
+		p.addJWTAuthorization(jwtAuth.Authorization, polKey, polNamespace, polName, ownerDetails, jwtClaims, res)
 		return res
 	} else if jwtAuth.JwksURI != "" {
 		uri, _ := url.Parse(jwtAuth.JwksURI)
@@ -327,9 +421,37 @@ func (p *policiesCfg) addJWTAuthConfig(
 			KeyCache: jwtAuth.KeyCache,
 		}
 		p.JWTAuth.JWKSEnabled = true
+		p.addJWTAuthorization(jwtAuth.Authorization, polKey, polNamespace, polName, ownerDetails, jwtClaims, res)
 		return res
 	}
 	return res
+}
+
+func (p *policiesCfg) addJWTAuthorization(
+	authz *conf_v1.JWTAuthorization,
+	polKey string,
+	polNamespace string,
+	polName string,
+	ownerDetails policyOwnerDetails,
+	jwtClaims jwtClaimRegistry,
+	res *validationResults,
+) {
+	if authz == nil {
+		return
+	}
+
+	generated := generateJWTAuthorization(authz, polNamespace, polName, ownerDetails)
+	if conflict := jwtClaims.claimAuthorization(generated.ClaimSets); conflict != "" {
+		res.addWarningf("JWT policy %s is rejected: %s", polKey, conflict)
+		res.isError = true
+		return
+	}
+
+	p.JWTAuth.Auth.RequireVariable = generated.RequireVariable
+	p.JWTAuth.Auth.RequireErrorCode = generated.ErrorCode
+	p.JWTAuth.Auth.ProxySetHeaders = generated.ProxySetHeaders
+	p.JWTAuth.ClaimSets = generated.ClaimSets
+	p.JWTAuth.Maps = generated.Maps
 }
 
 func (p *policiesCfg) addExternalAuthConfig(
@@ -1479,6 +1601,11 @@ func (p *policiesCfg) addHSTSConfig(
 	return res
 }
 
+// generatePolicies builds the configuration of the policies that one resource references.
+//
+// jwtClaims is VirtualServer-wide state: the caller passes the same registry to every call for
+// one VirtualServer. Ingress passes nil, which accepts everything.
+//
 // nolint:gocyclo
 func generatePolicies(
 	ctx context.Context,
@@ -1489,10 +1616,14 @@ func generatePolicies(
 	path string,
 	policyOpts policyOptions,
 	bundleValidator bundleValidator,
+	jwtClaims jwtClaimRegistry,
 ) (policiesCfg, Warnings) {
 	warnings := make(Warnings)
 	config := newPoliciesConfig(bundleValidator)
 	config.Context = ctx
+
+	// Register into a copy, merged back on success. A failed call renders none of its claims.
+	claims := jwtClaims.fork()
 
 	for _, p := range policyRefs {
 		polNamespace := p.Namespace
@@ -1525,9 +1656,12 @@ func generatePolicies(
 					policyOpts.zoneSync,
 					pathContext,
 					path,
+					claims,
 				)
+			case pol.Spec.ConnectionLimit != nil:
+				res = config.addConnectionLimitConfig(pol, ownerDetails, policyOpts.replicas)
 			case pol.Spec.JWTAuth != nil:
-				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
+				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, p.Name, policyOpts.secretRefs, ownerDetails, claims)
 			case pol.Spec.ExternalAuth != nil:
 				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key, polNamespace, p.Name, policyOpts.secretRefs, policyOpts, ownerDetails)
 			case pol.Spec.BasicAuth != nil:
@@ -1587,6 +1721,8 @@ func generatePolicies(
 			config.RateLimit.GroupMaps = append(config.RateLimit.GroupMaps, *v)
 		}
 	}
+
+	jwtClaims.merge(claims)
 
 	return *config, warnings
 }
@@ -1798,17 +1934,13 @@ func generateAuthJwtClaimSet(jwtCondition conf_v1.JWTCondition, owner policyOwne
 }
 
 func generateAuthJwtClaimSetVariable(claim string, ownerDetails policyOwnerDetails) string {
-	return strings.ReplaceAll(
-		fmt.Sprintf(
-			"$jwt_%v_%v_%v_%v",
-			ownerDetails.parentNamespace,
-			ownerDetails.parentName,
-			ownerDetails.parentType,
-			strings.Join(strings.Split(claim, "."), "_"),
-		),
-		"-",
-		"_",
-	)
+	return "$" + jwtVariableSafe(fmt.Sprintf(
+		"jwt_%v_%v_%v_%v",
+		ownerDetails.parentNamespace,
+		ownerDetails.parentName,
+		ownerDetails.parentType,
+		claim,
+	))
 }
 
 func generateAuthJwtClaimSetClaim(claim string) string {

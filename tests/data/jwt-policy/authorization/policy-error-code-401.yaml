@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-error-code
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      errorCode: 401
+      rules:
+      - claims:
+        - name: role
+          values: [admin]

@@ -6,15 +6,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-agent",
@@ -96,7 +96,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "nginx-agent",
@@ -218,7 +218,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -252,15 +252,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-agent",
@@ -361,7 +361,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "nginx-plus-module-appprotect",
@@ -433,15 +433,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.31.7"
+          "version": "1.31.8"
         },
         {
           "name": "nginx-agent",
@@ -519,7 +519,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -653,7 +653,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -711,7 +711,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "nginx-agent",
@@ -761,7 +761,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "nginx-agent",
@@ -811,7 +811,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "nginx-agent",
@@ -987,7 +987,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -1045,7 +1045,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.68.0"
+          "version": "1.71"
         },
         {
           "name": "app-protect-attack-signatures",

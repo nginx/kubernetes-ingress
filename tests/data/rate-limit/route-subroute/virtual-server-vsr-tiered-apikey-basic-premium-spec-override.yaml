@@ -9,7 +9,7 @@ spec:
     - name: rate-limit-variables-apikey-basic
     - name: rate-limit-variables-apikey-premium
   routes:
-  - path: "/backends"
-    route: backends
-  - path: "/backend2"
-    route: backend2-namespace/backend2
+    - path: "/backends"
+      route: backends
+    - path: "/backend2"
+      route: backend2-namespace/backend2

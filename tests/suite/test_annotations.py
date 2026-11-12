@@ -202,7 +202,7 @@ def annotations_grpc_setup(
     )
     ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     event_text = f"Configuration for {test_namespace}/{ingress_name} was added or updated"
-    error_text = f"{event_text} ; but was not applied: Error reloading NGINX"
+    error_text = f"{event_text} but was not applied: Error reloading NGINX"
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

@@ -51,6 +51,7 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.StringSlice("WAFLogBundleSourceTypes", d.WAFLogBundleSourceTypes))
 	attrs = append(attrs, attribute.Int64("HSTSPolicies", d.HSTSPolicies))
 	attrs = append(attrs, attribute.Int64("OIDCNativePolicies", d.OIDCNativePolicies))
+	attrs = append(attrs, attribute.Int64("ConnectionLimitPolicies", d.ConnectionLimitPolicies))
 
 	return attrs
 }

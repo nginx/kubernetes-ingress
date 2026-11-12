@@ -2,8 +2,10 @@ package validation
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -25,6 +27,8 @@ type PolicyValidationConfig struct {
 	EnableOIDC       bool
 	EnableAppProtect bool
 	EnableSnippets   bool
+	// PageSize is the memory page size in bytes. Zero means os.Getpagesize().
+	PageSize int
 }
 
 // ValidatePolicy validates a Policy.
@@ -64,6 +68,13 @@ func policyFields() []policyFieldValidator {
 			isSet: func(s *v1.PolicySpec) bool { return s.RateLimit != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
 				return validateRateLimit(s.RateLimit, p.Child("rateLimit"), cfg.IsPlus)
+			},
+		},
+		{
+			name:  "connectionLimit",
+			isSet: func(s *v1.PolicySpec) bool { return s.ConnectionLimit != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateConnectionLimit(s.ConnectionLimit, p.Child("connectionLimit"), cfg.PageSize)
 			},
 		},
 		{
@@ -217,7 +228,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `connectionLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
 		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcNative`, `waf`")
 		}
@@ -370,6 +381,15 @@ func validateRateLimitVariableCondition(condition *v1.VariableCondition, fieldPa
 // [jwt]: https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#jwt-using-local-kubernetes-secret
 // [jwks]: https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#jwt-using-jwks-from-remote-location
 func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateJWTAuthentication(jwt, fieldPath)
+	if jwt.Authorization != nil {
+		allErrs = append(allErrs, validateJWTAuthorization(jwt.Authorization, fieldPath.Child("authorization"))...)
+	}
+	return allErrs
+}
+
+// validateJWTAuthentication validates the fields that configure how a JWT is authenticated.
+func validateJWTAuthentication(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 	// Realm is always required.
 	if jwt.Realm == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("realm"), "realm field must be present")}
@@ -384,66 +404,79 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		return append(allErrs, field.Forbidden(fieldPath.Child("secret"), "only either of Secret or JwksURI can be used"))
 	}
 
-	// Verify a case when using JWT Secret
 	if jwt.Secret != "" {
-		allErrs = append(allErrs, validateSecretName(jwt.Secret, fieldPath.Child("secret"))...)
-		// jwt.Token is not required field. Verify it when provided.
-		if jwt.Token != "" {
-			allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
-		}
+		return append(allErrs, validateJWTLocalSecret(jwt, fieldPath)...)
+	}
+	return append(allErrs, validateJWTRemoteJWKS(jwt, fieldPath)...)
+}
 
-		// keyCache must not be present when using Secret
-		if jwt.KeyCache != "" {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
-		}
-
-		// If JwksURI is not set, then none of the SNI fields should be set.
-		if jwt.SNIEnabled {
-			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
-		}
-
-		if jwt.SNIName != "" {
-			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
-		}
-
-		return allErrs
+// validateJWTLocalSecret validates the fields of a JWT policy that verifies tokens with a local Kubernetes secret.
+func validateJWTLocalSecret(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateSecretName(jwt.Secret, fieldPath.Child("secret"))
+	// jwt.Token is not required field. Verify it when provided.
+	if jwt.Token != "" {
+		allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
 	}
 
-	// Verify a case when using JWKS
-	if jwt.JwksURI != "" {
-		allErrs = append(allErrs, validateJWKsURI(jwt.JwksURI, fieldPath.Child("jwksURI"))...)
-		allErrs = append(allErrs, validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))...)
-		// jwt.Token is not required field. Verify it if it's provided.
-		if jwt.Token != "" {
-			allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
-		}
-		// keyCache must be present when using JWKS
-		if jwt.KeyCache == "" {
-			allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
-		}
+	// keyCache must not be present when using Secret
+	if jwt.KeyCache != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
+	}
 
-		// if SNI server name is provided, but SNI is not enabled, return an error
-		if jwt.SNIName != "" && !jwt.SNIEnabled {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
-		}
+	// If JwksURI is not set, then none of the SNI fields should be set.
+	if jwt.SNIEnabled {
+		return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
+	}
 
-		// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
-		if jwt.SNIEnabled && jwt.SNIName != "" {
-			err := validation2.ValidateURI(jwt.SNIName,
-				validation2.WithAllowedSchemes("https"),
-				validation2.WithUserAllowed(false),
-				validation2.WithDefaultScheme("https"))
-			if err != nil {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
-			}
-		}
+	if jwt.SNIName != "" {
+		return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
+	}
 
-		if jwt.TrustedCertSecret != "" {
-			allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
-			// If trustedCertSecret is set but sslVerify is false, warn user
-			if !jwt.SSLVerify {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
-			}
+	return allErrs
+}
+
+// validateJWTRemoteJWKS validates the fields of a JWT policy that fetches keys from a remote JWKS URI.
+func validateJWTRemoteJWKS(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateJWKsURI(jwt.JwksURI, fieldPath.Child("jwksURI"))
+	allErrs = append(allErrs, validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))...)
+	// jwt.Token is not required field. Verify it if it's provided.
+	if jwt.Token != "" {
+		allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
+	}
+	// keyCache must be present when using JWKS
+	if jwt.KeyCache == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
+	}
+
+	allErrs = append(allErrs, validateJWTSNI(jwt, fieldPath)...)
+
+	if jwt.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+		// If trustedCertSecret is set but sslVerify is false, warn user
+		if !jwt.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+		}
+	}
+	return allErrs
+}
+
+// validateJWTSNI validates the SNI fields of a JWT policy that uses a remote JWKS URI.
+func validateJWTSNI(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// if SNI server name is provided, but SNI is not enabled, return an error
+	if jwt.SNIName != "" && !jwt.SNIEnabled {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
+	}
+
+	// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
+	if jwt.SNIEnabled && jwt.SNIName != "" {
+		err := validation2.ValidateURI(jwt.SNIName,
+			validation2.WithAllowedSchemes("https"),
+			validation2.WithUserAllowed(false),
+			validation2.WithDefaultScheme("https"))
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
 		}
 	}
 	return allErrs
@@ -1567,6 +1600,91 @@ func validateRateLimitLogLevel(logLevel string, fieldPath *field.Path) field.Err
 		return field.ErrorList{field.Invalid(fieldPath, logLevel, fmt.Sprintf("Accepted values: %s",
 			mapToPrettyString(validLogLevels)))}
 	}
+	return nil
+}
+
+// connectionLimitKeySpecialVariables are the variable families allowed in a connectionLimit key.
+var connectionLimitKeySpecialVariables = []string{"arg_", "http_", "cookie_"}
+
+// connectionLimitKeyVariables are the variables allowed in a connectionLimit key.
+var connectionLimitKeyVariables = map[string]bool{
+	"binary_remote_addr": true,
+	"request_uri":        true,
+	"uri":                true,
+	"args":               true,
+	"request_method":     true,
+}
+
+var connectionLimitZoneSizeRegexp = regexp.MustCompile(`^([0-9]+)([kKmM]?)$`)
+
+func validateConnectionLimit(cl *v1.ConnectionLimit, fieldPath *field.Path, pageSize int) field.ErrorList {
+	var allErrs field.ErrorList
+
+	if cl.Connections < 1 || cl.Connections > 65535 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("connections"), cl.Connections, "must be within the range [1-65535]"))
+	}
+	if cl.Key != "" {
+		allErrs = append(allErrs, validateConnectionLimitKey(cl.Key, fieldPath.Child("key"))...)
+	}
+	if cl.ZoneSize != "" {
+		allErrs = append(allErrs, validateConnectionLimitZoneSize(cl.ZoneSize, pageSize, fieldPath.Child("zoneSize"))...)
+	}
+	if cl.RejectCode != nil && (*cl.RejectCode < 400 || *cl.RejectCode > 599) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("rejectCode"), *cl.RejectCode, "must be within the range [400-599]"))
+	}
+	if cl.LogLevel != "" {
+		allErrs = append(allErrs, validateRateLimitLogLevel(cl.LogLevel, fieldPath.Child("logLevel"))...)
+	}
+
+	return allErrs
+}
+
+// connectionLimitKeyMaxLength is the longest key NGINX counts: limit_conn stores a key's length in one byte.
+const connectionLimitKeyMaxLength = 255
+
+// validateConnectionLimitKey accepts one NGINX token made of literal text and allowed ${name} references.
+func validateConnectionLimitKey(key string, fieldPath *field.Path) field.ErrorList {
+	if len(key) > connectionLimitKeyMaxLength {
+		return field.ErrorList{field.TooLong(fieldPath, key, connectionLimitKeyMaxLength)}
+	}
+	if strings.ContainsAny(key, `"'`) {
+		return field.ErrorList{field.Invalid(fieldPath, key, "must not contain quotes")}
+	}
+	if err := validation2.ValidateDirectiveToken(key); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, key, err.Error())}
+	}
+	return validateStringWithVariables(key, fieldPath, connectionLimitKeySpecialVariables, connectionLimitKeyVariables, false)
+}
+
+// validateConnectionLimitZoneSize accepts the sizes NGINX accepts for limit_conn_zone.
+func validateConnectionLimitZoneSize(zoneSize string, pageSize int, fieldPath *field.Path) field.ErrorList {
+	if allErrs := validateSize(zoneSize, fieldPath); len(allErrs) > 0 {
+		return allErrs
+	}
+	m := connectionLimitZoneSizeRegexp.FindStringSubmatch(zoneSize)
+	if m == nil {
+		return field.ErrorList{field.Invalid(fieldPath, zoneSize, "must not contain whitespace")}
+	}
+
+	unit := int64(1)
+	switch m[2] {
+	case "k", "K":
+		unit = 1 << 10
+	case "m", "M":
+		unit = 1 << 20
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil || n > math.MaxInt64/unit {
+		return field.ErrorList{field.Invalid(fieldPath, zoneSize, "must not exceed 9223372036854775807 bytes")}
+	}
+
+	if pageSize <= 0 {
+		pageSize = os.Getpagesize()
+	}
+	if minSize := 8 * int64(pageSize); n*unit < minSize {
+		return field.ErrorList{field.Invalid(fieldPath, zoneSize, fmt.Sprintf("must be at least %dk, eight memory pages", minSize/1024))}
+	}
+
 	return nil
 }
 

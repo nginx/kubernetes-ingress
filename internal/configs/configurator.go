@@ -131,27 +131,34 @@ type metricLabelsIndex struct {
 // This allows the Ingress Controller to incrementally build the NGINX configuration during the IC start and
 // then apply it at the end of the start.
 type Configurator struct {
-	nginxManager                 nginx.Manager
-	staticCfgParams              *StaticConfigParams
-	CfgParams                    *ConfigParams
-	MgmtCfgParams                *MGMTConfigParams
-	templateExecutor             *version1.TemplateExecutor
-	templateExecutorV2           *version2.TemplateExecutor
-	ingresses                    map[string]*IngressEx
-	minions                      map[string]map[string]bool
-	mergeableIngresses           map[string]*MergeableIngresses
-	virtualServers               map[string]*VirtualServerEx
-	virtualServerWarnings        map[string]Warnings
-	transportServers             map[string]*TransportServerEx
-	tlsPassthroughPairs          map[string]tlsPassthroughPair
-	isWildcardEnabled            bool
-	isPlus                       bool
-	labelUpdater                 collector.LabelUpdater
-	metricLabelsIndex            *metricLabelsIndex
-	isPrometheusEnabled          bool
-	latencyCollector             latCollector.LatencyCollector
-	isLatencyMetricsEnabled      bool
-	isReloadsEnabled             bool
+	nginxManager            nginx.Manager
+	staticCfgParams         *StaticConfigParams
+	CfgParams               *ConfigParams
+	MgmtCfgParams           *MGMTConfigParams
+	templateExecutor        *version1.TemplateExecutor
+	templateExecutorV2      *version2.TemplateExecutor
+	ingresses               map[string]*IngressEx
+	minions                 map[string]map[string]bool
+	mergeableIngresses      map[string]*MergeableIngresses
+	virtualServers          map[string]*VirtualServerEx
+	virtualServerWarnings   map[string]Warnings
+	transportServers        map[string]*TransportServerEx
+	tlsPassthroughPairs     map[string]tlsPassthroughPair
+	isWildcardEnabled       bool
+	isPlus                  bool
+	labelUpdater            collector.LabelUpdater
+	metricLabelsIndex       *metricLabelsIndex
+	isPrometheusEnabled     bool
+	latencyCollector        latCollector.LatencyCollector
+	isLatencyMetricsEnabled bool
+	isReloadsEnabled        bool
+	// isPlusAPIEnabled gates Plus API upstream writes separately from isReloadsEnabled:
+	// batch mode defers reloads but NGINX already runs a valid config, so writes stay
+	// safe (#7778). Off during startup, when the upstreams don't exist yet.
+	isPlusAPIEnabled bool
+	// reloadDeferred means config on disk is not yet applied by NGINX: set by Reload()
+	// when it no-ops or fails, and by deferReload(). Cleared only by a successful reload.
+	reloadDeferred               bool
 	isDynamicSSLReloadEnabled    bool
 	ingressControllerReplicas    int
 	effectiveBatchExclusionCount int
@@ -335,9 +342,12 @@ func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) 
 func (cnf *Configurator) AddOrUpdateIngresses(ingExes []*IngressEx) (Warnings, error) {
 	allWarnings := newWarnings()
 
-	for _, ingEx := range ingExes {
+	for i, ingEx := range ingExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
+			if i > 0 {
+				cnf.deferReload() // an earlier resource was already written
+			}
 			return allWarnings, err
 		}
 		allWarnings.Add(warnings)
@@ -500,8 +510,9 @@ func (cnf *Configurator) syncDefaultServerConfig() error {
 }
 
 // addOrUpdateIngress returns a bool that specifies if the underlying config
-// file has changed, and any warnings or errors
-func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, error) {
+// file has changed, and any warnings or errors.
+// Errors after the config write call deferReload; earlier ones leave nothing pending.
+func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (changed bool, warnings Warnings, err error) {
 	apResources := cnf.updateApResources(ingEx)
 
 	cnf.updateDosResource(ingEx.DosEx)
@@ -548,6 +559,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 		cnf.updateIngressMetricsLabels(ingEx, nginxCfg.Upstreams)
 	}
 	if err := cnf.syncDefaultServerConfig(); err != nil {
+		cnf.deferReload()
 		return false, warnings, fmt.Errorf("error syncing default server config for ingress %v: %w", name, err)
 	}
 	return configChanged, warnings, nil
@@ -567,7 +579,8 @@ func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	return warnings, nil
 }
 
-func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (bool, Warnings, error) {
+// addOrUpdateMergeableIngress calls deferReload on errors after the config write.
+func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (changed bool, warnings Warnings, err error) {
 	apResources := cnf.updateApResourcesForMergeableIngresses(mergeableIngs)
 	cnf.updateDosResource(mergeableIngs.Master.DosEx)
 	dosResource := getAppProtectDosResource(mergeableIngs.Master.DosEx)
@@ -595,7 +608,7 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	if err != nil {
 		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", configName, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfig(configName, content)
+	changed, err = cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
 	}
@@ -619,6 +632,7 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		cnf.updateIngressMetricsLabels(mergeableIngs.Master, nginxCfg.Upstreams)
 	}
 	if err := cnf.syncDefaultServerConfig(); err != nil {
+		cnf.deferReload()
 		return false, warnings, fmt.Errorf("error syncing default server config for mergeable ingress %v: %w", name, err)
 	}
 
@@ -731,8 +745,9 @@ func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	return warnings, nil
 }
 
-func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (bool, Warnings, []WeightUpdate, error) {
-	var weightUpdates []WeightUpdate
+// addOrUpdateVirtualServer calls deferReload if the VirtualServer config write fails
+// after the OIDC config was written.
+func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (changed bool, warnings Warnings, weightUpdates []WeightUpdate, err error) {
 	apResources := cnf.updateApResourcesForVs(virtualServerEx)
 	dosResources := map[string]*appProtectDosResource{}
 	for k, v := range virtualServerEx.DosProtectedEx {
@@ -769,8 +784,11 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 		oidcChanged = cnf.nginxManager.CreateOIDCConfig(oidcName, oidcContent)
 	}
 
-	changed, err := cnf.nginxManager.CreateConfig(name, content)
+	changed, err = cnf.nginxManager.CreateConfig(name, content)
 	if err != nil {
+		if oidcChanged {
+			cnf.deferReload()
+		}
 		return false, warnings, weightUpdates, fmt.Errorf("error validating VirtualServer config %v: %w", name, err)
 	}
 	if oidcChanged {
@@ -783,17 +801,25 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 		cnf.updateVirtualServerMetricsLabels(virtualServerEx, vsCfg.Upstreams)
 	}
 
-	if cnf.staticCfgParams.DynamicWeightChangesReload && len(vsCfg.TwoWaySplitClients) > 0 {
-		for _, splitClient := range vsCfg.TwoWaySplitClients {
-			if len(splitClient.Weights) != 2 {
-				continue
-			}
-			variableNamer := *NewVSVariableNamer(virtualServerEx.VirtualServer)
-			value := variableNamer.GetNameOfKeyOfMapForWeights(splitClient.SplitClientsIndex, splitClient.Weights[0], splitClient.Weights[1])
-			weightUpdates = append(weightUpdates, WeightUpdate{Zone: splitClient.ZoneName, Key: splitClient.Key, Value: value})
-		}
-	}
+	weightUpdates = cnf.getWeightUpdates(virtualServerEx.VirtualServer, vsCfg.TwoWaySplitClients)
 	return changed, warnings, weightUpdates, nil
+}
+
+// getWeightUpdates returns the split clients key-val updates for two-way splits when dynamic weight changes are enabled.
+func (cnf *Configurator) getWeightUpdates(vs *conf_v1.VirtualServer, splitClients []version2.TwoWaySplitClients) []WeightUpdate {
+	if !cnf.staticCfgParams.DynamicWeightChangesReload {
+		return nil
+	}
+	var updates []WeightUpdate
+	variableNamer := NewVSVariableNamer(vs)
+	for _, splitClient := range splitClients {
+		if len(splitClient.Weights) != 2 {
+			continue
+		}
+		value := variableNamer.GetNameOfKeyOfMapForWeights(splitClient.SplitClientsIndex, splitClient.Weights[0], splitClient.Weights[1])
+		updates = append(updates, WeightUpdate{Zone: splitClient.ZoneName, Key: splitClient.Key, Value: value})
+	}
+	return updates
 }
 
 // AddOrUpdateVirtualServers adds or updates NGINX configuration for multiple VirtualServer resources.
@@ -801,9 +827,12 @@ func (cnf *Configurator) AddOrUpdateVirtualServers(virtualServerExes []*VirtualS
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
 
-	for _, vsEx := range virtualServerExes {
+	for i, vsEx := range virtualServerExes {
 		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
 		if err != nil {
+			if i > 0 {
+				cnf.deferReload() // an earlier resource was already written
+			}
 			return allWarnings, err
 		}
 		allWarnings.Add(warnings)
@@ -901,7 +930,9 @@ func (cnf *Configurator) AddOrUpdateTransportServer(transportServerEx *Transport
 	return warnings, nil
 }
 
-func (cnf *Configurator) addOrUpdateTransportServer(transportServerEx *TransportServerEx) (bool, Warnings, error) {
+// addOrUpdateTransportServer calls deferReload if updateTLSPassthroughHostsConfig
+// fails after the stream config was written.
+func (cnf *Configurator) addOrUpdateTransportServer(transportServerEx *TransportServerEx) (changed bool, warnings Warnings, err error) {
 	name := getFileNameForTransportServer(transportServerEx.TransportServer)
 	tsCfg, warnings := generateTransportServerConfig(transportServerConfigParams{
 		transportServerEx:      transportServerEx,
@@ -919,7 +950,7 @@ func (cnf *Configurator) addOrUpdateTransportServer(transportServerEx *Transport
 	if cnf.isPlus && cnf.isPrometheusEnabled {
 		cnf.updateTransportServerMetricsLabels(transportServerEx, tsCfg.Upstreams)
 	}
-	changed, err := cnf.nginxManager.CreateStreamConfig(name, content)
+	changed, err = cnf.nginxManager.CreateStreamConfig(name, content)
 	if err != nil {
 		return false, nil, fmt.Errorf("error validating TransportServer config %v: %w", name, err)
 	}
@@ -937,6 +968,7 @@ func (cnf *Configurator) addOrUpdateTransportServer(transportServerEx *Transport
 		}
 		ptChanged, err := cnf.updateTLSPassthroughHostsConfig()
 		if err != nil {
+			cnf.deferReload()
 			return false, nil, err
 		}
 		return changed || ptChanged, warnings, nil
@@ -1012,12 +1044,17 @@ func (cnf *Configurator) AddOrUpdateResources(resources ExtendedResources, reloa
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
 	configsChanged := false
+	wrote := false // an earlier resource was written, so a later failure must defer the reload
 
 	updateResource := func(updateFunc func() (bool, Warnings, error), namespace, name string) error {
 		changed, warnings, err := updateFunc()
 		if err != nil {
+			if wrote {
+				cnf.deferReload()
+			}
 			return fmt.Errorf("error adding or updating resource %v/%v: %w", namespace, name, err)
 		}
+		wrote = true
 		allWarnings.Add(warnings)
 		if changed {
 			configsChanged = true
@@ -1028,8 +1065,12 @@ func (cnf *Configurator) AddOrUpdateResources(resources ExtendedResources, reloa
 	updateVSResource := func(updateFunc func() (bool, Warnings, []WeightUpdate, error), namespace, name string) error {
 		changed, warnings, weightUpdates, err := updateFunc()
 		if err != nil {
+			if wrote {
+				cnf.deferReload()
+			}
 			return fmt.Errorf("error adding or updating resource %v/%v: %w", namespace, name, err)
 		}
+		wrote = true
 		allWarnings.Add(warnings)
 		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
 
@@ -1149,6 +1190,7 @@ func GenerateLicenseSecret(secret *api_v1.Secret) ([]byte, error) {
 }
 
 // DeleteIngress deletes NGINX configuration for the Ingress resource.
+// The file is already deleted when syncDefaultServerConfig fails, so that path calls deferReload.
 func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	name := keyToFileName(key)
 
@@ -1160,6 +1202,7 @@ func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	delete(cnf.minions, name)
 	delete(cnf.mergeableIngresses, name)
 	if err := cnf.syncDefaultServerConfig(); err != nil {
+		cnf.deferReload()
 		return fmt.Errorf("error syncing default server config after deleting ingress %v: %w", key, err)
 	}
 
@@ -1227,6 +1270,8 @@ func (cnf *Configurator) DeleteTransportServer(key string) error {
 	return nil
 }
 
+// deleteTransportServer calls deferReload if updateTLSPassthroughHostsConfig fails
+// after the stream config was deleted.
 func (cnf *Configurator) deleteTransportServer(key string) error {
 	name := getFileNameForTransportServerFromKey(key)
 	cnf.nginxManager.DeleteStreamConfig(name)
@@ -1235,8 +1280,10 @@ func (cnf *Configurator) deleteTransportServer(key string) error {
 	// update TLS Passthrough Hosts config in case we have a TLS Passthrough TransportServer
 	if _, exists := cnf.tlsPassthroughPairs[key]; exists {
 		delete(cnf.tlsPassthroughPairs, key)
-		_, err := cnf.updateTLSPassthroughHostsConfig()
-		return err
+		if _, err := cnf.updateTLSPassthroughHostsConfig(); err != nil {
+			cnf.deferReload()
+			return err
+		}
 	}
 
 	return nil
@@ -1248,9 +1295,12 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) (Warnings, error)
 	reloadPlus := false
 	allWarnings := newWarnings()
 
-	for _, ingEx := range ingExes {
+	for i, ingEx := range ingExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
+			if i > 0 {
+				cnf.deferReload() // an earlier resource was already written
+			}
 			return allWarnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -1264,7 +1314,7 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) (Warnings, error)
 		}
 	}
 
-	if cnf.isPlus && !reloadPlus {
+	if cnf.isPlus && !reloadPlus && !cnf.plusWritesSuppressed() {
 		nl.Debug(l, "No need to reload nginx")
 		return allWarnings, nil
 	}
@@ -1286,6 +1336,9 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 		mergeableIng := mergeableIngresses[i]
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
 		if err != nil {
+			if i > 0 {
+				cnf.deferReload() // an earlier resource was already written
+			}
 			return allWarnings, fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -1308,7 +1361,7 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 		}
 	}
 
-	if cnf.isPlus && !reloadPlus {
+	if cnf.isPlus && !reloadPlus && !cnf.plusWritesSuppressed() {
 		nl.Debug(l, "No need to reload nginx")
 		return allWarnings, nil
 	}
@@ -1326,9 +1379,12 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 	reloadPlus := false
 	allWarnings := newWarnings()
 
-	for _, vs := range virtualServerExes {
+	for i, vs := range virtualServerExes {
 		_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
 		if err != nil {
+			if i > 0 {
+				cnf.deferReload() // an earlier resource was already written
+			}
 			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -1342,7 +1398,7 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 		}
 	}
 
-	if cnf.isPlus && !reloadPlus {
+	if cnf.isPlus && !reloadPlus && !cnf.plusWritesSuppressed() {
 		nl.Debug(l, "No need to reload nginx")
 		return allWarnings, nil
 	}
@@ -1412,10 +1468,13 @@ func (cnf *Configurator) UpdateEndpointsForTransportServers(transportServerExes 
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
 
-	for _, tsEx := range transportServerExes {
+	for i, tsEx := range transportServerExes {
 		// Ignore warnings here as no new warnings should appear when updating Endpoints for TransportServers
 		_, _, err := cnf.addOrUpdateTransportServer(tsEx)
 		if err != nil {
+			if i > 0 {
+				cnf.deferReload() // an earlier resource was already written
+			}
 			return fmt.Errorf("error adding or updating TransportServer %v/%v: %w", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name, err)
 		}
 		if cnf.isPlus {
@@ -1427,7 +1486,7 @@ func (cnf *Configurator) UpdateEndpointsForTransportServers(transportServerExes 
 		}
 	}
 
-	if cnf.isPlus && !reloadPlus {
+	if cnf.isPlus && !reloadPlus && !cnf.plusWritesSuppressed() {
 		nl.Debug(l, "No need to reload nginx")
 		return nil
 	}
@@ -1532,11 +1591,15 @@ func (cnf *Configurator) updatePlusExternalAuthEndpoints(policies map[string]*co
 }
 
 // EnableReloads enables NGINX reloads meaning that configuration changes will be followed by a reload.
+// It also (re-)enables NGINX Plus API upstream writes; see isPlusAPIEnabled.
 func (cnf *Configurator) EnableReloads() {
 	cnf.isReloadsEnabled = true
+	cnf.isPlusAPIEnabled = true
 }
 
 // DisableReloads disables NGINX reloads meaning that configuration changes will not be followed by a reload.
+// Plus API writes stay enabled (NGINX already runs a valid config) unless a reload is
+// pending; see plusAPIWritesAllowed.
 func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
@@ -1594,17 +1657,45 @@ func (cnf *Configurator) EffectiveBatchExclusionCount() int {
 	return cnf.effectiveBatchExclusionCount
 }
 
-// Reload reloads nginx if reloads is enabled
+// Reload reloads nginx if reloads is enabled. If reloads are disabled (e.g. batch mode),
+// the reload is skipped and recorded via reloadDeferred so ReloadForBatchUpdates can
+// catch up on it at batch end instead of silently dropping it. reloadDeferred is only
+// cleared once nginxManager.Reload is actually called and succeeds — a failed reload
+// leaves it set so the retry is not forgotten.
 func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
+		cnf.reloadDeferred = true
 		return nil
 	}
 
-	return cnf.nginxManager.Reload(isEndpointsUpdate)
+	err := cnf.nginxManager.Reload(isEndpointsUpdate)
+	cnf.reloadDeferred = err != nil
+	return err
+}
+
+// deferReload marks written-but-unapplied config pending. Call it on any error return
+// that follows a disk write, so ReloadForBatchUpdates and plusAPIWritesAllowed see it.
+// Bulk loops call it only when an earlier iteration wrote (except the AP/DoS push path):
+// a failed CreateConfig is already rolled back, and marking it would suppress Plus API writes.
+func (cnf *Configurator) deferReload() {
+	cnf.reloadDeferred = true
+}
+
+// plusWritesSuppressed is true when a pending reload blocks Plus API writes. The
+// UpdateEndpoints* functions then fall back to Reload() so the pending config is applied.
+func (cnf *Configurator) plusWritesSuppressed() bool {
+	return cnf.isPlusAPIEnabled && cnf.reloadDeferred
+}
+
+// plusAPIWritesAllowed reports whether it is safe to PATCH a live Plus upstream. Upstream
+// names don't encode Service or port, so while a reload is pending a write from the new
+// spec could rebind a live upstream still used by the old config.
+func (cnf *Configurator) plusAPIWritesAllowed() bool {
+	return cnf.isPlusAPIEnabled && !cnf.reloadDeferred
 }
 
 func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, config nginx.ServerConfig) error {
-	if !cnf.isReloadsEnabled {
+	if !cnf.plusAPIWritesAllowed() {
 		return nil
 	}
 
@@ -1612,7 +1703,7 @@ func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, 
 }
 
 func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []string) error {
-	if !cnf.isReloadsEnabled {
+	if !cnf.plusAPIWritesAllowed() {
 		return nil
 	}
 
@@ -1981,6 +2072,8 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	}
 
 	if err := cnf.syncDefaultServerConfig(); err != nil {
+		// Main config (above) was already written; see deferReload's invariant.
+		cnf.deferReload()
 		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
@@ -1990,6 +2083,9 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	tasks := cnf.buildResourceUpdateTasks(resources)
 	updateRes, updateErr := cnf.applyResourceUpdates(tasks, isRollbackManager, isPostStartupRollback, resourceErrors)
 	if updateErr != nil {
+		// Fail-fast (non-rollback-manager) path: main config and possibly some
+		// resources were already written before this error; see deferReload's invariant.
+		cnf.deferReload()
 		return allWarnings, nil, updateErr
 	}
 	allWarnings.Add(updateRes.warnings)
@@ -2037,8 +2133,14 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 }
 
 // ReloadForBatchUpdates reloads NGINX after a batch event.
+// batchReloadsEnabled is set by the caller when a non-endpointslice task ran during the
+// batch (a change that always needs a reload). reloadDeferred additionally covers any
+// Reload() call that no-op'd during the batch regardless of task Kind — e.g. an NGINX
+// Plus endpoint update whose API write failed and fell back to requesting a reload
+// (see Configurator.Reload). Without consulting reloadDeferred here, that fallback
+// reload would be silently dropped whenever the triggering task was an endpointslice.
 func (cnf *Configurator) ReloadForBatchUpdates(batchReloadsEnabled bool) error {
-	if !batchReloadsEnabled {
+	if !batchReloadsEnabled && !cnf.reloadDeferred {
 		return nil
 	}
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
@@ -2475,10 +2577,12 @@ func (cnf *Configurator) AddOrUpdateResourcesThatUseDosProtected(ingExes []*Ingr
 func (cnf *Configurator) addOrUpdateIngressesAndVirtualServers(ingExes []*IngressEx, mergeableIngresses []*MergeableIngresses, vsExes []*VirtualServerEx) (Warnings, error) {
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
+	// AP/DoS files are written before any per-resource failure, so always defer the reload on error.
 
 	for _, ingEx := range ingExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
+			cnf.deferReload()
 			return allWarnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -2487,6 +2591,7 @@ func (cnf *Configurator) addOrUpdateIngressesAndVirtualServers(ingExes []*Ingres
 	for _, m := range mergeableIngresses {
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(m)
 		if err != nil {
+			cnf.deferReload()
 			return allWarnings, fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", m.Master.Ingress.Namespace, m.Master.Ingress.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -2495,6 +2600,7 @@ func (cnf *Configurator) addOrUpdateIngressesAndVirtualServers(ingExes []*Ingres
 	for _, vs := range vsExes {
 		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vs)
 		if err != nil {
+			cnf.deferReload()
 			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
 		}
 		allWeightUpdates = append(allWeightUpdates, weightUpdates...)

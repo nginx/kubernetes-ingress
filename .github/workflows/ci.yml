@@ -370,9 +370,31 @@ jobs:
           repo-checkout: false
           cache: true
 
+  scout-cache:
+    name: Docker Scout Cache
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/scout-cache
+
+      - name: Seed Docker Scout cache
+        uses: ./.github/actions/scout-cache
+        continue-on-error: true # soft-fail: scans fall back to an authenticated download
+        with:
+          mode: seed
+          # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
+          version: v1.29.0
+          sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
+
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests]
+    needs: [checks, unit-tests, scout-cache]
     if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-artifacts.yml
     with:
@@ -473,7 +495,9 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          make -f tests/Makefile setup-venv
+          # no playwright/chromium here: check_container_packages.py only needs the docker client
+          python3 -m venv tests/venv
+          tests/venv/bin/pip install --require-hashes -r tests/requirements.txt --no-deps
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Run tests

@@ -58,27 +58,34 @@ func (nsi *namespacedInformer) addEndpointSliceHandler(handlers cache.ResourceEv
 	return nil
 }
 
+// Every Configurator call reachable from here (directly, or via the
+// updateNumberOfIngressControllerReplicas early return below) must mark the
+// batch dirty on its own error path when it can have already written config
+// before failing — see the invariant documented on Configurator.deferReload.
+// sync() no longer forces a reload at the end of an endpointslice-only batch
+// (https://github.com/nginx/kubernetes-ingress/issues/7778), so that
+// deferral is the only thing standing between a partially-applied write and
+// silent staleness.
 // nolint:gocyclo
-func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
+func (lbc *LoadBalancerController) syncEndpointSlices(task task) {
 	key := task.Key
 	var obj interface{}
 	var endpointSliceExists bool
 	var err error
-	var resourcesFound bool
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	nsi := lbc.getNamespacedInformer(ns)
 	if nsi == nil {
-		return false
+		return
 	}
 	obj, endpointSliceExists, err = nsi.endpointSliceLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
-		return false
+		return
 	}
 
 	if !endpointSliceExists {
-		return false
+		return
 	}
 
 	endpointSlice := obj.(*discovery_v1.EndpointSlice)
@@ -87,7 +94,8 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 
 	// check if this is the endpointslice for the controller's own service
 	if lbc.statusUpdater.namespace == endpointSlice.Namespace && lbc.statusUpdater.externalServiceName == svcName {
-		return lbc.updateNumberOfIngressControllerReplicas(*endpointSlice)
+		lbc.updateNumberOfIngressControllerReplicas(*endpointSlice)
+		return
 	}
 
 	resourceExes := lbc.createExtendedResources(svcResource)
@@ -95,7 +103,6 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 	if len(resourceExes.IngressExes) > 0 {
 		for _, ingEx := range resourceExes.IngressExes {
 			if lbc.ingressRequiresEndpointsUpdate(ingEx, svcName) {
-				resourcesFound = true
 				l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, endpointSliceKind, logNameKey, n)
 				nl.Debugf(l, "Updating EndpointSlices for %v", resourceExes.IngressExes)
 				cfgWarnings, err := lbc.configurator.UpdateEndpoints(resourceExes.IngressExes)
@@ -111,7 +118,6 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 	if len(resourceExes.MergeableIngresses) > 0 {
 		for _, mergeableIngresses := range resourceExes.MergeableIngresses {
 			if lbc.mergeableIngressRequiresEndpointsUpdate(mergeableIngresses, svcName) {
-				resourcesFound = true
 				l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, endpointSliceKind, logNameKey, n)
 				nl.Debugf(l, "Updating EndpointSlices for %v", resourceExes.MergeableIngresses)
 				cfgWarnings, err := lbc.configurator.UpdateEndpointsMergeableIngress(resourceExes.MergeableIngresses)
@@ -128,7 +134,6 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 		if len(resourceExes.VirtualServerExes) > 0 {
 			for _, vsEx := range resourceExes.VirtualServerExes {
 				if lbc.virtualServerRequiresEndpointsUpdate(vsEx, endpointSlice.Namespace, svcName) {
-					resourcesFound = true
 					l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, endpointSliceKind, logNameKey, n)
 					nl.Debugf(l, "Updating EndpointSlices for %v", resourceExes.VirtualServerExes)
 					cfgWarnings, err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
@@ -142,7 +147,6 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 		}
 
 		if len(resourceExes.TransportServerExes) > 0 {
-			resourcesFound = true
 			l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, endpointSliceKind, logNameKey, n)
 			nl.Debugf(l, "Updating EndpointSlices for %v", resourceExes.TransportServerExes)
 			err := lbc.configurator.UpdateEndpointsForTransportServers(resourceExes.TransportServerExes)
@@ -151,7 +155,6 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 			}
 		}
 	}
-	return resourcesFound
 }
 
 // updateResourceStatusOnEndpointSliceChangeWithWarnings updates the status and events for

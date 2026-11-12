@@ -4,7 +4,7 @@ metadata:
   name: virtual-server
 spec:
   host: virtual-server.example.com
-  gunzip: on
+  gunzip: true
   upstreams:
   - name: backend2
     service: backend2-svc

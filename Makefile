@@ -11,13 +11,13 @@ WAF_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app prot
 DOS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app protect dos from
 
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.7
+NGINX_OSS_VERSION             ?= 1.31.8
 NGINX_PLUS_VERSION            ?= R37.2
 
 NAP_WAF_VERSION               ?= 37.2+5.777
 NAP_WAF_COMMON_VERSION        ?= 11.869
 NAP_WAF_PLUGIN_VERSION        ?= 6.32
-NAP_WAF_IPI_VERSION           ?= 1.68
+NAP_WAF_IPI_VERSION           ?= 1.71
 
 AGENT_V2_VERSION              ?= 2
 AGENT_V3_VERSION              ?= 3
@@ -46,7 +46,7 @@ GOVULNCHECK_VERSION ?= v1.9.0
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.27.3-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.27.4-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.

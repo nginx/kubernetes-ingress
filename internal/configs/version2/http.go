@@ -20,6 +20,7 @@ type VirtualServerConfig struct {
 	KeyValZones             []KeyValZone
 	KeyVals                 []KeyVal
 	LimitReqZones           []LimitReqZone
+	LimitConnZones          []LimitConnZone
 	Maps                    []Map
 	AuthJWTClaimSets        []AuthJWTClaimSet
 	OIDCProviders           []OIDCProvider
@@ -98,6 +99,8 @@ type Server struct {
 	Deny                      []string
 	LimitReqOptions           LimitReqOptions
 	LimitReqs                 []LimitReq
+	LimitConnOptions          LimitConnOptions
+	LimitConns                []LimitConn
 	JWTAuth                   *JWTAuth
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
@@ -178,6 +181,10 @@ type OIDC struct {
 	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
+	// ServerJWTAuth is set when the VirtualServer has a server-level JWT policy. Its auth_jwt and
+	// auth_jwt_require are inherited by the locations below, and a login request carries no token,
+	// so oidc.tmpl turns auth_jwt off in the ones that run the access phase.
+	ServerJWTAuth bool
 }
 
 // APIKey holds API key configuration.
@@ -249,6 +256,8 @@ type Location struct {
 	Deny                       []string
 	LimitReqOptions            LimitReqOptions
 	LimitReqs                  []LimitReq
+	LimitConnOptions           LimitConnOptions
+	LimitConns                 []LimitConn
 	JWTAuth                    *JWTAuth
 	OIDCProviderName           string
 	AuthRequestOff             bool
@@ -277,6 +286,8 @@ type Location struct {
 	ProxyHTTPVersion           string
 	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
 	ACMEChallenge bool
+	// JWTRequireReset clears an inherited auth_jwt_require, which has no "off" value.
+	JWTRequireReset string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -518,14 +529,38 @@ func (rl LimitReqOptions) String() string {
 	return fmt.Sprintf("{DryRun %v, LogLevel %q, RejectCode %d}", rl.DryRun, rl.LogLevel, rl.RejectCode)
 }
 
+// LimitConnZone defines a connection limit shared memory zone.
+type LimitConnZone struct {
+	Key      string
+	ZoneName string
+	ZoneSize string
+}
+
+// LimitConn defines a connection limit.
+type LimitConn struct {
+	ZoneName    string
+	Connections int
+}
+
+// LimitConnOptions defines the connection limit options that apply to a whole block.
+type LimitConnOptions struct {
+	DryRun     bool
+	LogLevel   string
+	RejectCode int
+}
+
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
-	Key      string
-	Secret   string
-	Realm    string
-	Token    string
-	KeyCache string
-	JwksURI  JwksURI
+	Key              string
+	Secret           string
+	Realm            string
+	Token            string
+	KeyCache         string
+	JwksURI          JwksURI
+	RequireVariable  string
+	RequireErrorCode int
+	// ProxySetHeaders are merged into the locations' headers by the generator, not rendered from here.
+	ProxySetHeaders []Header
 }
 
 // JwksURI defines the components of a JwksURI

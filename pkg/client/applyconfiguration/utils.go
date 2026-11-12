@@ -88,6 +88,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.CertManagerApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Condition"):
 		return &applyconfigurationconfigurationv1.ConditionApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("ConnectionLimit"):
+		return &applyconfigurationconfigurationv1.ConnectionLimitApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("CORS"):
 		return &applyconfigurationconfigurationv1.CORSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("EgressMTLS"):
@@ -118,6 +120,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.IngressMTLSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTAuth"):
 		return &applyconfigurationconfigurationv1.JWTAuthApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("JWTAuthorization"):
+		return &applyconfigurationconfigurationv1.JWTAuthorizationApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("JWTAuthorizationRule"):
+		return &applyconfigurationconfigurationv1.JWTAuthorizationRuleApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("JWTClaim"):
+		return &applyconfigurationconfigurationv1.JWTClaimApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTCondition"):
 		return &applyconfigurationconfigurationv1.JWTConditionApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Listener"):

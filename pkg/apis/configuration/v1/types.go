@@ -809,6 +809,8 @@ type PolicySpec struct {
 	AccessControl *AccessControl `json:"accessControl"`
 	// The rate limit policy controls the rate of processing requests per a defined key.
 	RateLimit *RateLimit `json:"rateLimit"`
+	// The connection limit policy limits the number of requests in progress at the same time per a defined key.
+	ConnectionLimit *ConnectionLimit `json:"connectionLimit"`
 	// The JWT policy configures NGINX Plus to authenticate client requests using JSON Web Tokens.
 	JWTAuth *JWTAuth `json:"jwt"`
 	// The basic auth policy configures NGINX to authenticate client requests using HTTP Basic authentication credentials.
@@ -919,6 +921,50 @@ type VariableCondition struct {
 	Match string `json:"match"`
 }
 
+// ConnectionLimit defines a connection limit policy.
+type ConnectionLimit struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	// The maximum number of requests in progress at the same time for each value of the key.
+	Connections int `json:"connections"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="${binary_remote_addr}"
+	// +kubebuilder:validation:MaxLength=255
+	// +kubebuilder:validation:Pattern=`^(?:[^\s"'\\#;{}$\x60]|\$\{[A-Za-z_][A-Za-z0-9_]*\})+$`
+	// The key that decides which requests share a counter: literal text and variables written as ${name}.
+	// Accepted variables are ${binary_remote_addr}, ${request_uri}, ${uri}, ${args}, ${request_method},
+	// ${arg_<name>}, ${http_<name>}, and ${cookie_<name>}. It can be at most 255 bytes long, because NGINX
+	// does not limit a request whose key value is longer than 255 bytes and logs an error instead.
+	// The default is ${binary_remote_addr}.
+	Key string `json:"key,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="10m"
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kKmM]?$`
+	// The size of the shared memory zone, in bytes or with a k, K, m, or M suffix. It must be at least
+	// eight memory pages, for example 32k with 4 KiB pages. The default is 10m.
+	ZoneSize string `json:"zoneSize,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=503
+	// +kubebuilder:validation:Minimum=400
+	// +kubebuilder:validation:Maximum=599
+	// The status code returned for rejected requests. The default is 503.
+	RejectCode *int `json:"rejectCode,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="error"
+	// +kubebuilder:validation:Enum=info;notice;warn;error
+	// The level at which rejected requests are logged. The default is error.
+	LogLevel string `json:"logLevel,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// Enables dry-run mode: requests over the limit are logged but not rejected.
+	DryRun bool `json:"dryRun,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// Divides connections by the number of NGINX Ingress Controller replicas.
+	Scale bool `json:"scale,omitempty"`
+}
+
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
 	// The realm of the JWT.
@@ -945,6 +991,89 @@ type JWTAuth struct {
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default:=1
 	SSLVerifyDepth *int `json:"sslVerifyDepth"`
+	// Claim-based authorization rules, evaluated after the JWT signature and expiry have been validated. Requests that fail the rules are rejected with authorization.errorCode.
+	Authorization *JWTAuthorization `json:"authorization,omitempty"`
+}
+
+// JWTRequireType defines how a set of checks is combined.
+// +kubebuilder:validation:Enum=Any;All
+type JWTRequireType string
+
+const (
+	// JWTRequireAny passes when at least one check passes.
+	JWTRequireAny JWTRequireType = "Any"
+	// JWTRequireAll passes when every check passes.
+	JWTRequireAll JWTRequireType = "All"
+)
+
+// JWTClaimMatchType defines how a claim value is compared to the configured values.
+// +kubebuilder:validation:Enum=Exact;Contains;Regex;Present
+type JWTClaimMatchType string
+
+const (
+	// JWTClaimMatchExact passes when the claim equals one of the values (case-sensitive).
+	JWTClaimMatchExact JWTClaimMatchType = "Exact"
+	// JWTClaimMatchContains passes when the claim, split on space or comma, contains one of the values.
+	JWTClaimMatchContains JWTClaimMatchType = "Contains"
+	// JWTClaimMatchRegex passes when the claim matches one of the PCRE values (case-sensitive).
+	JWTClaimMatchRegex JWTClaimMatchType = "Regex"
+	// JWTClaimMatchPresent passes when the claim is present and non-empty.
+	JWTClaimMatchPresent JWTClaimMatchType = "Present"
+)
+
+// JWTAuthorization defines claim-based authorization for a JWT policy.
+type JWTAuthorization struct {
+	// The HTTP status code returned when claim validation fails. Authentication failures always return 401. The default is 403.
+	// +kubebuilder:validation:Enum=401;403
+	// +kubebuilder:default=403
+	ErrorCode *int `json:"errorCode,omitempty"`
+	// Whether any rule or all rules must pass. The default is All.
+	// +kubebuilder:default=All
+	Require *JWTRequireType `json:"require,omitempty"`
+	// The authorization rules.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=16
+	Rules []JWTAuthorizationRule `json:"rules"`
+}
+
+// JWTAuthorizationRule is a group of claim checks.
+type JWTAuthorizationRule struct {
+	// Whether any claim or all claims in the rule must pass. The default is Any.
+	// +kubebuilder:default=Any
+	Require *JWTRequireType `json:"require,omitempty"`
+	// The claim checks in the rule. The same claim name may appear more than once with a different match or negate.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=32
+	Claims []JWTClaim `json:"claims"`
+}
+
+// JWTClaim is a check on a single JWT claim.
+// +kubebuilder:validation:XValidation:rule="(has(self.match) && self.match == 'Present') ? !has(self.values) : (has(self.values) && size(self.values) > 0)",message="values is required unless match is Present, and forbidden when match is Present"
+// +kubebuilder:validation:XValidation:rule="!(has(self.match) && self.match == 'Present' && has(self.negate) && self.negate) || !has(self.proxySetHeader)",message="proxySetHeader cannot be set when match is Present and negate is true"
+// +kubebuilder:validation:XValidation:rule="!(has(self.match) && self.match == 'Contains') || !has(self.values) || self.values.all(v, !v.matches('[ ,]'))",message="values must not contain a space or comma when match is Contains"
+// +kubebuilder:validation:XValidation:rule="!(has(self.match) && self.match == 'Regex') || !has(self.values) || self.values.all(v, !v.contains('(?<') && !v.contains('(?P<') && !v.contains('(?\\x27'))",message="values must not use named captures or lookbehind when match is Regex"
+// +kubebuilder:validation:XValidation:rule="(has(self.match) && (self.match == 'Regex' || self.match == 'Present')) || !has(self.values) || self.values.all(v, !v.matches('[;{}$`\\r\\n]'))",message="values must not contain any of the characters ; { } $ ` or line breaks when match is Exact or Contains"
+type JWTClaim struct {
+	// The claim name. Nested claims are separated by ".", for example realm_access.roles.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*$`
+	Name string `json:"name"`
+	// How the claim is compared to values. The default is Exact. Exact and Regex are case-sensitive. Contains splits the claim on space and comma, so it works on array claims and space-delimited claims such as scope.
+	// +kubebuilder:default=Exact
+	Match *JWTClaimMatchType `json:"match,omitempty"`
+	// The expected values. The check passes if the claim matches any value. Required unless match is Present. For match: Regex, values are PCRE patterns; named captures and lookbehind are not supported.
+	// +kubebuilder:validation:MaxItems=32
+	// +kubebuilder:validation:items:MinLength=1
+	// +kubebuilder:validation:items:MaxLength=256
+	Values []string `json:"values,omitempty"`
+	// Inverts the check. A negated value check still fails when the claim is missing. match: Present with negate: true requires the claim to be absent.
+	Negate bool `json:"negate,omitempty"`
+	// The name of a request header that forwards the claim value to the upstream.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[-_A-Za-z0-9]+$`
+	ProxySetHeader string `json:"proxySetHeader,omitempty"`
 }
 
 // BasicAuth holds HTTP Basic authentication configuration
