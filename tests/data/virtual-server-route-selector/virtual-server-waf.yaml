@@ -8,7 +8,7 @@ spec:
   - path: /
     routeSelector:
       matchLabels:
-       app: backends
+        app: backends
     policies:
-      - name: waf-policy
-        namespace: backends
+    - name: waf-policy
+      namespace: backends

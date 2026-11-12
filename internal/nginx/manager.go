@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/metadata"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"

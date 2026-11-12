@@ -110,35 +110,35 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - image: docker-registry.nginx.com/cluster-connector/cluster-connector:0.2.0
-          imagePullPolicy: IfNotPresent
-          name: nginx-cluster-connector
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            #limits:
-            #  cpu: "1"
-            #  memory: "1Gi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsUser: 101 #nginx
-            runAsNonRoot: true
-            capabilities:
-              drop:
-                - ALL
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-          args:
-            - -nms-server-address=https://apigw.nms.svc.cluster.local:443/api/platform/v1
-            - -nms-basic-auth-secret=nginx-cluster-connector/nms-basic-auth
+      - image: docker-registry.nginx.com/cluster-connector/cluster-connector:0.2.0
+        imagePullPolicy: IfNotPresent
+        name: nginx-cluster-connector
+        resources:
+          # limits:
+          #   cpu: "1"
+          #   memory: "1Gi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 101 # nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+        - -nms-server-address=https://apigw.nms.svc.cluster.local:443/api/platform/v1
+        - -nms-basic-auth-secret=nginx-cluster-connector/nms-basic-auth
 #          - -cluster-display-name=my-cluster
 #          - -log-level=debug
 #          - -log-format=glog

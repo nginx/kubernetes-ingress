@@ -1,0 +1,20 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-case-sensitive
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - require: All
+        claims:
+        - name: iss
+          values: ["https://login.example.com"]
+        - name: role
+          values: [admin]
+        - name: email
+          match: Regex
+          values: ['^[^@]+@example\.com$']

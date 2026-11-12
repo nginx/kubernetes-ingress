@@ -1,0 +1,19 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-headers
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - require: All
+        claims:
+        - name: scope
+          match: Present
+          proxySetHeader: X-Token-Scope
+        - name: role
+          match: Present
+          proxySetHeader: X-Role

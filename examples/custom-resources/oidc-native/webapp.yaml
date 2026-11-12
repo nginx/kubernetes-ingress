@@ -43,6 +43,7 @@ kind: ConfigMap
 metadata:
   name: webapp-config
 data:
+  # yamllint disable rule:line-length
   app.conf: |-
     server {
       listen 8080;

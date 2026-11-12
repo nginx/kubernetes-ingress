@@ -181,6 +181,10 @@ type OIDC struct {
 	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
+	// ServerJWTAuth is set when the VirtualServer has a server-level JWT policy. Its auth_jwt and
+	// auth_jwt_require are inherited by the locations below, and a login request carries no token,
+	// so oidc.tmpl turns auth_jwt off in the ones that run the access phase.
+	ServerJWTAuth bool
 }
 
 // APIKey holds API key configuration.
@@ -282,6 +286,8 @@ type Location struct {
 	ProxyHTTPVersion           string
 	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
 	ACMEChallenge bool
+	// JWTRequireReset clears an inherited auth_jwt_require, which has no "off" value.
+	JWTRequireReset string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -545,12 +551,16 @@ type LimitConnOptions struct {
 
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
-	Key      string
-	Secret   string
-	Realm    string
-	Token    string
-	KeyCache string
-	JwksURI  JwksURI
+	Key              string
+	Secret           string
+	Realm            string
+	Token            string
+	KeyCache         string
+	JwksURI          JwksURI
+	RequireVariable  string
+	RequireErrorCode int
+	// ProxySetHeaders are merged into the locations' headers by the generator, not rendered from here.
+	ProxySetHeaders []Header
 }
 
 // JwksURI defines the components of a JwksURI

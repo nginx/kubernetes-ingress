@@ -11,9 +11,9 @@ spec:
   subroutes:
   - path: "/backend2"
     errorPages:
-      - codes: [502]
-        redirect:
-          code: 307
-          url: ${scheme}://virtual-server.example.com/error.html
+    - codes: [502]
+      redirect:
+        code: 307
+        url: ${scheme}://virtual-server.example.com/error.html
     action:
       pass: backend2

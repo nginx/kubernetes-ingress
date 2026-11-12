@@ -1,5 +1,7 @@
 # JWT
 
+> **NGINX Plus only.**
+
 In this example, we deploy a web application, configure load balancing for it via a VirtualServer, and apply a JWT
 policy.
 
@@ -44,6 +46,9 @@ to our web application that contain a valid JWT:
 ```console
 kubectl apply -f jwt.yaml
 ```
+
+The policy also contains an `authorization` block that validates claims of the token. See
+[Claim validation](#claim-validation) below.
 
 ## Step 4 - Configure Load Balancing
 
@@ -108,3 +113,49 @@ spec:
   gunzip: on
   ...
 ```
+
+## Claim Validation
+
+Claims are checked after the token signature and expiry have been validated. Authentication failures return `401`.
+Claim validation failures return `403` by default, or the status set in `authorization.errorCode` (`401` or `403`).
+
+The `jwt-policy` in `jwt.yaml` accepts a request when **any** of its three rules passes
+(`authorization.require: Any`):
+
+- Rule 0, internal gateway: `iss` is `My API Gateway`.
+- Rule 1, first-party staff: `iss` is `https://login.example.com` **and** `email` matches `^[^@]+@example\.com$`.
+- Rule 2, partner services: `iss` is `https://partners.example.net`, `tenant.tier` is `Gold` or `Platinum`, **and** the
+  delegation claim `act` is absent (`match: Present`, `negate: true`).
+
+Nested claims are written with `.` as the separator, for example `tenant.tier`. `Exact` (the default match) and
+`Regex` are case-sensitive. A value check never passes when the claim is missing.
+
+The tokens in this directory exercise each rule:
+
+| Token | Claims | Result | Why |
+| ----- | ------ | ------ | --- |
+| `token.jwt` | `iss: My API Gateway` | `200` | Rule 0 passes |
+| `token-staff.jwt` | `iss: https://login.example.com`, `email: bob@example.com` | `200` | Rule 1 passes |
+| `token-staff-wrong-case.jwt` | `iss: https://LOGIN.example.com`, `email: bob@example.com` | `403` | `Exact` is case-sensitive |
+| `token-partner.jwt` | `iss: https://partners.example.net`, `tenant.tier: Gold`, no `act` | `200` | Rule 2 passes |
+| `token-partner-delegated.jwt` | as above, plus `act: {"sub": "svc"}` | `403` | `act` is present |
+| none, or an invalid token | | `401` | Authentication fails before any claim is checked |
+
+A token that passes a rule is accepted:
+
+```console
+curl --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP http://webapp.example.com:$IC_HTTP_PORT/ -H "token: `cat token-staff.jwt`"
+```
+
+A valid token whose claims fail every rule is rejected:
+
+```console
+curl -i --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP http://webapp.example.com:$IC_HTTP_PORT/ -H "token: `cat token-staff-wrong-case.jwt`"
+```
+
+```text
+HTTP/1.1 403 Forbidden
+...
+```
+
+For `Contains` matches on array and space-delimited claims, see the [jwks](../jwks) example.
