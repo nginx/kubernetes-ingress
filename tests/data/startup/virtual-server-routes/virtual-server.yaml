@@ -4,4 +4,4 @@ metadata:
   name: virtual-server
 spec:
   host: example.com
-  routes:
+  routes: []

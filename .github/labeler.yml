@@ -12,15 +12,15 @@ chore:
 
 github_actions:
   - changed-files:
-    - any-glob-to-any-file: ['.github/**/*.yml', '.github/**/*.yaml', '.github/**/*.md']
+      - any-glob-to-any-file: ['.github/**/*.yml', '.github/**/*.yaml', '.github/**/*.md']
 
 go:
   - changed-files:
-    - any-glob-to-any-file: ['**/*.go', 'go.mod', 'go.sum']
+      - any-glob-to-any-file: ['**/*.go', 'go.mod', 'go.sum']
 
 python:
   - changed-files:
-    - any-glob-to-any-file: ['tests/**/*.py', 'tests/**/requirements.txt', 'tests/**/*.yaml', 'perf-tests/**/*.py', 'perf-tests/**/*.yaml']
+      - any-glob-to-any-file: ['tests/**/*.py', 'tests/**/requirements.txt', 'tests/**/*.yaml', 'perf-tests/**/*.py', 'perf-tests/**/*.yaml']
 
 tests:
   - head-branch: ['^tests?/']
@@ -36,4 +36,4 @@ helm_chart:
 
 docker:
   - changed-files:
-    - any-glob-to-any-file: '**/Dockerfile*'
+      - any-glob-to-any-file: '**/Dockerfile*'

@@ -1,4 +1,5 @@
-# Ingress with proxy_redirect from/to pair. Emits: proxy_redirect http://redirect-backend-svc/v1/ http://cafe.example.com/coffee/;
+# Ingress with proxy_redirect from/to pair.
+# Emits: proxy_redirect http://redirect-backend-svc/v1/ http://cafe.example.com/coffee/;
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress

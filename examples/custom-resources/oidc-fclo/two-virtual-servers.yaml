@@ -15,7 +15,7 @@ spec:
   routes:
     - path: /
       policies:
-      - name: oidc-one-policy
+        - name: oidc-one-policy
       action:
         pass: fclo-one
 ---
@@ -36,6 +36,6 @@ spec:
   routes:
     - path: /
       policies:
-      - name: oidc-two-policy
+        - name: oidc-two-policy
       action:
         pass: fclo-two

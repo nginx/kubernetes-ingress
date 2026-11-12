@@ -1,0 +1,93 @@
+name: Azure Blob Upload
+description: Log in to Azure with OIDC and upload the contents of a local directory to Azure Blob Storage.
+
+# The calling job needs `permissions: id-token: write` for the OIDC login.
+# Each file is stored as <destination-path>/<path relative to source-dir>, overwriting existing blobs.
+
+inputs:
+  client-id:
+    description: Azure client ID used for the OIDC login
+    required: true
+  tenant-id:
+    description: Azure tenant ID
+    required: true
+  subscription-id:
+    description: Azure subscription ID
+    required: true
+  storage-account:
+    description: Azure storage account name
+    required: true
+  container-name:
+    description: Blob container name
+    required: true
+  source-dir:
+    description: Local directory to upload, relative to the workspace (the Azure CLI step only mounts GITHUB_WORKSPACE)
+    required: true
+  destination-path:
+    description: Virtual directory in the container to upload into, e.g. nic/2026-10-13-38399827758
+    required: true
+  pattern:
+    description: Only upload files matching this glob, e.g. "*.sarif"
+    required: false
+    default: "*"
+  dry-run:
+    description: List what would be uploaded without uploading
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Check files to upload
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ inputs.source-dir }}
+        DESTINATION_PATH: ${{ inputs.destination-path }}
+        PATTERN: ${{ inputs.pattern }}
+      run: |
+        # An empty destination would upload to the container root; an empty source usually means the producing step failed.
+        if [ -z "${DESTINATION_PATH%/}" ]; then
+          echo "::error::destination-path must not be empty"
+          exit 1
+        fi
+        shopt -s globstar nullglob dotglob
+        src="${SOURCE_DIR%/}"
+        found=0
+        # shellcheck disable=SC2231 # PATTERN is deliberately unquoted so it globs
+        for f in "$src"/**/$PATTERN; do
+          [ -f "$f" ] || continue
+          found=$((found + 1))
+          echo "${f} -> ${DESTINATION_PATH%/}/${f#"$src"/}"
+        done
+        if [ "$found" -eq 0 ]; then
+          echo "::error::no files matching '$PATTERN' in '$SOURCE_DIR'"
+          exit 1
+        fi
+
+    - name: Azure login for upload
+      if: ${{ inputs.dry-run != 'true' }}
+      uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+
+    - name: Azure upload
+      if: ${{ inputs.dry-run != 'true' }}
+      uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
+      env:
+        SOURCE_DIR: ${{ inputs.source-dir }}
+        DESTINATION_PATH: ${{ inputs.destination-path }}
+        PATTERN: ${{ inputs.pattern }}
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        STORAGE_ACCOUNT: ${{ inputs.storage-account }}
+      with:
+        inlineScript: |
+          az storage blob upload-batch \
+            --auth-mode=login \
+            -s "${SOURCE_DIR%/}" \
+            -d "$CONTAINER_NAME" \
+            --destination-path "${DESTINATION_PATH%/}" \
+            --pattern "$PATTERN" \
+            --account-name "$STORAGE_ACCOUNT" \
+            --overwrite
