@@ -350,18 +350,32 @@ aren't installed are harmless.
   missing permission and namespace, for example
   `missing permission: get configmaps "nic-nginx-ingress" in namespace team-a; grant it to the NIC ServiceAccount in a Role or ClusterRole`.
   The original error is wrapped, so it is still a "forbidden" error.
-- **Watch errors:** each namespaced informer, and the IngressLink informer,
-  gets a watch error handler, set in its `add*Handler()` before the informer
-  starts. On a "forbidden" list or watch, NIC logs one error per resource and
-  namespace, for example
+- **Watch errors:** each informer created by `newNamespacedInformer()`, and the
+  IngressLink informer, gets a watch error handler, set in its `add*Handler()`
+  before the informer starts. On a "forbidden" list or watch, NIC logs one
+  error per resource and namespace, for example
   `missing permission: list and watch ingresses.networking.k8s.io in namespace team-a-apps; check the Role or ClusterRole bound to the NIC ServiceAccount`.
   Further failures for the same resource and namespace are suppressed until a
   list succeeds. Other errors go to client-go's default handler. This applies
-  in every mode. The `-nginx-configmaps`, `-mgmt-configmap` and
-  `-global-configuration` informers keep client-go's default logging: they are
-  built with `cache.NewInformerWithOptions`, which has no watch error handler
-  option, and the ConfigMaps are already read once at startup with the
-  message above.
+  in every mode. The following informers keep client-go's default logging
+  instead:
+  - The `-nginx-configmaps`, `-mgmt-configmap` and `-global-configuration`
+    informers: they are built with `cache.NewInformerWithOptions`, which has no
+    watch error handler option, and the ConfigMaps are already read once at
+    startup with the message above.
+  - The ExternalDNS and cert-manager controllers' per-namespace informers
+    (`internal/externaldns`'s VirtualServer and DNSEndpoint informers,
+    `internal/certmanager`'s VirtualServer and Certificate informers): each
+    controller builds its own informer factories in its own package, so
+    sharing the watch error tracker would mean moving it out of `internal/k8s`
+    into a package both sides can import. Out of scope here; a possible
+    follow-up.
+  - The PLM credentials Secret informer (`internal/k8s/controller.go`): it is
+    built directly with `informers.NewSharedInformerFactoryWithOptions`
+    instead of through `newNamespacedInformer()`.
+  - The Namespace watcher for `-watch-namespace-label`
+    (`internal/k8s/namespace.go`): it is cluster-scoped, and that flag isn't
+    available in tenant mode.
 
 Failures during `helm install`, such as a forbidden Role create, happen before
 NIC runs. `NOTES.txt` for the tenant release lists the prerequisites: CRDs, the
