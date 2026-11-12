@@ -20,7 +20,7 @@ on:
         default: "nginx-ingress"
         type: string
       tenant:
-        description: "Package the chart for tenant installs: no CRDs and installMode tenant (use with chart_name: nginx-ingress-tenant)"
+        description: "Package the chart for tenant installs: no CRDs and installMode tenant. Must be true exactly when chart_name is nginx-ingress-tenant"
         default: false
         type: boolean
       oci_registries:
@@ -54,7 +54,7 @@ on:
         default: "nginx-ingress"
         type: string
       tenant:
-        description: "Package the chart for tenant installs: no CRDs and installMode tenant (use with chart_name: nginx-ingress-tenant)"
+        description: "Package the chart for tenant installs: no CRDs and installMode tenant. Must be true exactly when chart_name is nginx-ingress-tenant"
         default: false
         type: boolean
       oci_registries:
@@ -167,6 +167,12 @@ jobs:
             echo "Invalid chart_name: must match Helm chart name pattern ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" >&2
             exit 1
           fi
+          expect_tenant=false
+          [[ "$chart_name" == "nginx-ingress-tenant" ]] && expect_tenant=true
+          if [[ "${{ inputs.tenant }}" != "$expect_tenant" ]]; then
+            echo "tenant must be true exactly when chart_name is nginx-ingress-tenant (tenant=${{ inputs.tenant }}, chart_name=${chart_name})" >&2
+            exit 1
+          fi
           sed -i "s|^name:.*|name: ${chart_name}|" kic/charts/nginx-ingress/Chart.yaml
           if [[ "${{ inputs.ic_version }}" =~ ^20[0-9]+-lts ]]; then
             IMAGE_REPOSITORY="private-registry.nginx.com/nginx-ic/lts/nginx-plus-ingress"
@@ -180,7 +186,8 @@ jobs:
             rm kic/charts/nginx-ingress/crds
             sed -i "s|^installMode: full$|installMode: tenant|" kic/charts/nginx-ingress/values.yaml
             grep -qx "installMode: tenant" kic/charts/nginx-ingress/values.yaml || { echo "Failed to set installMode: tenant in values.yaml" >&2; exit 1; }
-            if [[ -n "$(helm show crds kic/charts/nginx-ingress)" ]]; then
+            crds=$(helm show crds kic/charts/nginx-ingress) || { echo "helm show crds failed" >&2; exit 1; }
+            if [[ -n "$crds" ]]; then
               echo "Tenant chart must not contain CRDs" >&2
               exit 1
             fi

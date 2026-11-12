@@ -24,7 +24,7 @@ on:
         type: boolean
         default: false
       skip_step:
-        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,stage-helm-chart-tenant,azure-upload)"
+        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,stage-tenant-helm-chart,azure-upload)"
         type: string
         required: false
 
@@ -229,14 +229,13 @@ jobs:
     secrets: inherit
 
   # The same chart, repackaged for tenant installs: no CRDs and installMode tenant.
-  # skip_step is matched with contains(), so skipping stage-helm-chart also skips this job.
-  stage-helm-chart-tenant:
+  stage-tenant-helm-chart:
     name: Build & Stage Tenant Helm Chart
     if: >-
       github.repository == 'nginx/kubernetes-ingress-internal' && (
       !cancelled() &&
       needs.stage-helm-chart.result == 'success' &&
-      !contains(inputs.skip_step, 'stage-helm-chart-tenant')
+      !contains(inputs.skip_step, 'stage-tenant-helm-chart')
       )
     needs: [variables, stage-helm-chart]
     permissions:
