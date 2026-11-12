@@ -324,7 +324,8 @@ def pytest_runtest_makereport(item) -> None:
 
 # Test classes that left the shared nginx-config ConfigMap non-default, as {class nodeid: changed data}.
 LEAKED_CONFIGMAP = {}
-_last_leak = None
+# The most recent leak seen, so a leak that persists across classes is reported once.
+LEAK_STATE = {"last": None}
 
 
 def leaked_configmap_data(live, default):
@@ -343,7 +344,6 @@ def pytest_runtest_teardown(item, nextitem) -> None:
     reported once, against the class that was running when it was first seen.
     Only the ConfigMap is checked: every IC fixture recreates the Deployment, so replicas cannot leak.
     """
-    global _last_leak
     yield
     if nextitem is not None and nextitem.parent is item.parent:
         return
@@ -353,10 +353,10 @@ def pytest_runtest_teardown(item, nextitem) -> None:
     except (KeyError, TypeError, ApiException):
         return  # test did not use the cluster, or the IC namespace is already gone
     leak = leaked_configmap_data(live, prereq.config_map.get("data"))
-    if leak != _last_leak and leak is not None:
+    if leak is not None and leak != LEAK_STATE["last"]:
         LEAKED_CONFIGMAP[item.parent.nodeid] = leak
         print(f"\n::warning title=Leaked nginx-config::{item.parent.nodeid} left nginx-config as {leak}")
-    _last_leak = leak
+    LEAK_STATE["last"] = leak
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
