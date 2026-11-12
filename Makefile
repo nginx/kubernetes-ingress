@@ -158,6 +158,10 @@ update-crds: ## Update CRDs
 	kustomize build config/crd/app-protect-waf --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-waf.yaml
 	$(MAKE) update-crd-docs
 
+.PHONY: update-helm-schema
+update-helm-schema: ## Regenerate the bundled Kubernetes definitions in the Helm chart values schema
+	./hack/generate-helm-schema.sh
+
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go
