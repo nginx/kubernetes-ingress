@@ -39,7 +39,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      pull-requests: read
+      pull-requests: read # required by dorny/paths-filter
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
