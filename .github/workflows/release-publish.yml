@@ -62,7 +62,6 @@ jobs:
       short_tag: ${{ steps.vars.outputs.short_tag }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       date: ${{ steps.vars.outputs.date }}
-      k8s_version: ${{ steps.vars.outputs.k8s_version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,8 +84,6 @@ jobs:
           fi
           date=$(date "+%Y%m%d")
           echo "date=${date}" >> $GITHUB_OUTPUT
-          k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
-          echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
   release-oss:
@@ -249,7 +246,6 @@ jobs:
               inputs: {
                 chart_version: '${{ needs.variables.outputs.chart_version }}',
                 operator_version: '${{ inputs.operator_version }}',
-                k8s_version: '${{ needs.variables.outputs.k8s_version }}',
                 dry_run: '${{ inputs.dry_run }}'
               },
             })
