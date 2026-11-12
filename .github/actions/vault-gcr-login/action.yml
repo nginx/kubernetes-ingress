@@ -18,7 +18,7 @@ runs:
   steps:
     - name: Get secrets
       if: ${{ !github.event.pull_request.head.repo.fork }}
-      uses: nginx/ci-self-hosted/.github/actions/get-from-vault@2ac905a974d15594f0e03697b4f88916fbb3694d
+      uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
       with:
         client-id: ${{ inputs.client-id }}
         tenant-id: ${{ inputs.tenant-id }}
@@ -37,7 +37,7 @@ runs:
 
     - name: Login to GCR
       if: ${{ !github.event.pull_request.head.repo.fork }}
-      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
         registry: gcr.io
         username: oauth2accesstoken
