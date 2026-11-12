@@ -1,17 +1,77 @@
-name: Test-runner registry login
+name: Registry login
 description: >-
-  Log in to ghcr.io for the test-runner image in nginx/kubernetes-ingress.
-  For gcr.io in nginx/kubernetes-ingress-internal use the vault-gcr-login action,
-  which authenticates through Key Vault and workload identity.
+  Log in to a container registry. Credentials are picked from the registry host
+  unless username/password are given:
+    ghcr.io                  github.actor / github.token (job needs packages: read or write)
+    docker-mgmt*.nginx.com   GitHub OIDC ID token (job needs id-token: write)
+    *.amazonaws.com          AWS credentials already configured in the job
+  Anything else (Docker Hub, Quay, gcr.io with an access token, ...) needs
+  username and password. For gcr.io via Key Vault + workload identity use the
+  vault-gcr-login action instead. Gate the calling step yourself (repository,
+  forks); this action logs in whenever it runs.
+
+inputs:
+  registry:
+    description: Registry host. A host/path value (e.g. a source_registry input) is accepted; the path is ignored.
+    required: true
+  username:
+    description: Username, for registries without an automatic credential
+    required: false
+    default: ""
+  password:
+    description: Password or token, for registries without an automatic credential
+    required: false
+    default: ""
 
 runs:
   using: composite
   steps:
-    - name: Login to GHCR
-      # fork PRs run with github.repository set to the base repo but only get a read-only token
-      if: ${{ github.repository == 'nginx/kubernetes-ingress' && !github.event.pull_request.head.repo.fork }}
+    - name: Resolve registry credentials
+      id: resolve
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        USERNAME: ${{ inputs.username }}
+      run: |
+        host="${REGISTRY#*://}"
+        host="${host%%/*}"
+        if [ -z "$host" ]; then
+          echo "::error::registry input is empty"
+          exit 1
+        fi
+        if [ -n "$USERNAME" ]; then
+          mode=explicit
+        elif [ "$host" = "ghcr.io" ]; then
+          mode=github
+        elif [[ "$host" == docker-mgmt*.nginx.com ]]; then
+          mode=oidc
+        elif [[ "$host" == *.amazonaws.com || "$host" == public.ecr.aws ]]; then
+          mode=aws
+        else
+          echo "::error::no automatic credential for '$host'; pass username and password"
+          exit 1
+        fi
+        echo "host=$host" >> "$GITHUB_OUTPUT"
+        echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+    - name: Get OIDC ID token
+      id: idtoken
+      if: ${{ steps.resolve.outputs.mode == 'oidc' }}
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        script: core.setOutput('id_token', await core.getIDToken())
+
+    - name: Login to ${{ steps.resolve.outputs.host }}
       uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
       with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ github.token }}
+        registry: ${{ steps.resolve.outputs.host }}
+        username: >-
+          ${{ steps.resolve.outputs.mode == 'explicit' && inputs.username
+          || steps.resolve.outputs.mode == 'github' && github.actor
+          || steps.resolve.outputs.mode == 'oidc' && steps.idtoken.outputs.id_token
+          || '' }}
+        password: >-
+          ${{ steps.resolve.outputs.mode == 'explicit' && inputs.password
+          || steps.resolve.outputs.mode == 'github' && github.token
+          || steps.resolve.outputs.mode == 'oidc' && github.actor
+          || '' }}
