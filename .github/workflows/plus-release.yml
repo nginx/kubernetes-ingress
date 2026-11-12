@@ -103,7 +103,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -126,7 +126,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -175,7 +175,7 @@ jobs:
         if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -191,7 +191,7 @@ jobs:
             core.setOutput('id_token', id_token)
 
       - name: Login to NGINX Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: docker-mgmt.nginx.com
           username: ${{ steps.idtoken.outputs.id_token }}
@@ -214,7 +214,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -286,7 +286,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
@@ -336,7 +336,7 @@ jobs:
         if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -371,7 +371,7 @@ jobs:
 
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}

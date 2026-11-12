@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.28
+# syntax=docker/dockerfile:1.29
 FROM python:3.15-trixie@sha256:ce323fb792e0c3c6de88daab1a714542c6be2d4b14177aae410d0294c50b3d90
 ARG ARCH=amd64
 # renovate: datasource=github-releases depName=helm/helm
