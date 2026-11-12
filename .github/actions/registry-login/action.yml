@@ -1,11 +1,8 @@
 name: Test-runner registry login
-description: Log in to the test-runner image registry (ghcr.io in the public repo, gcr.io in the internal repo)
-
-inputs:
-  gcp-credentials:
-    description: GCP service account JSON key for gcr.io (pass secrets.GCP_TR_CREDENTIALS); only used in nginx/kubernetes-ingress-internal
-    required: false
-    default: ""
+description: >-
+  Log in to ghcr.io for the test-runner image in nginx/kubernetes-ingress.
+  For gcr.io in nginx/kubernetes-ingress-internal use the vault-gcr-login action,
+  which authenticates through Key Vault and workload identity.
 
 runs:
   using: composite
@@ -18,11 +15,3 @@ runs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ github.token }}
-
-    - name: Login to GCR
-      if: ${{ github.repository == 'nginx/kubernetes-ingress-internal' && inputs.gcp-credentials != '' }}
-      uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-      with:
-        registry: gcr.io
-        username: _json_key
-        password: ${{ inputs.gcp-credentials }}
