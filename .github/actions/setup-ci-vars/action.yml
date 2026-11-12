@@ -1,6 +1,36 @@
 name: Setup CI vars
 description: Resolve the test-runner image and runner label in one step
 
+# Checkout: the image tag hashes tests/requirements.txt and tests/Dockerfile from the workspace,
+# so check out the repo first. A sparse checkout must include both files, e.g.
+#   sparse-checkout: |
+#     tests/requirements.txt
+#     tests/Dockerfile
+# Without them the tag silently falls back to `latest`.
+#
+# Runner: a job's `runs-on` is evaluated before any step runs, so it cannot read this action's
+# `runner` output from the same job. Resolve it in an upstream job, expose it as a job output,
+# and have other jobs `needs:` that job:
+#
+#   jobs:
+#     setup:
+#       runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}  # resolves its own runner
+#       outputs:
+#         runner: ${{ steps.ci-vars.outputs.runner }}
+#         test_runner_image: ${{ steps.ci-vars.outputs.test_runner_image }}
+#       steps:
+#         - uses: actions/checkout@...
+#         - id: ci-vars
+#           uses: ./.github/actions/setup-ci-vars
+#           with:
+#             runner: ${{ vars.RUNNER }}
+#             test-runner-registry: ${{ vars.TEST_RUNNER_REGISTRY }}
+#     tests:
+#       needs: setup
+#       runs-on: ${{ needs.setup.outputs.runner }}
+#
+# Ref: https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
+
 inputs:
   test-runner-registry:
     description: Test-runner image registry (pass vars.TEST_RUNNER_REGISTRY)
