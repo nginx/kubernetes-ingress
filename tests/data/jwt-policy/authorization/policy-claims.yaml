@@ -1,0 +1,23 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-claims
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - require: All
+        claims:
+        - name: iss
+          values: ["https://login.example.com"]
+        - name: aud
+          match: Contains
+          values: [orders-api]
+        - name: scope
+          match: Contains
+          values: ["orders:read", "orders:write"]
+        - name: role
+          match: Present
