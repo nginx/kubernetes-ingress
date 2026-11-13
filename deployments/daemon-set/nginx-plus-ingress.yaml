@@ -34,7 +34,7 @@ spec:
       # - name: nginx-log
       #   emptyDir: {}
       containers:
-      - image: nginx-plus-ingress:5.7.1
+      - image: nginx-plus-ingress:5.8.0
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -105,7 +105,7 @@ spec:
         # - -enable-prometheus-metrics
         # - -global-configuration=$(POD_NAMESPACE)/nginx-configuration
       # initContainers:
-#      - image: nginx/nginx-ingress:5.7.1
+#      - image: nginx/nginx-ingress:5.8.0
       #   imagePullPolicy: IfNotPresent
       #   name: init-nginx-ingress
       #   command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
