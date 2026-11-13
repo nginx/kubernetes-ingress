@@ -487,8 +487,9 @@ func (p *policiesCfg) addExternalAuthConfig(
 			Path:         externalAuth.AuthURI,
 			InternalPath: internalPath,
 		},
-		ServicePorts: externalAuth.AuthServicePorts,
-		SSLEnabled:   externalAuth.SSLEnabled,
+		ServicePorts:    externalAuth.AuthServicePorts,
+		SSLEnabled:      externalAuth.SSLEnabled,
+		ResponseHeaders: newAuthResponseHeaders(polKey, externalAuth.AuthResponseHeaders),
 	}
 	if externalAuth.AuthSigninURI != "" {
 		p.ExternalAuth.SigninURL = externalAuth.AuthSigninURI

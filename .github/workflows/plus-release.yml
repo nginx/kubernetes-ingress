@@ -12,9 +12,6 @@ on:
       gcr_mktpl_registry:
         required: true
         type: boolean
-      ecr_mktpl_registry:
-        required: true
-        type: boolean
       az_mktpl_registry:
         required: true
         type: boolean
@@ -44,9 +41,6 @@ on:
         required: true
         type: boolean
       gcr_mktpl_registry:
-        required: true
-        type: boolean
-      ecr_mktpl_registry:
         required: true
         type: boolean
       az_mktpl_registry:
@@ -305,89 +299,6 @@ jobs:
           export TARGET_TAG=${{ inputs.target_tag }}
           export SOURCE_OPTS="--src-registry-token ${{ steps.gcr-priv-auth.outputs.access_token }}"
           export TARGET_OPTS="--dest-registry-token ${{ steps.gcr-mktpl-auth.outputs.access_token }}"
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
-
-  release-plus-to-ecr-marketplace-registry:
-    name: Push Plus images to the AWS Marketplace Registry
-    runs-on: 'kic-plus'
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.ecr_mktpl_registry)
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, gcr-mkpl-workload-identity, kic-pipeline-gcr-mkpl-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, GCR_MKPL_WORKLOAD_ID, GCR_MKPL_SERVICE_ACCOUNT"
-
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-        if: contains(inputs.source_registry, 'gcr.io')
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
-        if: contains(inputs.source_registry, 'gcr.io')
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ env.AWS_ROLE_MARKETPLACE }}
-
-      - name: Login to ECR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: 709825985650.dkr.ecr.us-east-1.amazonaws.com
-
-      - name: Get Id Token for Source Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        id: idtoken-source
-        with:
-          script: |
-            let id_token = await core.getIDToken()
-            core.setOutput('id_token', id_token)
-
-      - name: Get Registry Hostname
-        id: registry-hostname
-        run: |
-          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
-          echo "hostname=$hostname" >> $GITHUB_OUTPUT
-
-      - name: Login to Source Management Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ${{ steps.registry-hostname.outputs.hostname }}
-          username: ${{ steps.idtoken-source.outputs.id_token }}
-          password: ${{ github.actor }}
-
-      - name: Publish images
-        run: |
-          export CONFIG_PATH=.github/config/config-plus-ecr
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
