@@ -1,0 +1,116 @@
+name: Security Scan
+description: Scan an image with Docker Scout into a SARIF file, and optionally upload the SARIF to Azure Blob Storage.
+
+# The scan fails this step on error; callers that want a soft fail set `continue-on-error: true`
+# and gate follow-up steps on `steps.<id>.outcome == 'success'`. The upload only runs after a successful scan.
+#
+# Azure upload: composite actions cannot read `vars`, so callers pass
+#   azure-upload: ${{ vars.IS_PUBLIC != 'true' }}
+# SARIF from the internal repository goes to Azure instead of GHSA. Uploading needs
+# `permissions: id-token: write` and a non-empty `prefix`, and stores the file as <prefix>/<blob-name>.
+#
+# Run docker/login-action for Docker Hub before this action; Docker Scout needs it.
+# A sparse checkout must include .github/actions/security-scan, .github/actions/scout-cache and
+# .github/actions/azure-blob, which this action calls.
+
+inputs:
+  image:
+    description: Image reference to scan
+    required: true
+  sarif-file:
+    description: Path to write the SARIF file to, relative to the workspace
+    required: true
+  ignore-base:
+    description: Ignore vulnerabilities from the base image
+    required: false
+    default: "false"
+  azure-upload:
+    description: Upload the SARIF to Azure Blob Storage (pass vars.IS_PUBLIC != 'true')
+    required: false
+    default: "false"
+  prefix:
+    description: Virtual directory in the container to upload into, e.g. nic/2026-10-13-38399827758. Empty skips the upload
+    required: false
+    default: ""
+  blob-name:
+    description: Blob name for the SARIF under prefix, e.g. debian-nap-waf.sarif. Required when uploading
+    required: false
+    default: ""
+  client-id:
+    description: Azure client ID used for the OIDC login
+    required: false
+    default: ""
+  tenant-id:
+    description: Azure tenant ID
+    required: false
+    default: ""
+  subscription-id:
+    description: Azure subscription ID
+    required: false
+    default: ""
+  storage-account:
+    description: Azure storage account name
+    required: false
+    default: ""
+  container-name:
+    description: Blob container name
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # Keep version/sha in sync with the docker/scout-action pin below (renovate bumps both).
+    - name: Restore Docker Scout binary
+      uses: ./.github/actions/scout-cache
+      with:
+        mode: restore
+        version: v1.29.0
+        sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
+
+    - name: Prepare SARIF directory
+      shell: bash
+      env:
+        SARIF_FILE: ${{ inputs.sarif-file }}
+      run: mkdir -p "$(dirname "${SARIF_FILE}")"
+
+    - name: Run Docker Scout vulnerability scanner
+      uses: docker/scout-action@e7e2a72bf1485d10a58f30696b6c513b261ce4fa # v1.29.0
+      with:
+        command: cves
+        image: ${{ inputs.image }}
+        ignore-base: ${{ inputs.ignore-base }}
+        sarif-file: ${{ inputs.sarif-file }}
+        write-comment: false
+        summary: true
+
+    # azure-blob uploads a directory, so stage the SARIF under its blob name inside the workspace
+    # (the Azure CLI step only mounts GITHUB_WORKSPACE).
+    - name: Stage SARIF for upload
+      if: ${{ inputs.azure-upload == 'true' && inputs.prefix != '' }}
+      shell: bash
+      env:
+        SARIF_FILE: ${{ inputs.sarif-file }}
+        BLOB_NAME: ${{ inputs.blob-name }}
+      run: |
+        set -euo pipefail
+        if [ -z "${BLOB_NAME}" ] || [[ "${BLOB_NAME}" == */* ]]; then
+          echo "::error::blob-name must be a non-empty file name when uploading, got '${BLOB_NAME}'"
+          exit 1
+        fi
+        rm -rf .security-scan-upload
+        mkdir .security-scan-upload
+        cp "${SARIF_FILE}" ".security-scan-upload/${BLOB_NAME}"
+
+    - name: Upload SARIF to Azure
+      if: ${{ inputs.azure-upload == 'true' && inputs.prefix != '' }}
+      uses: ./.github/actions/azure-blob
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+        storage-account: ${{ inputs.storage-account }}
+        container-name: ${{ inputs.container-name }}
+        source-dir: .security-scan-upload
+        destination-path: ${{ inputs.prefix }}
+        pattern: ${{ inputs.blob-name }}
