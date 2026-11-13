@@ -9,7 +9,7 @@ description: 'Testing patterns for NIC including Go table-driven tests, snapshot
 
 | Command | Purpose |
 | --- | --- |
-| `make test` | Run all Go tests (`-tags=aws,helmunit -shuffle=on ./...`) |
+| `make test` | Run all Go tests (`-tags=helmunit -shuffle=on ./...`) |
 | `make test-update-snaps` | Regenerate snapshot golden files (`UPDATE_SNAPS=always`) |
 | `make lint` | golangci-lint via Docker, diff against `origin/main` |
 | `make format` | goimports + gofumpt |
@@ -255,7 +255,7 @@ The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specif
 
 - **Always** run `make test-update-snaps` after changing any `.tmpl` file -- snapshot tests will fail otherwise
 - **Regenerating is not the same as testing.** If no fixture sets your new field, the golden file will not change and the feature has zero coverage. Add the test case first
-- **Never** run raw `go test` -- use `make test` which includes required build tags (`aws`, `helmunit`)
+- **Never** run raw `go test` -- use `make test` which includes required build tags (`helmunit`)
 - Snapshot golden files are in `__snapshots__/` directories -- commit the regenerated files with the change that caused them
 - `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` is **per package**, not per file -- adding a second one to the same package breaks the build
 - OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff means you forgot the sibling template, **unless** the feature is Plus-only, in which case only the Plus golden file must change

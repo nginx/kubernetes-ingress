@@ -308,6 +308,11 @@ func jwtAuthBlock(auth *JWTAuth, indent string) jwtAuthBlockData {
 	return jwtAuthBlockData{Auth: auth, Indent: indent}
 }
 
+// hasAuthResponseHeader reports whether a location forwards the named auth response header.
+func hasAuthResponseHeader(headers *AuthResponseHeaders, name string) bool {
+	return headers.Has(name)
+}
+
 var helperFunctions = template.FuncMap{
 	"headerListToCIMap":       headerListToCIMap,
 	"hasCIKey":                hasCIKey,
@@ -327,6 +332,7 @@ var helperFunctions = template.FuncMap{
 	"makeLocationPath":        makeLocationPath,
 	"hasExternalAuthSignin":   hasExternalAuthSignin,
 	"hasExternalAuthNoSignin": hasExternalAuthNoSignin,
+	"hasAuthResponseHeader":   hasAuthResponseHeader,
 
 	"boolToInteger": boolToInteger,
 }

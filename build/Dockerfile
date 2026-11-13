@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.28
+# syntax=docker/dockerfile:1.29
 ARG BUILD_OS=debian
 
 # renovate: datasource=docker depName=nginx/nginx
@@ -21,14 +21,14 @@ ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:e53398635cdc58f0349fe94fde42e58edd15aa2c0c2ae1d6b985e12be4496895
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:7894f27c70f22a742c73a67f030119c45bdc33d35e3d23a2adddd267a5357a89
 
 
 ############################################# External dependency images #############################################
 FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS golang-builder
 FROM ghcr.io/nginx/alpine-fips:0.6.0-alpine3.24@sha256:2122f993efed0ba145bfc118699f042a7c7dce82274d01e7f72ed3884cdfed4b AS alpine-fips-3.24
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
-FROM redhat/ubi10-minimal:10.2-1794227009@sha256:f0c7b9ae9914fcf183e7c36fc46864903c2d2caf3af327421913ae54b3d29e94 AS ubi-minimal
+FROM redhat/ubi10-minimal:10.3-1794499233@sha256:fb2f7f857cc60d88e3fad19da505083a682ca4569d7b55a61f64aaa43641f741 AS ubi-minimal
 
 
 ############################################# NGINX repo keys, .repo files, and helper scripts #############################################
@@ -1014,53 +1014,6 @@ LABEL org.nginx.kic.image.build.version="goreleaser"
 
 COPY --link --chown=101:0 --from=goreleaser-setcap-prebuilt /nginx-ingress /
 # root is required for `setcap` invocation
-USER 0
-RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
-	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
-	&& chown -R 101:0 /*.tmpl \
-	&& chmod -R g=u /*.tmpl
-USER 101
-
-
-############################################# aws-setcap — sets cap_net_bind_service on AWS binary #############################################
-FROM common AS aws-setcap
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# aws — GoReleaser binary for AWS Marketplace #############################################
-FROM common AS aws
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-LABEL org.nginx.kic.image.build.version="aws"
-
-COPY --link --chown=101:0 --from=aws-setcap /nginx-ingress /
-
-
-############################################# aws-setcap-prebuilt — sets cap_net_bind_service on AWS binary (prebuilt) #############################################
-FROM ${PREBUILT_BASE_IMG} AS aws-setcap-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# aws-prebuilt — AWS Marketplace binary into pre-downloaded base image #############################################
-FROM ${PREBUILT_BASE_IMG} AS aws-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-ARG BUILD_OS
-
-LABEL org.nginx.kic.image.build.version="aws"
-
-COPY --link --chown=101:0 --from=aws-setcap-prebuilt /nginx-ingress /
 USER 0
 RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
 	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \

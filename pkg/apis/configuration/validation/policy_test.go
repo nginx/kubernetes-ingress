@@ -1,6 +1,9 @@
 package validation
 
 import (
+	"fmt"
+	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -4602,6 +4605,15 @@ func TestValidateExternalAuth_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "authSigninRedirectBasePath with valid path should pass",
 		},
+		{
+			name: "valid authResponseHeaders",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:             "/auth",
+				AuthServiceName:     "auth-svc",
+				AuthResponseHeaders: []string{"Tenant-UUID", "X-Session-ID"},
+			},
+			msg: "authResponseHeaders with valid header names should pass",
+		},
 	}
 
 	for _, test := range tests {
@@ -4775,6 +4787,16 @@ func TestValidateExternalAuth_FailsOnInvalidInput(t *testing.T) {
 			msg:      "authSigninRedirectBasePath with curly braces should fail",
 			errCount: 1,
 		},
+		{
+			name: "authResponseHeaders with a reserved name",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:             "/auth",
+				AuthServiceName:     "auth-svc",
+				AuthResponseHeaders: []string{"Host"},
+			},
+			msg:      "authResponseHeaders with a header managed by NGINX should fail",
+			errCount: 1,
+		},
 	}
 
 	for _, test := range tests {
@@ -4788,6 +4810,94 @@ func TestValidateExternalAuth_FailsOnInvalidInput(t *testing.T) {
 			} else if test.errCount > 0 && len(allErrs) != test.errCount {
 				t.Errorf("validateExternalAuth() returned %d errors, expected %d errors for the case of %v. Errors: %v", len(allErrs), test.errCount, test.msg, allErrs)
 			}
+		})
+	}
+}
+
+// TestValidateAuthResponseHeaders covers the scenario "Invalid lists are rejected" of the ExternalAuth
+// response headers design: Go validation rejects the same lists as the CRD schema.
+func TestValidateAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	fieldPath := field.NewPath("spec", "externalAuth", "authResponseHeaders")
+	longest := "X-" + strings.Repeat("a", maxAuthResponseHeaderNameLength-2)
+	distinct := func(count, length int) []string {
+		names := make([]string, count)
+		for i := range names {
+			prefix := fmt.Sprintf("X-%02d-", i)
+			names[i] = prefix + strings.Repeat("a", length-len(prefix))
+		}
+		return names
+	}
+
+	accepted := []struct {
+		name    string
+		headers []string
+	}{
+		{name: "nil list", headers: nil},
+		{name: "empty list", headers: []string{}},
+		{name: "one name", headers: []string{"X-User"}},
+		{name: "names that other configuration also sets", headers: []string{"Authorization", "Cookie"}},
+		{name: "names in any letter case", headers: []string{"tenant-uuid", "X-Session-ID"}},
+		{name: "one 46-character name", headers: []string{longest}},
+		{name: "32 distinct 46-character names", headers: distinct(maxAuthResponseHeaders, maxAuthResponseHeaderNameLength)},
+	}
+	for _, tc := range accepted {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if errs := validateAuthResponseHeaders(tc.headers, fieldPath); len(errs) > 0 {
+				t.Errorf("validateAuthResponseHeaders(%q) returned %v, want no errors", tc.headers, errs)
+			}
+		})
+	}
+
+	rejected := []struct {
+		name    string
+		headers []string
+		errType field.ErrorType
+		path    string
+	}{
+		{name: "an empty name", headers: []string{""}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with _", headers: []string{"X_User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with a space", headers: []string{"X User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with :", headers: []string{"X:User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with $", headers: []string{"X$User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with ;", headers: []string{"X;User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with {", headers: []string{"X{User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with }", headers: []string{"X}User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with a line break", headers: []string{"X\nUser"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with a backtick", headers: []string{"X`User"}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a name with a quote", headers: []string{`X"User`}, errType: field.ErrorTypeInvalid, path: fieldPath.Index(0).String()},
+		{name: "a 47-character name", headers: []string{longest + "a"}, errType: field.ErrorTypeTooLong, path: fieldPath.Index(0).String()},
+		{name: "33 names", headers: distinct(maxAuthResponseHeaders+1, 10), errType: field.ErrorTypeTooMany, path: fieldPath.String()},
+		{name: "names that differ only in case", headers: []string{"X-User", "x-user"}, errType: field.ErrorTypeDuplicate, path: fieldPath.Index(1).String()},
+	}
+	reserved := make([]string, 0, len(reservedAuthResponseHeaders))
+	for name := range reservedAuthResponseHeaders {
+		reserved = append(reserved, name)
+	}
+	slices.Sort(reserved)
+	for _, name := range reserved {
+		for _, spelling := range []string{strings.ToUpper(name), http.CanonicalHeaderKey(name)} {
+			rejected = append(rejected, struct {
+				name    string
+				headers []string
+				errType field.ErrorType
+				path    string
+			}{name: "reserved name " + spelling, headers: []string{spelling}, errType: field.ErrorTypeForbidden, path: fieldPath.Index(0).String()})
+		}
+	}
+
+	for _, tc := range rejected {
+		t.Run("Invalid lists are rejected: "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			errs := validateAuthResponseHeaders(tc.headers, fieldPath)
+			for _, err := range errs {
+				if err.Type == tc.errType && err.Field == tc.path {
+					return
+				}
+			}
+			t.Errorf("validateAuthResponseHeaders(%q) returned %v, want a %s error at %s", tc.headers, errs, tc.errType, tc.path)
 		})
 	}
 }

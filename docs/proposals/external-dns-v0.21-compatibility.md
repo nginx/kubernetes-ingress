@@ -125,7 +125,7 @@ Operator-visible caveats. The example `examples/custom-resources/external-dns/RE
 - ✅ `go build ./...`
 - ✅ `go test` — scoped to `internal/externaldns/…`, `internal/k8s/…`, `cmd/…`
 - ✅ Helm unit tests — 37 snapshots pass; 1 pre-existing `startupStatusInvalid` failure is unrelated (schema message wording changed upstream)
-- ✅ Full `make test` (`go test -tags=aws,helmunit -shuffle=on ./...`) after rebase onto `main`
+- ✅ Full `make test` (`go test -tags=helmunit -shuffle=on ./...`) after rebase onto `main`
 - ✅ Staged cut-over validated end-to-end on a live GCP Cloud DNS zone with `--policy=sync`, external-dns v0.20.0 → v0.23.0: no records added, changed, or deleted at any step. Also confirmed in reverse — v0.20.0 reads `externaldns.k8s.io/v1alpha1` without complaint, which is what makes the staged sequence possible.
 - ⏳ `make lint`
 - ⏳ Manual `helm template` sanity check for both toggle values
