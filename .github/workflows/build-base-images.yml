@@ -20,8 +20,8 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (github.event_name != 'schedule' || github.repository == 'nginx/kubernetes-ingress')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
     outputs:
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
       ic_version: ${{ steps.vars.outputs.ic_version }}
@@ -45,8 +45,8 @@ jobs:
 
   build-oss:
     name: Build OSS base images
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
     needs: checks
     permissions:
       contents: read
@@ -67,29 +67,21 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
       - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        uses: ./.github/actions/vault-gcr-login
         with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+
+      # Only staging (pkgs-test.nginx.com) needs the certificate for OSS packages.
+      - name: Setup NGINX package secrets
+        if: ${{ vars.OSS_REPO != 'packages.nginx.org' }}
+        uses: ./.github/actions/nginx-pkg-secrets
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
 
       - name: Docker meta
         id: meta
@@ -118,11 +110,19 @@ jobs:
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
             OSS_PACKAGE_REPO=${{ vars.OSS_REPO }}
+          secret-files: |
+            ${{ vars.OSS_REPO != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ vars.OSS_REPO != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key
+        if: always()
 
   build-plus:
     name: Build Plus base images
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
     needs: checks
     permissions:
       contents: read
@@ -135,28 +135,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup NIC secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: Login to GCR
+        uses: ./.github/actions/vault-gcr-login
         with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
-      - name: Setup Common secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: Setup NGINX package secrets
+        uses: ./.github/actions/nginx-pkg-secrets
         with:
-          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-pkg-certificate, nginx-pkg-key"
-          env-names: "PLUS_CERT, PLUS_KEY"
-
-      - name: Write secrets
-        run: |
-          echo "$PLUS_CERT" > nginx-repo.crt
-          echo "$PLUS_KEY" > nginx-repo.key
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -165,21 +156,6 @@ jobs:
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
 
       - name: Docker meta
         id: meta
@@ -219,8 +195,8 @@ jobs:
 
   build-plus-nap:
     name: Build Plus NAP base images
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
     needs: checks
     permissions:
       contents: read
@@ -233,46 +209,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup NIC secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: Login to GCR
+        uses: ./.github/actions/vault-gcr-login
         with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
-      - name: Setup Common secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: Setup NGINX package secrets
+        uses: ./.github/actions/nginx-pkg-secrets
         with:
-          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-pkg-certificate, nginx-pkg-key"
-          env-names: "PLUS_CERT, PLUS_KEY"
-
-      - name: Write secrets
-        run: |
-          echo "$PLUS_CERT" > nginx-repo.crt
-          echo "$PLUS_KEY" > nginx-repo.key
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
 
       - name: NAP modules
         id: nap_modules
