@@ -1,0 +1,11 @@
+controller:
+  kind: deployment
+  readOnlyRootFilesystem: true
+  readOnlyRootFilesystemVolumes:
+    cache:
+      sizeLimit: 1Gi
+    log:
+      sizeLimit: 500Mi
+    state:
+      medium: Memory
+      sizeLimit: 10Mi
