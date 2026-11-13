@@ -5,10 +5,13 @@ metadata:
 spec:
   externalAuth:
     authURI: "/oauth2/auth"
-    authSigninURI: "/oauth2/signin"
+    authSigninURI: "/oauth2/start?rd=/coffee"
     authServiceName: "default/oauth2-proxy-svc"
     sslEnabled: true
     sslVerify: true
     sslVerifyDepth: 2
     sniName: "external-auth-tls"
     trustedCertSecret: "external-auth-ca-secret"
+    authResponseHeaders:
+    - X-Auth-Request-User
+    - X-Auth-Request-Email
