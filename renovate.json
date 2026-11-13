@@ -39,6 +39,23 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Direct deps in requirements.in are unpinned, so Renovate only sees a locked version from the lock file. 'update-lockfile' makes it bump that lock entry (via --upgrade-package) instead of looking for a range to rewrite.",
+      "matchManagers": [
+        "pip-compile"
+      ],
+      "rangeStrategy": "update-lockfile"
+    },
+    {
+      "description": "pip-compile leaves transitive (indirect) deps disabled by default; enable them so lock files keep updating on every run. They are re-resolved with uv/pip-compile, so hashes are always regenerated in full.",
+      "matchManagers": [
+        "pip-compile"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "enabled": true
+    },
+    {
       "addLabels": [
         "javascript"
       ],
@@ -506,6 +523,14 @@
     "yarnDedupeHighest",
     "npmDedupe"
   ],
+  "pip-compile": {
+    "managerFilePatterns": [
+      "/(^|/)requirements\\.txt$/"
+    ]
+  },
+  "pip_requirements": {
+    "enabled": false
+  },
   "pre-commit": {
     "enabled": true
   },
