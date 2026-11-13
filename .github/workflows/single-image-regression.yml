@@ -65,8 +65,8 @@ permissions:
 jobs:
   checks:
     name: Run regression
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
       id-token: write
@@ -74,6 +74,12 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve CI vars
+        id: ci-vars
+        uses: ./.github/actions/setup-ci-vars
+        with:
+          test-runner-registry: ${{ vars.TEST_RUNNER_REGISTRY }}
 
       - name: Setup NIC secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
@@ -109,6 +115,7 @@ jobs:
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: Login to GHCR
+        if: ${{ github.repository == 'nginx/kubernetes-ingress' }}
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
@@ -122,7 +129,7 @@ jobs:
       - name: Check if test image exists
         id: check-image
         run: |
-          docker manifest inspect "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+          docker manifest inspect "${{ steps.ci-vars.outputs.test_runner_image }}"
         shell: bash
         continue-on-error: true
 
@@ -132,7 +139,7 @@ jobs:
           file: tests/Dockerfile
           context: "."
           cache-from: type=gha,scope=test-runner
-          tags: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+          tags: "${{ steps.ci-vars.outputs.test_runner_image }}"
           pull: true
           push: false
           load: true
@@ -152,5 +159,5 @@ jobs:
           label: "${{ inputs.image }} regression"
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
-          test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
+          test-image: "${{ steps.ci-vars.outputs.test_runner_image }}"
           plus-jwt: ${{ env.PLUS_JWT }}
