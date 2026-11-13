@@ -5371,3 +5371,483 @@ func TestGenerateVirtualServerConfig_EarlierInvalidPolicyStopsSecretCollection(t
 		})
 	}
 }
+
+// authResponseHeadersUpstreams are the upstreams of the auth response headers VirtualServer tests.
+func authResponseHeadersUpstreams() []conf_v1.Upstream {
+	return []conf_v1.Upstream{
+		{Name: "tea", Service: "tea-svc", Port: 80},
+		{Name: "coffee", Service: "coffee-svc", Port: 80},
+	}
+}
+
+// newAuthResponseHeadersVSEx returns a VirtualServer cafe with the spec, VirtualServerRoutes, and Policies, and the
+// endpoints of every service the auth response headers tests use.
+func newAuthResponseHeadersVSEx(spec conf_v1.VirtualServerSpec, vsrs []*conf_v1.VirtualServerRoute, policies ...*conf_v1.Policy) *VirtualServerEx {
+	spec.Host = "cafe.example.com"
+	if spec.Upstreams == nil {
+		spec.Upstreams = authResponseHeadersUpstreams()
+	}
+	vsEx := &VirtualServerEx{
+		VirtualServer:       &conf_v1.VirtualServer{ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"}, Spec: spec},
+		VirtualServerRoutes: vsrs,
+		Policies:            map[string]*conf_v1.Policy{},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80":     {"10.0.0.20:80"},
+			"default/coffee-svc:80":  {"10.0.0.30:80"},
+			"default/grpc-svc:50051": {"10.0.0.50:50051"},
+			"default/auth-svc:80":    {"10.0.0.40:80"},
+		},
+	}
+	for _, p := range policies {
+		vsEx.Policies["default/"+p.Name] = p
+	}
+	return vsEx
+}
+
+// vsAuthResponseHeadersByPath returns, for each location that forwards a list, the Policy and the names.
+func vsAuthResponseHeadersByPath(locations []version2.Location) map[string]string {
+	got := map[string]string{}
+	for _, loc := range locations {
+		if loc.AuthResponseHeaders != nil {
+			got[loc.Path] = describeAuthResponseHeaders(loc.AuthResponseHeaders)
+		}
+	}
+	return got
+}
+
+// vsStrippedAuthResponseHeadersByPath returns, for each location that strips client copies, the names, or nil when no
+// location strips any.
+func vsStrippedAuthResponseHeadersByPath(locations []version2.Location) map[string]string {
+	var got map[string]string
+	for _, loc := range locations {
+		if len(loc.StrippedAuthResponseHeaders) == 0 {
+			continue
+		}
+		if got == nil {
+			got = map[string]string{}
+		}
+		got[loc.Path] = strings.Join(loc.StrippedAuthResponseHeaders, ", ")
+	}
+	return got
+}
+
+// TestGenerateVirtualServerConfigAuthResponseHeaders covers the VirtualServer and VirtualServerRoute scenarios of the
+// ExternalAuth response headers design: which locations forward which Policy's list, and the requestHeaders.set
+// entries that the forwarded headers replace.
+func TestGenerateVirtualServerConfigAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	extAuthPolicy := func(name, uri string, headers ...string) *conf_v1.Policy {
+		return &conf_v1.Policy{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{AuthURI: uri, AuthServiceName: "auth-svc", AuthResponseHeaders: headers},
+			},
+		}
+	}
+	withSignin := func(p *conf_v1.Policy) *conf_v1.Policy {
+		p.Spec.ExternalAuth.AuthSigninURI = "/oauth2/signin"
+		return p
+	}
+	withTLS := func(p *conf_v1.Policy) *conf_v1.Policy {
+		p.Spec.ExternalAuth.SSLEnabled = true
+		p.Spec.ExternalAuth.SSLVerify = true
+		return p
+	}
+	refs := func(name string) []conf_v1.PolicyReference {
+		return []conf_v1.PolicyReference{{Name: name, Namespace: "default"}}
+	}
+	newVSR := func(subroutes ...conf_v1.Route) []*conf_v1.VirtualServerRoute {
+		return []*conf_v1.VirtualServerRoute{{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "tea-vsr", Namespace: "default"},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				Host: "cafe.example.com", Upstreams: authResponseHeadersUpstreams(), Subroutes: subroutes,
+			},
+		}}
+	}
+	pass := func(upstream string) *conf_v1.Action { return &conf_v1.Action{Pass: upstream} }
+	setUserUUID := func(upstream string) *conf_v1.Action {
+		return &conf_v1.Action{Proxy: &conf_v1.ActionProxy{
+			Upstream: upstream,
+			RequestHeaders: &conf_v1.ProxyRequestHeaders{Set: []conf_v1.Header{
+				{Name: "user-uuid", Value: "anonymous"},
+				{Name: "X-Other", Value: "1"},
+			}},
+		}}
+	}
+	teaRoute := []conf_v1.Route{{Path: "/tea", Action: pass("tea")}}
+	delegated := func(policies []conf_v1.PolicyReference) []conf_v1.Route {
+		return []conf_v1.Route{{Path: "/tea", Route: "default/tea-vsr", Policies: policies}}
+	}
+
+	const (
+		p     = "default/p: Tenant-UUID, User-UUID"
+		pUser = "default/p: User-UUID"
+	)
+	replacedUserUUID := "Header user-uuid in requestHeaders.set is replaced by the auth response header of ExternalAuth policy default/p"
+
+	tests := []struct {
+		name  string
+		vsEx  *VirtualServerEx
+		http2 bool
+		// want holds every location that forwards a list, by path.
+		want map[string]string
+		// wantStripped holds the names whose client copies each location removes, by path.
+		wantStripped map[string]string
+		// wantHeaderNames holds the requestHeaders.set names that remain in a location, by path.
+		wantHeaderNames map[string][]string
+		grpcPath        string
+		wantVSWarnings  []string
+		wantVSRWarnings []string
+	}{
+		{
+			name: "Every generated location forwards: spec Policy on a route without policies",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Policies: refs("p"), Routes: teaRoute}, nil,
+				extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/tea": p},
+		},
+		{
+			name: "The closer Policy wins: route ExternalAuth without a list",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Policies: refs("p"),
+				Routes:   []conf_v1.Route{{Path: "/tea", Action: pass("tea"), Policies: refs("q")}},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID"), extAuthPolicy("q", "/auth2")),
+			want:         map[string]string{},
+			wantStripped: map[string]string{"/tea": "Tenant-UUID, User-UUID"},
+		},
+		{
+			name: "The closer Policy wins: route Policy lists only X-Session-ID",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Policies: refs("p"),
+				Routes:   []conf_v1.Route{{Path: "/tea", Action: pass("tea"), Policies: refs("q")}},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "X-Session-ID"), extAuthPolicy("q", "/auth2", "X-Session-ID")),
+			want:         map[string]string{"/tea": "default/q: X-Session-ID"},
+			wantStripped: map[string]string{"/tea": "Tenant-UUID"},
+		},
+		{
+			name: "Client copies are removed: a route without policies next to a route Policy",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{
+					{Path: "/coffee", Action: pass("coffee"), Policies: refs("p")},
+					{Path: "/tea", Action: pass("tea")},
+				},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want:         map[string]string{"/coffee": p},
+			wantStripped: map[string]string{"/tea": "Tenant-UUID, User-UUID"},
+		},
+		{
+			name: "Client copies are removed: requestHeaders.set keeps its value where nothing is forwarded",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{
+					{Path: "/coffee", Action: pass("coffee"), Policies: refs("p")},
+					{Path: "/tea", Action: setUserUUID("tea")},
+				},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want:            map[string]string{"/coffee": p},
+			wantStripped:    map[string]string{"/tea": "Tenant-UUID"},
+			wantHeaderNames: map[string][]string{"/tea": {"user-uuid", "X-Other", "Host"}},
+		},
+		{
+			name: "Client copies are removed: a route Policy on the spec Policy's auth path forwards nothing",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Policies: refs("p"),
+				Routes:   []conf_v1.Route{{Path: "/tea", Action: pass("tea"), Policies: refs("q")}},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID"), extAuthPolicy("q", "/auth", "X-Session-ID")),
+			want:         map[string]string{},
+			wantStripped: map[string]string{"/tea": "Tenant-UUID, User-UUID, X-Session-ID"},
+		},
+		{
+			name: "Client copies are removed: a VirtualServerRoute subroute Policy on a route Policy's auth path forwards nothing",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Routes: append([]conf_v1.Route{{Path: "/coffee", Action: pass("coffee"), Policies: refs("p")}}, delegated(nil)...),
+			}, newVSR(conf_v1.Route{Path: "/tea/green", Action: pass("tea"), Policies: refs("q")}),
+				extAuthPolicy("p", "/auth", "Tenant-UUID"), extAuthPolicy("q", "/auth", "User-UUID")),
+			want:         map[string]string{"/coffee": "default/p: Tenant-UUID"},
+			wantStripped: map[string]string{"/coffee": "User-UUID", "/tea/green": "Tenant-UUID, User-UUID"},
+		},
+		{
+			name: "Every generated location forwards: one Policy on two routes forwards on both",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{
+					{Path: "/coffee", Action: pass("coffee"), Policies: refs("p")},
+					{Path: "/tea", Action: pass("tea"), Policies: refs("p")},
+				},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/coffee": p, "/tea": p},
+		},
+		{
+			name: "Every generated location forwards: the spec Policy on a VirtualServerRoute subroute forwards",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Policies: refs("p"), Routes: delegated(nil)},
+				newVSR(conf_v1.Route{Path: "/tea/green", Action: pass("tea"), Policies: refs("p")}),
+				extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/tea/green": p},
+		},
+		{
+			name: "Every generated location forwards: two splits",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{{Path: "/tea", Policies: refs("p"), Splits: []conf_v1.Split{
+					{Weight: 50, Action: pass("tea")},
+					{Weight: 50, Action: pass("coffee")},
+				}}},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/internal_location_splits_0_split_0": p, "/internal_location_splits_0_split_1": p},
+		},
+		{
+			name: "Every generated location forwards: matches and a default action",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{{
+					Path: "/tea", Policies: refs("p"), Action: pass("tea"),
+					Matches: []conf_v1.Match{{
+						Conditions: []conf_v1.Condition{{Header: "x-version", Value: "v2"}},
+						Action:     pass("coffee"),
+					}},
+				}},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/internal_location_matches_0_match_0": p, "/internal_location_matches_0_default": p},
+		},
+		{
+			name: "Every generated location forwards: VirtualServerRoute subroutes without policies",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Routes: delegated(refs("p"))},
+				newVSR(conf_v1.Route{Path: "/tea/green", Action: pass("tea")}),
+				extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/tea/green": p},
+		},
+		{
+			name: "Every attachment point forwards: VirtualServerRoute subroute",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Routes: delegated(nil)},
+				newVSR(conf_v1.Route{Path: "/tea/green", Action: pass("tea"), Policies: refs("p")}),
+				extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/tea/green": p},
+		},
+		{
+			name: "gRPC backends",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Upstreams: []conf_v1.Upstream{{Name: "grpc", Service: "grpc-svc", Port: 50051, Type: "grpc"}},
+				Routes:    []conf_v1.Route{{Path: "/helloworld.Greeter", Action: pass("grpc"), Policies: refs("p")}},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			http2:    true,
+			want:     map[string]string{"/helloworld.Greeter": p},
+			grpcPath: "/helloworld.Greeter",
+		},
+		{
+			name: "Configured values are replaced, with one warning: two splits",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Policies: refs("p"),
+				Routes: []conf_v1.Route{{Path: "/tea", Splits: []conf_v1.Split{
+					{Weight: 50, Action: setUserUUID("tea")},
+					{Weight: 50, Action: setUserUUID("coffee")},
+				}}},
+			}, nil, extAuthPolicy("p", "/auth", "User-UUID")),
+			want: map[string]string{"/internal_location_splits_0_split_0": pUser, "/internal_location_splits_0_split_1": pUser},
+			wantHeaderNames: map[string][]string{
+				"/internal_location_splits_0_split_0": {"X-Other", "Host"},
+				"/internal_location_splits_0_split_1": {"X-Other", "Host"},
+			},
+			wantVSWarnings: []string{replacedUserUUID},
+		},
+		{
+			name: "Configured values are replaced, with one warning: VirtualServerRoute subroute",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Policies: refs("p"), Routes: delegated(nil)},
+				newVSR(conf_v1.Route{Path: "/tea/green", Action: setUserUUID("tea")}),
+				extAuthPolicy("p", "/auth", "User-UUID")),
+			want:            map[string]string{"/tea/green": pUser},
+			wantHeaderNames: map[string][]string{"/tea/green": {"X-Other", "Host"}},
+			wantVSRWarnings: []string{replacedUserUUID},
+		},
+		{
+			name: "Non-backend locations forward nothing: OAuth2 sign-in location",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Policies: refs("p"), Routes: teaRoute}, nil,
+				withSignin(extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))),
+			want: map[string]string{"/tea": p},
+		},
+		{
+			name: "Non-backend locations forward nothing: redirect and return actions",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{
+				Policies: refs("p"),
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: pass("tea")},
+					{Path: "/old", Action: &conf_v1.Action{Redirect: &conf_v1.ActionRedirect{URL: "http://example.com/new", Code: 301}}},
+					{Path: "/hello", Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "hello", Code: 200}}},
+				},
+			}, nil, extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID")),
+			want: map[string]string{"/tea": p},
+		},
+		{
+			name: "Every generated location forwards: sslEnabled and sslVerify",
+			vsEx: newAuthResponseHeadersVSEx(conf_v1.VirtualServerSpec{Policies: refs("p"), Routes: teaRoute}, nil,
+				withTLS(extAuthPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))),
+			want: map[string]string{"/tea": p},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfgParams := baseCfgParams
+			cfgParams.HTTP2 = tc.http2
+			vsc := newVirtualServerConfigurator(&cfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+			cfg, warnings := vsc.GenerateVirtualServerConfig(tc.vsEx, nil, nil)
+
+			if diff := cmp.Diff(tc.want, vsAuthResponseHeadersByPath(cfg.Server.Locations)); diff != "" {
+				t.Errorf("forwarding locations mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantStripped, vsStrippedAuthResponseHeadersByPath(cfg.Server.Locations)); diff != "" {
+				t.Errorf("stripping locations mismatch (-want +got):\n%s", diff)
+			}
+
+			locations := map[string]version2.Location{}
+			for _, loc := range cfg.Server.Locations {
+				locations[loc.Path] = loc
+			}
+			for path, want := range tc.wantHeaderNames {
+				if diff := cmp.Diff(want, headerNames(locations[path].ProxySetHeaders)); diff != "" {
+					t.Errorf("ProxySetHeaders of %s mismatch (-want +got):\n%s", path, diff)
+				}
+			}
+			if tc.grpcPath != "" && locations[tc.grpcPath].GRPCPass == "" {
+				t.Errorf("location %s does not pass to a gRPC upstream", tc.grpcPath)
+			}
+
+			if diff := cmp.Diff(tc.wantVSWarnings, authResponseHeaderWarnings(warnings, tc.vsEx.VirtualServer)); diff != "" {
+				t.Errorf("VirtualServer warnings mismatch (-want +got):\n%s", diff)
+			}
+			for _, vsr := range tc.vsEx.VirtualServerRoutes {
+				if diff := cmp.Diff(tc.wantVSRWarnings, authResponseHeaderWarnings(warnings, vsr)); diff != "" {
+					t.Errorf("VirtualServerRoute warnings mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+// TestResolveAuthResponseHeaders covers what is hard to set up through Policies: locations that forward nothing,
+// another auth_request, the legacy OIDC headers, and the owner of a warning.
+func TestResolveAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	serverList := &version2.ExternalAuth{
+		ResponseHeaders: newAuthResponseHeaders("default/p", []string{"username", "Authorization", "Tenant-UUID"}),
+	}
+	ownQ := func(uri string) *version2.ExternalAuth {
+		return &version2.ExternalAuth{
+			URI:             &version2.AuthURI{Path: uri, InternalPath: "/_external_auth" + uri},
+			ResponseHeaders: newAuthResponseHeaders("default/q", []string{"X-Session-ID"}),
+		}
+	}
+	replacedByOIDC := func(name string) string {
+		return "Header " + name + " set by OIDC policy default/oidc is replaced by the auth response header of ExternalAuth policy default/p"
+	}
+
+	tests := []struct {
+		name          string
+		loc           version2.Location
+		server        *version2.ExternalAuth
+		oidc          *version2.OIDC
+		authLocations map[string]string
+		wantForwarded bool
+		wantStripped  []string
+		wantWarnings  []string
+	}{
+		{
+			name:   "Non-backend locations forward nothing: internal auth location",
+			loc:    version2.Location{DisableWAF: true, ProxyPass: "http://auth"},
+			server: serverList,
+		},
+		{
+			name:   "Non-backend locations forward nothing: OAuth2 sign-in location",
+			loc:    version2.Location{AuthRequestOff: true, ProxyPass: "http://signin"},
+			server: serverList,
+		},
+		{
+			name:   "Non-backend locations forward nothing: ACME challenge location",
+			loc:    version2.Location{ACMEChallenge: true, ProxyPass: "http://challenge"},
+			server: serverList,
+		},
+		{
+			name:   "Non-backend locations forward nothing: redirect or return location",
+			loc:    version2.Location{InternalProxyPass: "http://unix:/var/lib/nginx/nginx-418-server.sock"},
+			server: serverList,
+		},
+		{
+			name:         "APIKey on a route",
+			loc:          version2.Location{ProxyPass: "http://tea", APIKey: &version2.APIKey{}},
+			server:       serverList,
+			wantStripped: []string{"Authorization", "Tenant-UUID", "username"},
+		},
+		{
+			name:          "Legacy OIDC headers are replaced: username",
+			loc:           version2.Location{ProxyPass: "http://tea", OIDC: true},
+			server:        serverList,
+			oidc:          &version2.OIDC{PolicyName: "default/oidc"},
+			wantForwarded: true,
+			wantWarnings:  []string{replacedByOIDC("username")},
+		},
+		{
+			name:          "Legacy OIDC headers are replaced: username and Authorization with accessTokenEnable",
+			loc:           version2.Location{ProxyPass: "http://tea", OIDC: true},
+			server:        serverList,
+			oidc:          &version2.OIDC{PolicyName: "default/oidc", AccessTokenEnable: true},
+			wantForwarded: true,
+			wantWarnings:  []string{replacedByOIDC("username"), replacedByOIDC("Authorization")},
+		},
+		{
+			name: "Configured values are replaced, with one warning: unknown VirtualServerRoute",
+			loc: version2.Location{
+				ProxyPass: "http://tea", IsVSR: true, VSRNamespace: "default", VSRName: "missing",
+				ProxySetHeaders: []version2.Header{{Name: "tenant-uuid", Value: "spoofed"}},
+			},
+			server:        serverList,
+			wantForwarded: true,
+			wantWarnings: []string{
+				"Header tenant-uuid in requestHeaders.set is replaced by the auth response header of ExternalAuth policy default/p",
+			},
+		},
+		{
+			name: "Every generated location forwards: a stale list is reset",
+			loc: version2.Location{
+				ProxyPass:                   "http://tea",
+				AuthResponseHeaders:         newAuthResponseHeaders("default/old", []string{"X-Old"}),
+				StrippedAuthResponseHeaders: []string{"X-Old"},
+			},
+		},
+		{
+			name:          "Client copies are removed: legacy OIDC keeps the headers it sets",
+			loc:           version2.Location{ProxyPass: "http://tea", OIDC: true, ExternalAuth: ownQ("/auth2")},
+			server:        serverList,
+			oidc:          &version2.OIDC{PolicyName: "default/oidc", AccessTokenEnable: true},
+			authLocations: map[string]string{"/_external_auth/auth2": "default/q"},
+			wantForwarded: true,
+			wantStripped:  []string{"Tenant-UUID"},
+		},
+		{
+			name:          "Client copies are removed: an auth location generated for another Policy",
+			loc:           version2.Location{ProxyPass: "http://tea", ExternalAuth: ownQ("/auth")},
+			server:        serverList,
+			authLocations: map[string]string{"/_external_auth/auth": "default/p"},
+			wantStripped:  []string{"Authorization", "Tenant-UUID", "username", "X-Session-ID"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vs := &conf_v1.VirtualServer{ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"}}
+			vsc := &virtualServerConfigurator{warnings: newWarnings()}
+			locations := []version2.Location{tc.loc}
+
+			vsc.resolveAuthResponseHeaders(&VirtualServerEx{VirtualServer: vs}, tc.server, tc.oidc, locations, tc.authLocations)
+
+			if got := locations[0].AuthResponseHeaders != nil; got != tc.wantForwarded {
+				t.Errorf("location forwards a list: got %v, want %v", got, tc.wantForwarded)
+			}
+			if diff := cmp.Diff(tc.wantStripped, locations[0].StrippedAuthResponseHeaders); diff != "" {
+				t.Errorf("stripped names mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantWarnings, vsc.warnings[vs]); diff != "" {
+				t.Errorf("warnings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

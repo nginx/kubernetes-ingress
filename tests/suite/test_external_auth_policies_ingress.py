@@ -5,17 +5,21 @@ import requests
 from kubernetes.client.rest import ApiException
 from settings import TEST_DATA
 from suite.utils.external_auth_utils import (
+    RETURNED_HEADERS,
     build_ext_auth_headers,
     ext_auth_backend_src,
     ext_auth_pol_custom_port_src,
     ext_auth_pol_invalid_src,
     ext_auth_pol_invalid_svc_src,
+    ext_auth_pol_response_headers_src,
     ext_auth_pol_signin_src,
     ext_auth_pol_valid_multi_src,
     ext_auth_pol_valid_src,
     invalid_credentials,
+    lines_named,
     valid_auth_headers,
     valid_credentials,
+    wait_and_request_lines,
 )
 from suite.utils.policy_resources_utils import (
     create_policy_from_yaml,
@@ -47,6 +51,11 @@ ext_auth_ing_mergeable_invalid_svc_src = (
 )
 ext_auth_ing_minion_policy_src = f"{TEST_DATA}/external-auth/ingress/minion-policy/ext-auth-ingress.yaml"
 ext_auth_ing_mergeable_override_src = f"{TEST_DATA}/external-auth/ingress/mergeable-override/ext-auth-ingress.yaml"
+
+ext_auth_ing_response_headers_src = f"{TEST_DATA}/external-auth/ingress/standard-response-headers/ext-auth-ingress.yaml"
+ext_auth_ing_response_headers_minion_src = (
+    f"{TEST_DATA}/external-auth/ingress/mergeable-response-headers-minion/ext-auth-ingress.yaml"
+)
 
 
 @pytest.mark.policies
@@ -542,3 +551,22 @@ class TestExternalAuthPoliciesIngress:
 
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
+
+    # authResponseHeaders acceptance scenarios (docs/developer/external-auth-response-headers-high-level-design.md)
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    @pytest.mark.parametrize(
+        "ext_auth_ingress",
+        [
+            pytest.param(ext_auth_ing_response_headers_src, id="standard"),
+            pytest.param(ext_auth_ing_response_headers_minion_src, id="mergeable-minion"),
+        ],
+        indirect=True,
+    )
+    def test_every_attachment_point_forwards(
+        self, crd_ingress_controller, ext_auth_setup, headers_echo_backend, ext_auth_ingress
+    ):
+        """The backend receives one line for each listed header that the auth service returned, as P spells it."""
+        lines = wait_and_request_lines(ext_auth_ingress.request_url, ext_auth_ingress.ingress_host)
+        for name, value in RETURNED_HEADERS:
+            assert lines_named(lines, name) == [(name, value)]

@@ -3,6 +3,7 @@ package version2
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
@@ -262,6 +263,7 @@ type Location struct {
 	OIDCProviderName           string
 	AuthRequestOff             bool
 	ExternalAuth               *ExternalAuth
+	AuthResponseHeaders        *AuthResponseHeaders // set only by the resolution pass
 	BasicAuth                  *BasicAuth
 	EgressMTLS                 *EgressMTLS
 	HSTS                       *HSTS
@@ -288,6 +290,9 @@ type Location struct {
 	ACMEChallenge bool
 	// JWTRequireReset clears an inherited auth_jwt_require, which has no "off" value.
 	JWTRequireReset string
+	// StrippedAuthResponseHeaders are the names that an ExternalAuth Policy of the server lists but the location
+	// does not forward. The location removes the client's copies. Set only by the resolution pass.
+	StrippedAuthResponseHeaders []string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -588,6 +593,8 @@ type ExternalAuth struct {
 	SSLVerifyDepth         int
 	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
 	SNIName                string // Server name for SNI and certificate verification
+	// ResponseHeaders is nil when the Policy lists no headers.
+	ResponseHeaders *AuthResponseHeaders
 }
 
 // HSTS defines HTTP Strict Transport Security configuration.
@@ -605,6 +612,36 @@ type AuthURI struct {
 	Port         string
 	Path         string
 	InternalPath string
+}
+
+// AuthResponseHeader is a header that NGINX copies from the auth response to the backend request.
+type AuthResponseHeader struct {
+	// Name is the header name as the Policy spells it, for example X-Session-ID.
+	Name string
+	// Variable holds the captured value, for example $auth_resp_x_session_id.
+	Variable string
+	// Source reads the header from the auth response, for example $upstream_http_x_session_id.
+	Source string
+}
+
+// AuthResponseHeaders are the response headers that one ExternalAuth Policy forwards.
+type AuthResponseHeaders struct {
+	// Policy is the namespace/name of the Policy, for warnings.
+	Policy  string
+	Headers []AuthResponseHeader
+}
+
+// Has reports whether the list contains name, ignoring case. A nil list contains nothing.
+func (a *AuthResponseHeaders) Has(name string) bool {
+	if a == nil {
+		return false
+	}
+	for _, h := range a.Headers {
+		if strings.EqualFold(h.Name, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options
