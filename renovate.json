@@ -328,9 +328,10 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows (e.g. the scout-cache action inputs in ci.yml)",
+      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows and composite actions (e.g. the scout-cache action inputs in ci.yml and security-scan)",
       "managerFilePatterns": [
-        "/.github/workflows/.+\\.ya?ml$/"
+        "/.github/workflows/.+\\.ya?ml$/",
+        "/.github/actions/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "version: (?<currentValue>\\S+)\\s+sha: (?<currentDigest>[a-f0-9]{40}) # renovate-digest: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)"
