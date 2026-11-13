@@ -7467,3 +7467,363 @@ func assertUpstreamKeepalive(t *testing.T, label, got, want string) {
 		t.Errorf("%s Keepalive = %q, want %q", label, got, want)
 	}
 }
+
+// ingressAuthResponseHeadersPolicy returns an ExternalAuth Policy for the auth response headers tests.
+func ingressAuthResponseHeadersPolicy(name, uri string, headers ...string) *conf_v1.Policy {
+	return &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: "default"},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				AuthURI:             uri,
+				AuthServiceName:     "auth-svc",
+				AuthServicePorts:    []int{8080},
+				AuthResponseHeaders: headers,
+			},
+		},
+	}
+}
+
+// withIngressPolicies references the Policies from an Ingress, and adds the endpoints of their auth service.
+func withIngressPolicies(ingEx *IngressEx, policies ...*conf_v1.Policy) {
+	if ingEx.Policies == nil {
+		ingEx.Policies = map[string]*conf_v1.Policy{}
+	}
+	names := make([]string, 0, len(policies))
+	for _, p := range policies {
+		ingEx.Policies["default/"+p.Name] = p
+		names = append(names, p.Name)
+	}
+	ingEx.Ingress.Annotations["nginx.org/policies"] = strings.Join(names, ",")
+	ingEx.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+}
+
+// authResponseHeadersByPath returns, for each location of a server that forwards a list, the Policy and the names.
+func authResponseHeadersByPath(server version1.Server) map[string]string {
+	got := map[string]string{}
+	for _, loc := range server.Locations {
+		if loc.AuthResponseHeaders != nil {
+			got[loc.Path] = describeAuthResponseHeaders(loc.AuthResponseHeaders)
+		}
+	}
+	return got
+}
+
+// strippedAuthResponseHeadersByPath returns, for each location of a server that strips client copies, the names, or
+// nil when no location strips any.
+func strippedAuthResponseHeadersByPath(server version1.Server) map[string]string {
+	var got map[string]string
+	for _, loc := range server.Locations {
+		if len(loc.StrippedAuthResponseHeaders) == 0 {
+			continue
+		}
+		if got == nil {
+			got = map[string]string{}
+		}
+		got[loc.Path] = strings.Join(loc.StrippedAuthResponseHeaders, ", ")
+	}
+	return got
+}
+
+// TestGenerateNginxCfgAuthResponseHeaders covers the standard Ingress scenarios of the ExternalAuth response headers
+// design.
+func TestGenerateNginxCfgAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	const p = "default/p: Tenant-UUID, User-UUID"
+	replacedUserUUID := "Header user-uuid in annotation nginx.org/proxy-set-headers is replaced by the auth response header of ExternalAuth policy default/p"
+
+	withSecondHost := func(ingEx *IngressEx) {
+		rule := *ingEx.Ingress.Spec.Rules[0].DeepCopy()
+		rule.Host = "cafe2.example.com"
+		ingEx.Ingress.Spec.Rules = append(ingEx.Ingress.Spec.Rules, rule)
+		ingEx.ValidHosts["cafe2.example.com"] = true
+	}
+	withDefaultBackend := func(ingEx *IngressEx) {
+		ingEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+			Service: &networking.IngressServiceBackend{Name: "default-svc", Port: networking.ServiceBackendPort{Number: 80}},
+		}
+		ingEx.Endpoints["default-svc80"] = []string{"10.0.0.3:80"}
+	}
+
+	tests := []struct {
+		name  string
+		setup func(ingEx *IngressEx, cfgParams *ConfigParams)
+		// want holds, for each server, every location that forwards a list.
+		want            map[string]map[string]string
+		wantHeaderNames map[string][]string
+		wantNames       []string
+		wantWarnings    []string
+	}{
+		{
+			name: "Every generated location forwards: two hosts, paths, and spec.defaultBackend",
+			setup: func(ingEx *IngressEx, _ *ConfigParams) {
+				withSecondHost(ingEx)
+				withDefaultBackend(ingEx)
+				withIngressPolicies(ingEx, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want: map[string]map[string]string{
+				"cafe.example.com":  {"/coffee": p, "/tea": p, "/": p},
+				"cafe2.example.com": {"/coffee": p, "/tea": p, "/": p},
+			},
+			wantNames: []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Configured values are replaced, with one warning: two hosts",
+			setup: func(ingEx *IngressEx, _ *ConfigParams) {
+				withSecondHost(ingEx)
+				ingEx.Ingress.Annotations[ProxySetHeadersAnnotation] = "user-uuid, X-Other"
+				withIngressPolicies(ingEx, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want: map[string]map[string]string{
+				"cafe.example.com":  {"/coffee": p, "/tea": p},
+				"cafe2.example.com": {"/coffee": p, "/tea": p},
+			},
+			wantHeaderNames: map[string][]string{"/coffee": {"X-Other"}, "/tea": {"X-Other"}},
+			wantNames:       []string{"Tenant-UUID", "User-UUID"},
+			wantWarnings:    []string{replacedUserUUID},
+		},
+		{
+			name: "gRPC backends",
+			setup: func(ingEx *IngressEx, cfgParams *ConfigParams) {
+				cfgParams.HTTP2 = true
+				ingEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc,tea-svc"
+				ingEx.Ingress.Annotations[ProxySetHeadersAnnotation] = "user-uuid"
+				withIngressPolicies(ingEx, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want:            map[string]map[string]string{"cafe.example.com": {"/coffee": p, "/tea": p}},
+			wantHeaderNames: map[string][]string{"/coffee": {"user-uuid"}, "/tea": {"user-uuid"}},
+			wantNames:       []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Non-backend locations forward nothing: OAuth2 sign-in location",
+			setup: func(ingEx *IngressEx, _ *ConfigParams) {
+				policy := ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID")
+				policy.Spec.ExternalAuth.AuthSigninURI = "/oauth2/signin"
+				withIngressPolicies(ingEx, policy)
+			},
+			want:      map[string]map[string]string{"cafe.example.com": {"/coffee": p, "/tea": p}},
+			wantNames: []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Shared default backend location: custom-http-errors and spec.defaultBackend",
+			setup: func(ingEx *IngressEx, _ *ConfigParams) {
+				withDefaultBackend(ingEx)
+				ingEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "403"
+				withIngressPolicies(ingEx, ingressAuthResponseHeadersPolicy("p", "/auth", "User-UUID", "tenant-uuid"))
+			},
+			want: map[string]map[string]string{"cafe.example.com": {
+				"/coffee": "default/p: User-UUID, tenant-uuid",
+				"/tea":    "default/p: User-UUID, tenant-uuid",
+				"/":       "default/p: User-UUID, tenant-uuid",
+			}},
+			wantNames: []string{"tenant-uuid", "User-UUID"},
+		},
+		{
+			name: "No field, no change",
+			setup: func(ingEx *IngressEx, _ *ConfigParams) {
+				withDefaultBackend(ingEx)
+				ingEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "403"
+				withIngressPolicies(ingEx, ingressAuthResponseHeadersPolicy("p", "/auth"))
+			},
+			want: map[string]map[string]string{"cafe.example.com": {}},
+		},
+		{
+			name: "Every generated location forwards: sslEnabled and sslVerify",
+			setup: func(ingEx *IngressEx, _ *ConfigParams) {
+				policy := ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID")
+				policy.Spec.ExternalAuth.SSLEnabled = true
+				policy.Spec.ExternalAuth.SSLVerify = true
+				withIngressPolicies(ingEx, policy)
+			},
+			want:      map[string]map[string]string{"cafe.example.com": {"/coffee": p, "/tea": p}},
+			wantNames: []string{"Tenant-UUID", "User-UUID"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := createCafeIngressEx()
+			cfgParams := NewDefaultConfigParams(context.Background(), false)
+			tc.setup(&ingEx, cfgParams)
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &ingEx,
+				BaseCfgParams: cfgParams,
+			})
+
+			got := map[string]map[string]string{}
+			for _, server := range result.Servers {
+				got[server.Name] = authResponseHeadersByPath(server)
+				// A standard Ingress has one Policy, which every location forwards, so no location strips names.
+				if stripped := strippedAuthResponseHeadersByPath(server); stripped != nil {
+					t.Errorf("locations of %s strip names, want none: %v", server.Name, stripped)
+				}
+				if diff := cmp.Diff(tc.wantNames, server.AuthResponseHeaderNames); diff != "" {
+					t.Errorf("AuthResponseHeaderNames of %s mismatch (-want +got):\n%s", server.Name, diff)
+				}
+				for _, loc := range server.Locations {
+					want, ok := tc.wantHeaderNames[loc.Path]
+					if !ok {
+						continue
+					}
+					if diff := cmp.Diff(want, headerNames(loc.ProxySetHeaders)); diff != "" {
+						t.Errorf("ProxySetHeaders of %s %s mismatch (-want +got):\n%s", server.Name, loc.Path, diff)
+					}
+				}
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("forwarding locations mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantWarnings, authResponseHeaderWarnings(warnings, ingEx.Ingress)); diff != "" {
+				t.Errorf("warnings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders covers the mergeable Ingress scenarios of the
+// ExternalAuth response headers design.
+func TestGenerateNginxCfgForMergeableIngressesAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	const p = "default/p: Tenant-UUID, User-UUID"
+	replacedUserUUID := "Header user-uuid in annotation nginx.org/proxy-set-headers is replaced by the auth response header of ExternalAuth policy default/p"
+
+	tests := []struct {
+		name  string
+		setup func(m *MergeableIngresses)
+		// want holds every location of the merged server that forwards a list.
+		want map[string]string
+		// wantStripped holds the names whose client copies each location of the merged server removes, by path.
+		wantStripped       map[string]string
+		wantNames          []string
+		wantDefaultBackend bool
+		wantCoffeeWarnings []string
+		wantTeaWarnings    []string
+	}{
+		{
+			name: "Every generated location forwards: master Policy, minions without policies",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want:      map[string]string{"/coffee": p, "/tea": p},
+			wantNames: []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Every attachment point forwards: one minion with P",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want:         map[string]string{"/coffee": p},
+			wantStripped: map[string]string{"/tea": "Tenant-UUID, User-UUID"},
+			wantNames:    []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Every attachment point forwards: P on the master and a minion",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want:      map[string]string{"/coffee": p, "/tea": p},
+			wantNames: []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "The closer Policy wins: minion Policy lists only X-Session-ID",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "X-Session-ID"))
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("q", "/auth2", "X-Session-ID"))
+			},
+			want:         map[string]string{"/coffee": "default/q: X-Session-ID", "/tea": "default/p: Tenant-UUID, X-Session-ID"},
+			wantStripped: map[string]string{"/coffee": "Tenant-UUID"},
+			wantNames:    []string{"Tenant-UUID", "X-Session-ID"},
+		},
+		{
+			name: "The closer Policy wins: minion Policy without a list",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("q", "/auth2"))
+			},
+			want:         map[string]string{"/tea": p},
+			wantStripped: map[string]string{"/coffee": "Tenant-UUID, User-UUID"},
+			wantNames:    []string{"Tenant-UUID", "User-UUID"},
+		},
+		{
+			name: "Client copies are removed: a minion Policy on the master Policy's auth path forwards nothing",
+			setup: func(m *MergeableIngresses) {
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("q", "/auth", "X-Session-ID"))
+			},
+			want:         map[string]string{"/tea": p},
+			wantStripped: map[string]string{"/coffee": "Tenant-UUID, User-UUID, X-Session-ID", "/tea": "X-Session-ID"},
+			wantNames:    []string{"Tenant-UUID", "User-UUID", "X-Session-ID"},
+		},
+		{
+			name: "Configured values are replaced, with one warning: master annotation, keyed by each minion",
+			setup: func(m *MergeableIngresses) {
+				m.Master.Ingress.Annotations[ProxySetHeadersAnnotation] = "user-uuid"
+				withIngressPolicies(m.Master, ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+			},
+			want:               map[string]string{"/coffee": p, "/tea": p},
+			wantNames:          []string{"Tenant-UUID", "User-UUID"},
+			wantCoffeeWarnings: []string{replacedUserUUID},
+			wantTeaWarnings:    []string{replacedUserUUID},
+		},
+		{
+			name: "Shared default backend location: only minion A has P, minion B sets custom-http-errors",
+			setup: func(m *MergeableIngresses) {
+				m.Master.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+					Service: &networking.IngressServiceBackend{Name: "default-svc", Port: networking.ServiceBackendPort{Number: 80}},
+				}
+				m.Master.Endpoints["default-svc80"] = []string{"10.0.0.3:80"}
+				withIngressPolicies(m.Minions[0], ingressAuthResponseHeadersPolicy("p", "/auth", "Tenant-UUID", "User-UUID"))
+				m.Minions[1].Ingress.Annotations[CustomHTTPErrorsAnnotation] = "403"
+			},
+			want:               map[string]string{"/coffee": p},
+			wantStripped:       map[string]string{"/tea": "Tenant-UUID, User-UUID"},
+			wantNames:          []string{"Tenant-UUID", "User-UUID"},
+			wantDefaultBackend: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := createMergeableCafeIngress()
+			tc.setup(m)
+			master, coffee, tea := m.Master.Ingress, m.Minions[0].Ingress, m.Minions[1].Ingress
+
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs: m,
+				staticParams:  &StaticConfigParams{},
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+			})
+
+			server := result.Servers[0]
+			if diff := cmp.Diff(tc.want, authResponseHeadersByPath(server)); diff != "" {
+				t.Errorf("forwarding locations mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantStripped, strippedAuthResponseHeadersByPath(server)); diff != "" {
+				t.Errorf("stripping locations mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantNames, server.AuthResponseHeaderNames); diff != "" {
+				t.Errorf("AuthResponseHeaderNames mismatch (-want +got):\n%s", diff)
+			}
+			if got := server.CustomHTTPErrorBackend != ""; got != tc.wantDefaultBackend {
+				t.Errorf("server renders @custom_default_backend: got %v, want %v", got, tc.wantDefaultBackend)
+			}
+			if diff := cmp.Diff(tc.wantCoffeeWarnings, authResponseHeaderWarnings(warnings, coffee)); diff != "" {
+				t.Errorf("coffee minion warnings mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.wantTeaWarnings, authResponseHeaderWarnings(warnings, tea)); diff != "" {
+				t.Errorf("tea minion warnings mismatch (-want +got):\n%s", diff)
+			}
+			if got := authResponseHeaderWarnings(warnings, master); len(got) > 0 {
+				t.Errorf("header warnings keyed by the master, want none: %v", got)
+			}
+		})
+	}
+}

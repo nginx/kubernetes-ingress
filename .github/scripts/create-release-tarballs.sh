@@ -20,9 +20,6 @@ for i in ${releases}; do
         i=${i%*_v1}
     fi
 
-    if [[ ${i} =~ aws ]]; then
-        continue
-    fi
     product_name=$(basename "${i}" | cut -d '_' -f 1)
     product_arch=$(echo "${i}" | cut -d '_' -f 2-)
     product_release="${product_name}_${version}_${product_arch}"

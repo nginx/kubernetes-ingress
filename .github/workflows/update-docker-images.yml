@@ -156,7 +156,6 @@ jobs:
       nginx_registry: true
       gcr_release_registry: false
       gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: ${{ matrix.tag }}
@@ -176,7 +175,6 @@ jobs:
       nginx_registry: false
       gcr_release_registry: true
       gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
