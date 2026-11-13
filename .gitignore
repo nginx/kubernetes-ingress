@@ -65,6 +65,8 @@ package.json
 # kind kube-config
 kube-local
 venv/
+__pycache__/
+*.pyc
 
 # Opencode config
 .opencode
