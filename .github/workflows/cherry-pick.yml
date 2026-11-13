@@ -36,7 +36,7 @@ jobs:
               core.setFailed('PR is not merged');
             }
             core.setOutput('merge_commit_sha', pr.data.merge_commit_sha);
-            core.setOutput('body', pr.data.body || '');
+            core.setOutput('body', `${pr.data.body || ''}\n\n---\nCherry-picked from #${context.issue.number} by @${context.actor}\n<!-- nic-attribution: {"source_pr":${context.issue.number},"actor":"${context.actor}"} -->`);
             core.setOutput('head_branch', pr.data.head.ref);
             core.setOutput('base_ref', pr.data.base.ref);
 

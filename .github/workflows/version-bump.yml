@@ -112,3 +112,5 @@ jobs:
           labels: chore
           body: |
             This automated PR updates the NIC & Helm chart versions for the upcoming ${{ github.event.inputs.ic_version }} release.
+
+            <!-- nic-attribution: {"actor":"${{ github.actor }}"} -->
