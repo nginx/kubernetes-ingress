@@ -3,6 +3,7 @@ package version2
 import (
 	"bytes"
 	"fmt"
+	"strings"
 )
 
 // UpstreamLabels describes the Prometheus labels for an NGINX upstream.
@@ -181,6 +182,10 @@ type OIDC struct {
 	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
+	// ServerJWTAuth is set when the VirtualServer has a server-level JWT policy. Its auth_jwt and
+	// auth_jwt_require are inherited by the locations below, and a login request carries no token,
+	// so oidc.tmpl turns auth_jwt off in the ones that run the access phase.
+	ServerJWTAuth bool
 }
 
 // APIKey holds API key configuration.
@@ -258,6 +263,7 @@ type Location struct {
 	OIDCProviderName           string
 	AuthRequestOff             bool
 	ExternalAuth               *ExternalAuth
+	AuthResponseHeaders        *AuthResponseHeaders // set only by the resolution pass
 	BasicAuth                  *BasicAuth
 	EgressMTLS                 *EgressMTLS
 	HSTS                       *HSTS
@@ -282,6 +288,11 @@ type Location struct {
 	ProxyHTTPVersion           string
 	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
 	ACMEChallenge bool
+	// JWTRequireReset clears an inherited auth_jwt_require, which has no "off" value.
+	JWTRequireReset string
+	// StrippedAuthResponseHeaders are the names that an ExternalAuth Policy of the server lists but the location
+	// does not forward. The location removes the client's copies. Set only by the resolution pass.
+	StrippedAuthResponseHeaders []string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -545,12 +556,16 @@ type LimitConnOptions struct {
 
 // JWTAuth holds JWT authentication configuration.
 type JWTAuth struct {
-	Key      string
-	Secret   string
-	Realm    string
-	Token    string
-	KeyCache string
-	JwksURI  JwksURI
+	Key              string
+	Secret           string
+	Realm            string
+	Token            string
+	KeyCache         string
+	JwksURI          JwksURI
+	RequireVariable  string
+	RequireErrorCode int
+	// ProxySetHeaders are merged into the locations' headers by the generator, not rendered from here.
+	ProxySetHeaders []Header
 }
 
 // JwksURI defines the components of a JwksURI
@@ -578,6 +593,8 @@ type ExternalAuth struct {
 	SSLVerifyDepth         int
 	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
 	SNIName                string // Server name for SNI and certificate verification
+	// ResponseHeaders is nil when the Policy lists no headers.
+	ResponseHeaders *AuthResponseHeaders
 }
 
 // HSTS defines HTTP Strict Transport Security configuration.
@@ -595,6 +612,36 @@ type AuthURI struct {
 	Port         string
 	Path         string
 	InternalPath string
+}
+
+// AuthResponseHeader is a header that NGINX copies from the auth response to the backend request.
+type AuthResponseHeader struct {
+	// Name is the header name as the Policy spells it, for example X-Session-ID.
+	Name string
+	// Variable holds the captured value, for example $auth_resp_x_session_id.
+	Variable string
+	// Source reads the header from the auth response, for example $upstream_http_x_session_id.
+	Source string
+}
+
+// AuthResponseHeaders are the response headers that one ExternalAuth Policy forwards.
+type AuthResponseHeaders struct {
+	// Policy is the namespace/name of the Policy, for warnings.
+	Policy  string
+	Headers []AuthResponseHeader
+}
+
+// Has reports whether the list contains name, ignoring case. A nil list contains nothing.
+func (a *AuthResponseHeaders) Has(name string) bool {
+	if a == nil {
+		return false
+	}
+	for _, h := range a.Headers {
+		if strings.EqualFold(h.Name, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

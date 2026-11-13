@@ -1596,7 +1596,7 @@ func TestGeneratePolicies(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
-			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.bundleValidator)
+			result, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOpts, vsc.bundleValidator, nil)
 
 			result.BundleValidator = nil
 
@@ -2036,6 +2036,7 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				test.path,
 				policyOptions{tls: false},
 				nil,
+				nil,
 			)
 
 			if diff := cmp.Diff(test.expected.CORSHeaders, result.CORSHeaders); diff != "" {
@@ -2373,6 +2374,30 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			msg: "explicit SNIName should override the derived default",
 		},
+		{
+			name: "auth response headers",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:             "/auth",
+				AuthServiceName:     "auth-svc",
+				AuthResponseHeaders: []string{"Tenant-UUID", "X-Session-ID"},
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				ResponseHeaders: &version2.AuthResponseHeaders{
+					Policy: "default/ext-auth-policy",
+					Headers: []version2.AuthResponseHeader{
+						{Name: "Tenant-UUID", Variable: "$auth_resp_tenant_uuid", Source: "$upstream_http_tenant_uuid"},
+						{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"},
+					},
+				},
+			},
+			msg: "the listed auth response headers should be derived and keyed by the Policy",
+		},
 	}
 
 	for _, test := range tests {
@@ -2637,6 +2662,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				"http",
 				test.path,
 				policyOptions{tls: false},
+				nil,
 				nil,
 			)
 
@@ -3103,7 +3129,7 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectPolicyResources{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
+			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectPolicyResources{}, replicas: 1, oidcPolicyName: ""}, &fakeBV, nil)
 			res.BundleValidator = nil
 			if diff := cmp.Diff(tc.want, res, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
 				t.Error(diff)
@@ -5347,7 +5373,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV)
+			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV, nil)
 			result.BundleValidator = nil
 
 			if diff := cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
@@ -5473,7 +5499,7 @@ func TestGeneratePolicies_UnsupportedOnIngress(t *testing.T) {
 		t.Run(policyType, func(t *testing.T) {
 			t.Parallel()
 			policies := map[string]*conf_v1.Policy{"default/test-policy": pol}
-			result, warnings := generatePolicies(ctx, ingOwnerDetails, policyRef, policies, "spec", "", policyOptions{}, nil)
+			result, warnings := generatePolicies(ctx, ingOwnerDetails, policyRef, policies, "spec", "", policyOptions{}, nil, nil)
 
 			if result.ErrorReturn == nil || result.ErrorReturn.Code != 500 {
 				t.Errorf("generatePolicies() expected ErrorReturn{500} for unsupported policy type %s on Ingress, got %v", policyType, result.ErrorReturn)

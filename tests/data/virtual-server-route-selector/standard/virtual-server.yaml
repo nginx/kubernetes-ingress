@@ -8,4 +8,4 @@ spec:
   - path: /
     routeSelector:
       matchLabels:
-       app: backends
+        app: backends

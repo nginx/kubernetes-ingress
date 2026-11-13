@@ -33,7 +33,7 @@ spec:
   selector:
     app: udp-service
   ports:
-  - name: udp-server
-    targetPort: 3334
-    port: 3334
-    protocol: UDP
+    - name: udp-server
+      targetPort: 3334
+      port: 3334
+      protocol: UDP

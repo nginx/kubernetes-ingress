@@ -18,6 +18,15 @@ data:
         root /usr/share/nginx/html;
         try_files /index.html =404;
 
+        # authResponseHeaders scenarios: identity headers on successful
+        # responses. The last name has the maximum length, 46.
+        add_header Tenant-UUID "tenant-123";
+        add_header User-UUID "user-456";
+        add_header X-Session-ID "session-789";
+        add_header X-Group "a";
+        add_header X-Group "b";
+        add_header X-Longest-Auth-Response-Header-Name-Allowed-46 "long";
+
         auth_basic "Protected Area";
         auth_basic_user_file /etc/nginx/auth/htpasswd;
 

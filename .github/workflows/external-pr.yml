@@ -1,7 +1,7 @@
 name: External PR Handler
 on:
   issue_comment:
-    types: [ created ]
+    types: [created]
 
 permissions:
   contents: read
@@ -17,14 +17,14 @@ jobs:
       )
     runs-on: ubuntu-26.04
     outputs:
-        is_fork: ${{ steps.pr-info.outputs.is_fork }}
-        fork_owner: ${{ steps.pr-info.outputs.fork_owner }}
-        fork_repo: ${{ steps.pr-info.outputs.fork_repo }}
-        sha: ${{ steps.pr-info.outputs.sha }}
-        base_branch: ${{ steps.pr-info.outputs.base_branch }}
-        pr_number: ${{ steps.pr-info.outputs.pr_number }}
-        title: ${{ steps.pr-info.outputs.title }}
-        body: ${{ steps.pr-info.outputs.body }}
+      is_fork: ${{ steps.pr-info.outputs.is_fork }}
+      fork_owner: ${{ steps.pr-info.outputs.fork_owner }}
+      fork_repo: ${{ steps.pr-info.outputs.fork_repo }}
+      sha: ${{ steps.pr-info.outputs.sha }}
+      base_branch: ${{ steps.pr-info.outputs.base_branch }}
+      pr_number: ${{ steps.pr-info.outputs.pr_number }}
+      title: ${{ steps.pr-info.outputs.title }}
+      body: ${{ steps.pr-info.outputs.body }}
     steps:
       - name: Get PR details
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

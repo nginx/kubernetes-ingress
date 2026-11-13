@@ -3,7 +3,7 @@ kind: VirtualServerRoute
 metadata:
   name: backend2
   labels:
-      app: backend2-namespace-backend2
+    app: backend2-namespace-backend2
 spec:
   host: virtual-server-route.example.com
   upstreams:

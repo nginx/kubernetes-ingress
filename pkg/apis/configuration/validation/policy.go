@@ -381,6 +381,15 @@ func validateRateLimitVariableCondition(condition *v1.VariableCondition, fieldPa
 // [jwt]: https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#jwt-using-local-kubernetes-secret
 // [jwks]: https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/#jwt-using-jwks-from-remote-location
 func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateJWTAuthentication(jwt, fieldPath)
+	if jwt.Authorization != nil {
+		allErrs = append(allErrs, validateJWTAuthorization(jwt.Authorization, fieldPath.Child("authorization"))...)
+	}
+	return allErrs
+}
+
+// validateJWTAuthentication validates the fields that configure how a JWT is authenticated.
+func validateJWTAuthentication(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 	// Realm is always required.
 	if jwt.Realm == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("realm"), "realm field must be present")}
@@ -395,66 +404,79 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 		return append(allErrs, field.Forbidden(fieldPath.Child("secret"), "only either of Secret or JwksURI can be used"))
 	}
 
-	// Verify a case when using JWT Secret
 	if jwt.Secret != "" {
-		allErrs = append(allErrs, validateSecretName(jwt.Secret, fieldPath.Child("secret"))...)
-		// jwt.Token is not required field. Verify it when provided.
-		if jwt.Token != "" {
-			allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
-		}
+		return append(allErrs, validateJWTLocalSecret(jwt, fieldPath)...)
+	}
+	return append(allErrs, validateJWTRemoteJWKS(jwt, fieldPath)...)
+}
 
-		// keyCache must not be present when using Secret
-		if jwt.KeyCache != "" {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
-		}
-
-		// If JwksURI is not set, then none of the SNI fields should be set.
-		if jwt.SNIEnabled {
-			return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
-		}
-
-		if jwt.SNIName != "" {
-			return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
-		}
-
-		return allErrs
+// validateJWTLocalSecret validates the fields of a JWT policy that verifies tokens with a local Kubernetes secret.
+func validateJWTLocalSecret(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateSecretName(jwt.Secret, fieldPath.Child("secret"))
+	// jwt.Token is not required field. Verify it when provided.
+	if jwt.Token != "" {
+		allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
 	}
 
-	// Verify a case when using JWKS
-	if jwt.JwksURI != "" {
-		allErrs = append(allErrs, validateJWKsURI(jwt.JwksURI, fieldPath.Child("jwksURI"))...)
-		allErrs = append(allErrs, validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))...)
-		// jwt.Token is not required field. Verify it if it's provided.
-		if jwt.Token != "" {
-			allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
-		}
-		// keyCache must be present when using JWKS
-		if jwt.KeyCache == "" {
-			allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
-		}
+	// keyCache must not be present when using Secret
+	if jwt.KeyCache != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
+	}
 
-		// if SNI server name is provided, but SNI is not enabled, return an error
-		if jwt.SNIName != "" && !jwt.SNIEnabled {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
-		}
+	// If JwksURI is not set, then none of the SNI fields should be set.
+	if jwt.SNIEnabled {
+		return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
+	}
 
-		// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
-		if jwt.SNIEnabled && jwt.SNIName != "" {
-			err := validation2.ValidateURI(jwt.SNIName,
-				validation2.WithAllowedSchemes("https"),
-				validation2.WithUserAllowed(false),
-				validation2.WithDefaultScheme("https"))
-			if err != nil {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
-			}
-		}
+	if jwt.SNIName != "" {
+		return append(allErrs, field.Forbidden(fieldPath.Child("sniName"), "sniName can only be set when JwksURI is set"))
+	}
 
-		if jwt.TrustedCertSecret != "" {
-			allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
-			// If trustedCertSecret is set but sslVerify is false, warn user
-			if !jwt.SSLVerify {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
-			}
+	return allErrs
+}
+
+// validateJWTRemoteJWKS validates the fields of a JWT policy that fetches keys from a remote JWKS URI.
+func validateJWTRemoteJWKS(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateJWKsURI(jwt.JwksURI, fieldPath.Child("jwksURI"))
+	allErrs = append(allErrs, validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))...)
+	// jwt.Token is not required field. Verify it if it's provided.
+	if jwt.Token != "" {
+		allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
+	}
+	// keyCache must be present when using JWKS
+	if jwt.KeyCache == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
+	}
+
+	allErrs = append(allErrs, validateJWTSNI(jwt, fieldPath)...)
+
+	if jwt.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(jwt.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+		// If trustedCertSecret is set but sslVerify is false, warn user
+		if !jwt.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), jwt.SSLVerify, "sslVerify should be enabled when trustedCertSecret is specified"))
+		}
+	}
+	return allErrs
+}
+
+// validateJWTSNI validates the SNI fields of a JWT policy that uses a remote JWKS URI.
+func validateJWTSNI(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// if SNI server name is provided, but SNI is not enabled, return an error
+	if jwt.SNIName != "" && !jwt.SNIEnabled {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("sniServerName"), "sniServerName can only be set when sniEnabled is true"))
+	}
+
+	// if SNI is enabled and SNI server name is provided, make sure it's a valid URI
+	if jwt.SNIEnabled && jwt.SNIName != "" {
+		err := validation2.ValidateURI(jwt.SNIName,
+			validation2.WithAllowedSchemes("https"),
+			validation2.WithUserAllowed(false),
+			validation2.WithDefaultScheme("https"))
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniServerName"), jwt.SNIName, "sniServerName is not a valid URI"))
 		}
 	}
 	return allErrs
@@ -2074,6 +2096,68 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 
 	// Validate SSL fields
 	allErrs = append(allErrs, validateExternalAuthSSLFields(externalAuth, fieldPath)...)
+
+	allErrs = append(allErrs, validateAuthResponseHeaders(externalAuth.AuthResponseHeaders, fieldPath.Child("authResponseHeaders"))...)
+
+	return allErrs
+}
+
+const (
+	maxAuthResponseHeaders = 32
+	// maxAuthResponseHeaderNameLength is the longest header name that fits the 64-byte proxy and
+	// gRPC header hash buckets of NGINX on 64-bit platforms.
+	maxAuthResponseHeaderNameLength = 46
+)
+
+// reservedAuthResponseHeaders are managed by NGINX or NGINX Ingress Controller on every backend
+// request, so they cannot be taken from the auth response.
+var reservedAuthResponseHeaders = map[string]bool{
+	"host":              true,
+	"connection":        true,
+	"proxy-connection":  true,
+	"content-length":    true,
+	"transfer-encoding": true,
+	"te":                true,
+	"keep-alive":        true,
+	"expect":            true,
+	"upgrade":           true,
+	"x-real-ip":         true,
+	"x-forwarded-for":   true,
+	"x-forwarded-host":  true,
+	"x-forwarded-port":  true,
+	"x-forwarded-proto": true,
+}
+
+func validateAuthResponseHeaders(headers []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(headers) > maxAuthResponseHeaders {
+		allErrs = append(allErrs, field.TooMany(fieldPath, len(headers), maxAuthResponseHeaders))
+	}
+
+	seen := make(map[string]bool, len(headers))
+	for i, name := range headers {
+		idxPath := fieldPath.Index(i)
+
+		for _, msg := range validation.IsHTTPHeaderName(name) {
+			allErrs = append(allErrs, field.Invalid(idxPath, name, msg))
+		}
+		if ContainsDangerousChars(name) {
+			allErrs = append(allErrs, field.Invalid(idxPath, name, "contains invalid characters"))
+		}
+		if len(name) > maxAuthResponseHeaderNameLength {
+			allErrs = append(allErrs, field.TooLong(idxPath, name, maxAuthResponseHeaderNameLength))
+		}
+
+		lower := strings.ToLower(name)
+		if reservedAuthResponseHeaders[lower] {
+			allErrs = append(allErrs, field.Forbidden(idxPath, fmt.Sprintf("%s is managed by NGINX and cannot be taken from the auth response", name)))
+		}
+		if seen[lower] {
+			allErrs = append(allErrs, field.Duplicate(idxPath, name))
+		}
+		seen[lower] = true
+	}
 
 	return allErrs
 }

@@ -1,0 +1,779 @@
+
+[TestVirtualServerForNginxPlusJWTAuthorizationACMEAndJWKSLocations - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api" token=$http_token;
+    
+    auth_jwt_key_cache 1h;
+    auth_jwt_key_request /_jwks_uri_server_default/shop-jwt;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+    location = /_jwks_uri_server_default/shop-jwt {
+        internal;
+        client_max_body_size 0;
+        proxy_method GET;
+        proxy_set_header Content-Length "";
+        proxy_ssl_verify off;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+        proxy_set_header Host idp.example.com;
+        set $idp_backend idp.example.com;
+        proxy_pass https://$idp_backend/keys;
+    }
+
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location = "/.well-known/acme-challenge/tok" {
+        set $service "cm-acme-http-solver-abcde";
+        status_zone "cm-acme-http-solver-abcde";
+        auth_request off;
+        auth_jwt off;
+        auth_basic off;
+
+        
+        auth_oidc off;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_cm-acme-http-solver-abcde;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationClaimHeaders - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+map $jwt_default_cafe_vs_scope $jwt_authz_r0_c0_hdr {
+    "~[\r\n]" "";
+    default $jwt_default_cafe_vs_scope;
+}
+map $jwt_default_cafe_vs_ip $jwt_authz_r0_c1_hdr {
+    "~[\r\n]" "";
+    default $jwt_default_cafe_vs_ip;
+}
+map $jwt_default_cafe_vs_tenant $jwt_authz_r0_c2_hdr {
+    "~[\r\n]" "";
+    default $jwt_default_cafe_vs_tenant;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api";
+    auth_jwt_key_file /etc/nginx/secrets/default-jwk;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+
+    
+
+    
+    location "/http" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Token-Scope "$jwt_authz_r0_c0_hdr";
+        proxy_set_header X-Real-IP "$jwt_authz_r0_c1_hdr";
+        proxy_set_header Host "$jwt_authz_r0_c2_hdr";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/grpc" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        error_page 400 = @grpc_internal;
+        error_page 401 = @grpc_unauthenticated;
+        error_page 403 = @grpc_permission_denied;
+        error_page 404 = @grpc_unimplemented;
+        error_page 429 = @grpc_unavailable;
+        error_page 502 = @grpc_unavailable;
+        error_page 503 = @grpc_unavailable;
+        error_page 504 = @grpc_unavailable;
+        error_page 405 = @grpc_internal;
+        error_page 408 = @grpc_deadline_exceeded;
+        error_page 413 = @grpc_resource_exhausted;
+        error_page 414 = @grpc_resource_exhausted;
+        error_page 415 = @grpc_internal;
+        error_page 426 = @grpc_internal;
+        error_page 495 = @grpc_unauthenticated;
+        error_page 496 = @grpc_unauthenticated;
+        error_page 497 = @grpc_internal;
+        error_page 500 = @grpc_internal;
+        error_page 501 = @grpc_internal;
+        set $default_connection_header close;
+        grpc_connect_timeout 30s;
+        grpc_read_timeout 31s;
+        grpc_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_set_header X-Token-Scope "$jwt_authz_r0_c0_hdr";
+        grpc_pass grpc://coffee-v1;
+        grpc_next_upstream ;
+        grpc_next_upstream_timeout ;
+        grpc_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationMapChain - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+auth_jwt_claim_set $jwt_default_cafe_vs_aud aud;
+auth_jwt_claim_set $jwt_default_cafe_vs_realm_access_roles realm_access roles;
+map $jwt_default_cafe_vs_aud $jwt_authz_default_cafe_vs_default_shop_jwt_r0_c0 {
+    "" 0;
+    "~(^|[ ,])(orders-api)([ ,]|\\z)" 1;
+    default 0;
+}
+map $jwt_default_cafe_vs_realm_access_roles $jwt_authz_default_cafe_vs_default_shop_jwt_r0_c1 {
+    "" 0;
+    "~(^|[ ,])(guest)([ ,]|\\z)" 0;
+    default 1;
+}
+map $jwt_authz_default_cafe_vs_default_shop_jwt_r0_c0$jwt_authz_default_cafe_vs_default_shop_jwt_r0_c1 $jwt_authz_default_cafe_vs_default_shop_jwt_r0 {
+    "~^1+$" 1;
+    default 0;
+}
+map $jwt_authz_default_cafe_vs_default_shop_jwt_r0 $jwt_authz_default_cafe_vs_default_shop_jwt {
+    "~^1+$" 1;
+    default 0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api";
+    auth_jwt_key_file /etc/nginx/secrets/default-jwk;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationMixedPolicies - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+map $uri $jwt_authz_none_default_cafe {
+    default 1;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api";
+    auth_jwt_key_file /etc/nginx/secrets/default-jwk;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+
+    
+
+    
+    location "/plain" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        auth_jwt "plain";
+        auth_jwt_key_file /etc/nginx/secrets/default-plain-jwk;
+        auth_jwt_require $jwt_authz_none_default_cafe;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/own" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        auth_jwt "own";
+        auth_jwt_key_file /etc/nginx/secrets/default-own-jwk;
+        auth_jwt_require $jwt_authz_default_cafe_vs_default_route_jwt error=401;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/inherits" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationRouteLevel - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        auth_jwt "route";
+        auth_jwt_key_file /etc/nginx/secrets/default-route-jwk;
+        auth_jwt_require $jwt_authz_default_cafe_vs_default_route_jwt error=401;
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/tea" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationServerLevel/jwks,_403 - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api" token=$http_token;
+    
+    auth_jwt_key_cache 1h;
+    auth_jwt_key_request /_jwks_uri_server_default/shop-jwt;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationServerLevel/secret,_401 - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api";
+    auth_jwt_key_file /etc/nginx/secrets/default-jwk;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=401;
+
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationServerLevel/secret,_403 - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+
+    server_tokens "";
+    auth_jwt "api";
+    auth_jwt_key_file /etc/nginx/secrets/default-jwk;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+
+    
+
+    
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusJWTAuthorizationWithOIDCLocation - 1]
+
+upstream coffee-v1 {
+    zone coffee-v1 ;
+    server 10.0.0.31:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+map $uri $jwt_authz_none_default_cafe {
+    default 1;
+}
+keyval $idp_sid $client_sid              zone=oidc_sids;
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+    include oidc-conf.d/oidc_default_cafe.conf;
+
+    set $oidc_pkce_enable 0;
+    set $oidc_client_auth_method "client_secret_post";
+    set $oidc_logout_redirect "";
+    set $oidc_hmac_key "cafe";
+    set $zone_sync_leeway 0;
+
+    set $oidc_authz_endpoint "https://idp.example.com/auth";
+    set $oidc_authz_extra_args "";
+    set $oidc_token_endpoint "https://idp.example.com/token";
+    set $oidc_end_session_endpoint "";
+    set $oidc_jwt_keyfile "https://idp.example.com/keys";
+    set $oidc_scopes "openid";
+    set $oidc_client "client";
+    set $oidc_client_secret "secret";
+
+    server_tokens "";
+    auth_jwt "api";
+    auth_jwt_key_file /etc/nginx/secrets/default-jwk;
+    auth_jwt_require $jwt_authz_default_cafe_vs_default_shop_jwt error=403;
+
+    
+
+    
+    location "/login" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        auth_jwt_require $jwt_authz_none_default_cafe;
+
+        
+        auth_oidc off;
+        auth_jwt "" token=$session_jwt;
+        error_page 401 = @do_oidc_flow;
+        auth_jwt_key_request /_jwks_uri;proxy_set_header username $jwt_claim_sub;
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/coffee" {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 31s;
+        proxy_send_timeout 32s;
+        client_max_body_size 1m;
+
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host "$host";
+        proxy_pass http://coffee-v1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---

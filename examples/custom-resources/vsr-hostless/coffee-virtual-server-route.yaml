@@ -14,4 +14,4 @@ spec:
     action:
       pass: coffee
     policies:
-      - name: access-control-policy-allow
+    - name: access-control-policy-allow

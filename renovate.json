@@ -470,7 +470,7 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.7",
+    "release-5.8",
     "release-2026-lts"
   ],
   "commitBodyTable": true,

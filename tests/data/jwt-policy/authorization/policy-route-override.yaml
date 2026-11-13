@@ -1,0 +1,14 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-route-override
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - claims:
+        - name: sub
+          values: [carol]

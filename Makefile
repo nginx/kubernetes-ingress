@@ -46,7 +46,7 @@ GOVULNCHECK_VERSION ?= v1.9.0
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.27.3-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.27.4-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.
@@ -128,14 +128,14 @@ govulncheck: ## Run govulncheck linter
 
 .PHONY: test
 test: ## Run GoLang tests
-	go test -tags=aws,helmunit -shuffle=on ./...
+	go test -tags=helmunit -shuffle=on ./...
 
 .PHONY: test-update-snaps
 test-update-snaps:
-	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
+	UPDATE_SNAPS=always go test -tags=helmunit -shuffle=on ./...
 
 cover: ## Generate coverage report
-	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -tags=helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 cover-html: test ## Generate and show coverage report in HTML format
 	go tool cover -html coverage.txt
@@ -157,6 +157,10 @@ update-crds: ## Update CRDs
 	kustomize build config/crd/app-protect-dos --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-dos.yaml
 	kustomize build config/crd/app-protect-waf --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-waf.yaml
 	$(MAKE) update-crd-docs
+
+.PHONY: update-helm-schema
+update-helm-schema: ## Regenerate the bundled Kubernetes definitions in the Helm chart values schema
+	./hack/generate-helm-schema.sh
 
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
