@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-policy-response-headers
+spec:
+  externalAuth:
+    authURI: "/auth"
+    authServiceName: "external-auth-svc"
+    authResponseHeaders:
+    - Tenant-UUID
+    - User-UUID
+    - X-Session-ID
+    - X-Group
+    - Permissions
+    - X-Longest-Auth-Response-Header-Name-Allowed-46
