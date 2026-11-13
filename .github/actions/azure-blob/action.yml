@@ -44,6 +44,8 @@ runs:
         SOURCE_DIR: ${{ inputs.source-dir }}
         DESTINATION_PATH: ${{ inputs.destination-path }}
         PATTERN: ${{ inputs.pattern }}
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        DRY_RUN: ${{ inputs.dry-run }}
       run: |
         # An empty destination would upload to the container root; an empty source usually means the producing step failed.
         if [ -z "${DESTINATION_PATH%/}" ]; then
@@ -53,6 +55,7 @@ runs:
         shopt -s globstar nullglob dotglob
         src="${SOURCE_DIR%/}"
         found=0
+        echo "Uploading '$PATTERN' from '$src' to container '$CONTAINER_NAME':"
         # shellcheck disable=SC2231 # PATTERN is deliberately unquoted so it globs
         for f in "$src"/**/$PATTERN; do
           [ -f "$f" ] || continue
@@ -62,6 +65,9 @@ runs:
         if [ "$found" -eq 0 ]; then
           echo "::error::no files matching '$PATTERN' in '$SOURCE_DIR'"
           exit 1
+        fi
+        if [ "$DRY_RUN" = "true" ]; then
+          echo "dry-run: skipping upload of $found file(s)"
         fi
 
     - name: Azure login for upload
