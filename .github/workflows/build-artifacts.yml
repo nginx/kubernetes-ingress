@@ -97,6 +97,16 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
+      # The binary is cached under inputs.go-md5, so the checkout must be the tree that was hashed (#11327).
+      - name: Verify checkout matches the cache key
+        run: |
+          actual="$(./.github/scripts/variables.sh go_code_md5 | cut -d= -f2)"
+          if [ "${actual}" != "${{ inputs.go-md5 }}" ]; then
+            echo "::error::Checked-out Go code hashes to ${actual}, but the cache key is nginx-ingress-${{ inputs.go-md5 }}. Refusing to build or save a mismatched binary."
+            exit 1
+          fi
+        if: ${{ inputs.force }}
+
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
