@@ -280,7 +280,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.checks.outputs.branch }}
+          # LTS entries test a released image, so use the tests, manifests and CRDs from that tag, not main
+          ref: ${{ matrix.images.lts == true && matrix.images.lts_tag || needs.checks.outputs.branch }}
 
       - name: Set image variables
         id: image_details
@@ -367,6 +368,8 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ env.PLUS_JWT }}
+          # pyproject.toml has -x; override it so one failure does not hide the rest of the nightly
+          pytest-args: --maxfail=100
 
       - name: Upload Test Results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
