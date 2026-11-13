@@ -47,29 +47,49 @@ or that a time window passes, need a real wait.
 ## CI failure data
 
 **Source:** failed `ci.yml` merge-queue runs and all nightly `regression.yml`
-runs created after 2026-10-17 (after #10850, "e2e test stability fixes"):
+runs from 2026-10-17 (after #10850, "e2e test stability fixes") to 2026-11-11:
 74 failed merge-queue runs and 26 nightly runs. PR runs were left out because
 real bugs in PRs make them noisy. Only 19 distinct tests failed.
 
-| # | Test | Failing runs | Error | Likely cause |
-| --- | --- | --- | --- | --- |
-| 1 | `test_ac_polices_vs::test_deny_policy` | every nightly LTS job | Setup error after 600 s, IC pod never Ready | LTS image or infra, not a test bug |
-| 2 | `test_rl_policies::test_rl_policy_scaled` | every nightly job, all 8 k8s versions | `rate=10r/s` not in config (config has `rate=40r/s ... sync`) | **State leaked by an earlier test.** `test_rl_ingress.py::TestRateLimitIngressScaledWithZoneSync` left zone sync on in the shared `nginx-config` ConfigMap. Fixed, see below |
-| 3 | `test_custom_http_errors::test_annotation_intercepts_upstream_error` | 16 | One request to `/fail` returns the stock 502 page | Asserts once, no polling |
-| 4 | `test_virtual_server_certmanager::test_responses_after_setup` | 11 (8 merge queue) | Setup error in a fixture | Needs log triage |
-| 5 | `test_empty_host_ingress_reload::..._on_startup` | 11 | Startup event not found | Fixed in `972e0772c`. Watch it |
-| 6 | `test_rl_policies_vsr` tiered apikey/jwt (3 tests) | 13 | `13 in range(14, 17)` | Request count just outside a narrow range. The 1 s sleeps are part of the test. Fix tolerance or timing window |
-| 7 | `test_oidc_native_fclo_ingress::test_rp_initiated_logout` | 4 | 502 after login | Sleep, then no readiness check on the backend |
-| 8 | `test_virtual_server_use_cluster_ip_reloads` | 3 | 4 reloads, expected 3 | Baseline taken before earlier reloads settle |
-| 9 | VSR weight splits, TCP `max_connections`, `jwt_secrets`, `ac_policies_ingress` allow/deny | 2-4 each | Mixed: 404s, socket not refused | Triage per test |
+The last column links the most recent failing job found for each test (checked
+2026-11-13). GitHub deletes job logs after its retention period, so these links
+will stop working. The error text in the table is kept for that reason, and
+"Reproducing the ranking" below refreshes the data.
 
-The causes are hypotheses from one traceback each, not confirmed.
+| # | Test | Failing runs | Error | Likely cause | Example job |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `test_ac_polices_vs::test_deny_policy` | every nightly LTS job | Setup error after 600 s, IC pod never Ready | **Version skew.** The job ran main's tests against the LTS image. Fixed, see Phase A | [lts-regression 1.30.13](https://github.com/nginx/kubernetes-ingress/actions/runs/43356002027/job/131658222816) |
+| 2 | `test_rl_policies::test_rl_policy_scaled` | every nightly job, all 8 k8s versions | `rate=10r/s` not in config (config has `rate=40r/s ... sync`) | **State leaked by an earlier test.** `test_rl_ingress.py::TestRateLimitIngressScaledWithZoneSync` left zone sync on in the shared `nginx-config` ConfigMap. Fixed, see below | [regression debian-plus 1.30.13](https://github.com/nginx/kubernetes-ingress/actions/runs/43356002027/job/131658222786) |
+| 3 | `test_custom_http_errors::test_annotation_intercepts_upstream_error` | 16 | One request to `/fail` returns the stock 502 page | Asserts once, no polling | [regression debian 1.32.8](https://github.com/nginx/kubernetes-ingress/actions/runs/43356002027/job/131658222925) |
+| 4 | `test_virtual_server_certmanager::test_responses_after_setup` | 11 (8 merge queue) | Setup error in a fixture | Needs log triage | [regression debian 1.30.13](https://github.com/nginx/kubernetes-ingress/actions/runs/43356002027/job/131658222805) |
+| 5 | `test_empty_host_ingress_reload::..._on_startup` | 11 | Startup event not found | Fixed in `972e0772c`. Watch it | [regression debian 1.33.12](https://github.com/nginx/kubernetes-ingress/actions/runs/43145244434/job/130941545511) |
+| 6 | `test_rl_policies_vsr` tiered apikey/jwt (3 tests) | 13 | `13 in range(14, 17)` | Request count just outside a narrow range. The 1 s sleeps are part of the test. Fix tolerance or timing window | [policies 3/8 alpine](https://github.com/nginx/kubernetes-ingress/actions/runs/43262340867/job/131345989101) |
+| 7 | `test_oidc_native_fclo_ingress::test_rp_initiated_logout` | 4 | 502 after login | Sleep, then no readiness check on the backend | [regression debian-plus 1.31.14](https://github.com/nginx/kubernetes-ingress/actions/runs/42746556551/job/129600088516) |
+| 8 | `test_virtual_server_use_cluster_ip_reloads` | 3 | 4 reloads, expected 3 | Baseline taken before earlier reloads settle | [regression debian 1.31.14](https://github.com/nginx/kubernetes-ingress/actions/runs/43145244434/job/130941545472) |
+| 9 | VSR weight splits, TCP `max_connections`, `jwt_secrets`, `ac_policies_ingress` allow/deny | 2-4 each | Mixed: 404s, socket not refused | Triage per test | [VSR weights](https://github.com/nginx/kubernetes-ingress/actions/runs/43214983454/job/131179696438), [TCP max_connections](https://github.com/nginx/kubernetes-ingress/actions/runs/43270428285/job/131373881458), [jwt_secrets](https://github.com/nginx/kubernetes-ingress/actions/runs/40518794210/job/122248474310), [ac_policies_ingress](https://github.com/nginx/kubernetes-ingress/actions/runs/43047604827/job/130623266327) |
+
+The causes are hypotheses from one traceback each, not confirmed (row 1 is
+confirmed, see Phase A).
+
+Seen after the snapshot window (merge-queue runs from 2026-11-11 to 2026-11-13,
+not ranked). Some may come from the PR under test, not from flakes:
+
+| Test | Error | Example job |
+| --- | --- | --- |
+| `test_external_auth_policies_tls_vs::test_tls_credentials` | Setup error: Kubernetes API `ServiceException (500)` | [policies 8/8 alpine](https://github.com/nginx/kubernetes-ingress/actions/runs/43252316319/job/131311146058) |
+| `test_external_auth_policies_vs::test_underscore_variants_are_dropped` | Pod exec: `container not found ("headers-echo")` | [policies 6/8 alpine](https://github.com/nginx/kubernetes-ingress/actions/runs/43262340957/job/131347198004) |
+| `test_jwt_policies::test_jwt_policy_override_spec` | Kubernetes API `ServiceException (500)` | [policies 3/9 ubi-10-plus](https://github.com/nginx/kubernetes-ingress/actions/runs/43408029129/job/131832715910) |
+| `test_oidc_native_ingress::test_oidc_native_ingress` | Playwright `Locator.fill` timeout 30 s | [Native-OIDC debian-plus](https://github.com/nginx/kubernetes-ingress/actions/runs/43059300623/job/130667142952) |
+
+The first and third look like transient API server errors, the second like an
+exec before the container is ready, the fourth like the same missing readiness
+wait as row 7.
 
 ### Three problems that hide most of the signal
 
 - **The suite stops at the first failure.** `pyproject.toml` has `-x` in pytest
-  `addopts`. Rows 1 and 2 fail every night, so the LTS nightly runs no tests
-  after the first one, and the main nightly never runs the tests after
+  `addopts`. Rows 1 and 2 failed every night, so the LTS nightly ran no tests
+  after the first one, and the main nightly never ran the tests after
   `test_rl_policies`. Other flaky tests are probably hiding behind them.
 - **The pattern is broader than `wait_before_test()`.** The usual flaky shape is
   "a fixture applies config, then the test asserts on a single request". The
@@ -145,15 +165,19 @@ because the nightly will then reach tests it has not run in weeks.
 
 ### Phase A: get the nightly signal back (about 1-2 days)
 
-1. Find out why the LTS image never becomes Ready (row 1). Probably image or CI
-   config, not test code. May belong to another owner.
-   - Known: the LTS job was added 2026-05-22 and has never passed. It fails the
-     same way on LTS tags r6 to r10. The dev-image Plus jobs pass the same test.
-   - Cause found in the workflow: the job checked out main (tests, manifests,
-     CRDs) but ran the LTS image. Fixed: `regression.yml` now checks out the LTS
-     tag (`matrix.images.lts_tag`) for LTS entries. The first test's flags,
-     `create_ingress_controller` and the RBAC were already compatible, so
-     whether this alone makes the pod Ready is unconfirmed.
+1. ~~Find out why the LTS image never becomes Ready (row 1).~~ Done:
+   - The LTS job was added 2026-05-22 and had never passed. It failed the same
+     way on LTS tags r6 to r10, while the dev-image Plus jobs passed the same
+     test.
+   - Cause: version skew. The job checked out main (995 tests, main's manifests
+     and CRDs) but ran the LTS image. The LTS branch has 688 tests. Confirmed by
+     `single-image-regression.yml` dispatched on `release-2026-lts` with the
+     smoke marker: 120 passed, 5 skipped ([run 43185719277](https://github.com/nginx/kubernetes-ingress/actions/runs/43185719277)).
+     Dispatch on a branch, not a tag: the federated tokens used for secrets do
+     not accept tag refs.
+   - Fix: `regression.yml` now checks out the LTS tag (`matrix.images.lts_tag`)
+     for LTS entries. The full LTS suite has not been run with this change yet,
+     so check the first nightly after it merges.
    - Side effects of checking out the tag: the local `smoke-tests` action, the
      test-runner image hash and `tests/` all come from the tag. The test-runner
      image for the tag's hash must exist in GHCR (it does for `2026-lts-r10`).
@@ -166,8 +190,19 @@ because the nightly will then reach tests it has not run in weeks.
      previous container) and events of the IC pods
      (`print_ic_pod_diagnostics` in `tests/conftest.py`, needs
      `--show-ic-logs=yes`, which CI sets).
-   - Next: run the nightly. If the LTS job still fails in setup, cherry-pick the
-     diagnostics to the LTS branch to see why.
+   - Not known: why main's tests stopped the LTS pod becoming Ready (main's
+     fixtures or CRDs). It only matters if users run the LTS image with
+     manifests or CRDs from main.
+2. ~~Fix `test_rl_policy_scaled` (row 2).~~ Done: the cause was the leaked
+   zone-sync ConfigMap, fixed in `test_rl_ingress.py`. Confirm with a
+   `workflow_dispatch` regression run.
+3. Run the nightly with the leak detector and fix every class it names.
+4. ~~Let the nightly regression job run past failures.~~ Done: `regression.yml`
+   passes `pytest-args: --maxfail=100` to the smoke-tests action, which
+   overrides the `-x` in `pyproject.toml`. PR and merge-queue runs keep `-x`.
+   Watch the first nightly: a job whose IC never becomes Ready waits out a 600 s
+   setup timeout for every test, so 100 failures could still hit the 6 h job
+   limit. Set `timeout-minutes` on the job if that happens.
 
 ### Phase B: fix the top flaky tests (about 3-4 days)
 
@@ -308,14 +343,3 @@ See `test_app_protect_watch_namespace_label.py` and the
 For status-based and single-request variants, see `retry_get_until_status_code`
 and `retry_get` in the same file, and the mTLS tests (`test_ingress_mtls*.py`)
 for the SSLError-ordering pattern.
-
-### Checklist for the AI applying this
-
-- [ ] Confirm the test reloads config AND sends traffic that could overlap it.
-- [ ] Replace unguarded `requests.*` retry loops with `retry_get_until_body_contains`
-      (or add `except requests.exceptions.ConnectionError: continue` to the loop).
-- [ ] Guard single pre-loop requests that immediately follow a config change too.
-- [ ] Preserve existing assertions and the ~60s retry budget.
-- [ ] Remove the now-unused `import requests` if no other usage remains in the file.
-- [ ] Do NOT add `@pytest.mark.flaky`.
-- [ ] Test-only change: no product code, codegen, or snapshot updates.

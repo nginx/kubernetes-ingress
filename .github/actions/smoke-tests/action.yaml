@@ -35,7 +35,7 @@ inputs:
     description: JWT for NGINX Plus
     required: false
   pytest-args:
-    description: Extra pytest arguments, e.g. --maxfail=1000 to keep running after the first failure
+    description: Extra pytest arguments, e.g. --maxfail=100 to keep running after the first failure
     required: false
 
 outputs:

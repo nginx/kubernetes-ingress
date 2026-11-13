@@ -369,7 +369,7 @@ jobs:
           test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ env.PLUS_JWT }}
           # pyproject.toml has -x; override it so one failure does not hide the rest of the nightly
-          pytest-args: --maxfail=1000
+          pytest-args: --maxfail=100
 
       - name: Upload Test Results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
