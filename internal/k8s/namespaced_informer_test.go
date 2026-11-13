@@ -308,8 +308,7 @@ func TestWatchErrorTrackerSeparatesResourcesAndNamespaces(t *testing.T) {
 func TestWatchErrorTrackerReportsAgainAfterSuccessfulList(t *testing.T) {
 	t.Parallel()
 
-	tracker, _ := newTestWatchErrorTracker()
-	key := watchErrorKey{resource: networking.Resource("ingresses"), namespace: "team-a"}
+	state := &watchErrorState{}
 
 	tests := []struct {
 		resourceVersion string
@@ -322,9 +321,33 @@ func TestWatchErrorTrackerReportsAgainAfterSuccessfulList(t *testing.T) {
 		{resourceVersion: "250", want: true},  // another successful list, then forbidden again
 	}
 	for i, test := range tests {
-		if got := tracker.shouldReport(key, test.resourceVersion); got != test.want {
+		if got := state.shouldReport(test.resourceVersion); got != test.want {
 			t.Errorf("call %d: shouldReport(%q) = %v, want %v", i, test.resourceVersion, got, test.want)
 		}
+	}
+}
+
+// TestWatchErrorTrackerNewHandlerReportsAgain pins the behavior that replaces
+// explicit cleanup: each call to handler() gets its own report state, so a
+// replacement informer for the same resource and namespace (for example, a
+// namespace that is unwatched and watched again) reports its own forbidden
+// error instead of being suppressed by the old informer's history.
+func TestWatchErrorTrackerNewHandlerReportsAgain(t *testing.T) {
+	t.Parallel()
+
+	tracker, buf := newTestWatchErrorTracker()
+	gr := networking.Resource("ingresses")
+	reflector := newTestReflector()
+
+	first := tracker.handler(gr, "team-a")
+	first(context.Background(), reflector, forbiddenListError(gr, "team-a"))
+	first(context.Background(), reflector, forbiddenListError(gr, "team-a")) // suppressed by first's own state
+
+	second := tracker.handler(gr, "team-a")
+	second(context.Background(), reflector, forbiddenListError(gr, "team-a"))
+
+	if n := strings.Count(buf.String(), "missing permission"); n != 2 {
+		t.Errorf("logged %d missing permission errors, want 2 (one per handler); log:\n%s", n, buf.String())
 	}
 }
 
@@ -341,9 +364,6 @@ func TestWatchErrorTrackerIgnoresOtherErrors(t *testing.T) {
 
 	if got := buf.String(); got != "" {
 		t.Errorf("tracker logged non-forbidden errors; log:\n%s", got)
-	}
-	if len(tracker.reported) != 0 {
-		t.Errorf("tracker recorded non-forbidden errors: %v", tracker.reported)
 	}
 }
 

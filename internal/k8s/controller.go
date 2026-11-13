@@ -5583,60 +5583,59 @@ func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
 	return false
 }
 
-// watchErrorKey identifies one informer: a resource in a namespace.
-type watchErrorKey struct {
-	resource  schema.GroupResource
-	namespace string
-}
-
 // watchErrorTracker logs forbidden list and watch errors from informers once
 // per resource and namespace, so a missing RBAC rule produces one named error
 // instead of a log line on every informer retry.
 type watchErrorTracker struct {
 	logger *slog.Logger
-
-	mu sync.Mutex
-	// reported maps each informer to the resource version it had last synced
-	// when its forbidden error was logged. A forbidden error is logged again
-	// only after the resource version changes, which means a list succeeded
-	// since the last report.
-	reported map[watchErrorKey]string
 }
 
 func newWatchErrorTracker(logger *slog.Logger) *watchErrorTracker {
-	return &watchErrorTracker{
-		logger:   logger,
-		reported: make(map[watchErrorKey]string),
+	return &watchErrorTracker{logger: logger}
+}
+
+// watchErrorState is the report state of one informer's watch error handler.
+// Each call to handler() gets its own state, so it is scoped to one informer's
+// lifetime: nothing needs to be cleared when the informer is removed, and a
+// replacement informer (for example when a namespace is re-watched) starts
+// with a clean state and reports its own forbidden errors.
+type watchErrorState struct {
+	mu sync.Mutex
+	// reported is true once a forbidden error has been logged for version.
+	// A forbidden error is logged again only after the resource version
+	// changes, which means a list succeeded since the last report.
+	reported bool
+	version  string
+}
+
+// shouldReport records a forbidden error at resourceVersion and reports
+// whether it should be logged.
+func (s *watchErrorState) shouldReport(resourceVersion string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.reported && s.version == resourceVersion {
+		return false
 	}
+	s.reported, s.version = true, resourceVersion
+	return true
 }
 
 // handler returns a watch error handler for the informer of resource in
 // namespace. Forbidden errors are logged once with the missing permission.
 // Other errors go to client-go's default handler.
 func (t *watchErrorTracker) handler(resource schema.GroupResource, namespace string) cache.WatchErrorHandlerWithContext {
-	key := watchErrorKey{resource: resource, namespace: namespace}
+	state := &watchErrorState{}
 	return func(ctx context.Context, r *cache.Reflector, err error) {
 		if !apierrors.IsForbidden(err) {
 			cache.DefaultWatchErrorHandler(ctx, r, err)
 			return
 		}
-		if t.shouldReport(key, r.LastSyncResourceVersion()) {
+		if state.shouldReport(r.LastSyncResourceVersion()) {
 			nl.Errorf(t.logger, "missing permission: list and watch %s in %s; check the Role or ClusterRole bound to the NIC ServiceAccount: %v",
 				resource.String(), namespaceDescription(namespace), err)
 		}
 	}
-}
-
-// shouldReport records a forbidden error for key and reports whether it should be logged.
-func (t *watchErrorTracker) shouldReport(key watchErrorKey, resourceVersion string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if lastVersion, ok := t.reported[key]; ok && lastVersion == resourceVersion {
-		return false
-	}
-	t.reported[key] = resourceVersion
-	return true
 }
 
 // setWatchErrorHandler sets the tracker's handler on informer. It must be called
