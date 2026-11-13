@@ -199,11 +199,11 @@ func generateStreamUpstreams(transportServerEx *TransportServerEx, upstreamNamer
 		var backupEndpoints []string
 		if u.Backup != "" && u.BackupPort != nil {
 			backupEnpointsKey := GenerateEndpointsKey(transportServerEx.TransportServer.Namespace, u.Backup, nil, *u.BackupPort)
-			externalNameSvcKey = GenerateExternalNameSvcKey(transportServerEx.TransportServer.Namespace, u.Backup)
+			backupExternalNameSvcKey := GenerateExternalNameSvcKey(transportServerEx.TransportServer.Namespace, u.Backup)
 
 			backupEndpoints = transportServerEx.Endpoints[backupEnpointsKey]
-			_, isExternalNameSvc = transportServerEx.ExternalNameSvcs[externalNameSvcKey]
-			if isExternalNameSvc && !isResolverConfigured {
+			_, isBackupExternalNameSvc := transportServerEx.ExternalNameSvcs[backupExternalNameSvcKey]
+			if isBackupExternalNameSvc && !isResolverConfigured {
 				msgFmt := "Type ExternalName service %v in upstream %v will be ignored. To use ExternalName services, a resolver must be configured in the ConfigMap"
 				warnings.AddWarningf(transportServerEx.TransportServer, msgFmt, u.Backup, u.Name)
 				backupEndpoints = []string{}
