@@ -50,11 +50,17 @@ jobs:
       contents: read # for ./.github/actions/build-push-retry
       id-token: write # for OIDC login to GCR
       packages: write # for pushing/pulling test-runner on GHCR
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve CI vars
+        id: ci-vars
+        uses: ./.github/actions/setup-ci-vars
+        with:
+          test-runner-registry: ${{ vars.TEST_RUNNER_REGISTRY }}
 
       - name: Generate Secrets for tests
         run: |
@@ -123,7 +129,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ inputs.authenticated }}
+        if: ${{ inputs.authenticated && github.repository == 'nginx/kubernetes-ingress' }}
 
       - name: Check if stable image exists
         id: stable_exists
@@ -159,7 +165,7 @@ jobs:
       - name: Check if pytest image exists
         id: check-image
         run: |
-          docker manifest inspect "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          docker manifest inspect "${{ steps.ci-vars.outputs.test_runner_image }}"
         shell: bash
         continue-on-error: true
         if: ${{ inputs.authenticated  }}
@@ -170,7 +176,7 @@ jobs:
           file: tests/Dockerfile
           context: "."
           cache-from: type=gha,scope=test-runner
-          tags: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          tags: "${{ steps.ci-vars.outputs.test_runner_image }}"
           pull: true
           push: ${{ inputs.authenticated }}
           load: ${{ !inputs.authenticated }}
@@ -212,7 +218,7 @@ jobs:
           label: ${{ inputs.label }}
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
-          test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          test-image: "${{ steps.ci-vars.outputs.test_runner_image }}"
           plus-jwt: ${{ env.PLUS_JWT }}
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
