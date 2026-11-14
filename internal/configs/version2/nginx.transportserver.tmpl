@@ -54,4 +54,8 @@ server {
     proxy_next_upstream_timeout {{ $s.ProxyNextUpstreamTimeout }};
     proxy_next_upstream_tries {{ $s.ProxyNextUpstreamTries }};
     {{- end }}
+
+    {{- if $s.ProxyProtocolUpstream }}
+    proxy_protocol on;
+    {{- end }}
 }
