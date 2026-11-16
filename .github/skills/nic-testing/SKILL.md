@@ -190,24 +190,36 @@ class TestMyFeaturePolicies:
         pol_name = create_policy_from_yaml(
             kube_apis.custom_objects, yaml_src, test_namespace
         )
-        wait_before_test()
-        # 2. Patch VS to reference policy
-        patch_virtual_server_from_yaml(...)
-        # 3. Assert HTTP responses
-        resp = requests.get(url, headers={"host": vs_host})
-        assert resp.status_code == 200
-        assert "Expected-Header" in resp.headers
-        # 4. Cleanup
-        delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
-        patch_virtual_server_from_yaml(...)  # restore original
+        try:
+            # 2. Patch VS to reference policy
+            patch_virtual_server_from_yaml(...)
+            # 3. Poll until the reload has taken effect; never sleep, then assert once
+            resp = retry_get_until_status_code(url, virtual_server_setup.vs_host, 200)
+            assert resp.status_code == 200  # the helper returns the last response even if it never matched
+            assert "Expected-Header" in resp.headers
+        finally:
+            # 4. Cleanup runs even when an assert fails
+            delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
+            patch_virtual_server_from_yaml(...)  # restore original
 ```
 
 ### Fixtures and Utilities
 
 - Common fixtures: `kube_apis`, `crd_ingress_controller`, `virtual_server_setup`, `test_namespace`
 - Fixtures: `tests/suite/fixtures/` (setup/teardown lifecycle)
-- Utilities: `tests/suite/utils/` (`create_policy_from_yaml`, `patch_virtual_server_from_yaml`, `delete_policy`, `wait_before_test`)
-- Prefer event/status-based waits over fixed sleeps when possible
+- Utilities: `tests/suite/utils/` (`create_policy_from_yaml`, `patch_virtual_server_from_yaml`, `delete_policy`, `retry_get_until_status_code`)
+- Prefer polling over fixed sleeps, see "Waiting for config changes" below
+
+### Waiting for config changes
+
+A config change reloads NGINX. A request that lands during the reload can be dropped, and a fixed `wait_before_test()` before one assertion only passes if the reload is faster than the sleep. Details and the failure data: `docs/developer/e2e-flaky-tests.md`.
+
+- After a change that reloads, poll with `retry_get_until_status_code`, `retry_get_until_body_contains`, or `retry_get` (one request, retried only on `ConnectionError`). They are in `tests/suite/utils/resources_utils.py`. `wait_and_assert_status_code` and `send_malicious_request_with_retry` also tolerate dropped connections. The `retry_get_until_*` helpers return the last response even if it never matched, so still assert on it.
+- For non-HTTP conditions use the existing waiters: `wait_for_event`, `wait_for_resource_status`, `wait_for_reload`, `wait_until_all_pods_are_ready`, `ensure_response_from_backend`.
+- Keep `wait_before_test()` only when the wait is the point of the test (rate-limit windows, asserting something does not happen).
+- Do not add `@pytest.mark.flaky`. It reruns the whole test and hides real regressions.
+- If a test catches `requests.exceptions.SSLError` (mTLS), put that `except` before `except ConnectionError`, because `SSLError` is a subclass.
+- The `nginx-config` ConfigMap lives for the whole session. A test that changes it restores it in a fixture or `finally`, not at the end of the test body, or a later unrelated test fails. `tests/conftest.py` prints `Leaked nginx-config` when a class leaves it changed. The IC Deployment is recreated per class, so replica counts do not leak across classes.
 
 ### File Naming
 

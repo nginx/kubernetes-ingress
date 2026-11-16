@@ -161,3 +161,4 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "${{ steps.ci-vars.outputs.test_runner_image }}"
           plus-jwt: ${{ env.PLUS_JWT }}
+          plm-helm-repo: ${{ vars.PLM_HELM_REPO }}
