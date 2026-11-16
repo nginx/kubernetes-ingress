@@ -24,8 +24,8 @@ permissions:
 jobs:
   build:
     name: Build test image
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
       id-token: write
