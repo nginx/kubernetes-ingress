@@ -154,3 +154,4 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') }}"
           plus-jwt: ${{ env.PLUS_JWT }}
+          plm-helm-repo: ${{ vars.PLM_HELM_REPO }}
