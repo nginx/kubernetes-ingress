@@ -44,7 +44,6 @@ runs:
         SOURCE_DIR: ${{ inputs.source-dir }}
         DESTINATION_PATH: ${{ inputs.destination-path }}
         PATTERN: ${{ inputs.pattern }}
-        CONTAINER_NAME: ${{ inputs.container-name }}
         DRY_RUN: ${{ inputs.dry-run }}
       run: |
         # An empty destination would upload to the container root; an empty source usually means the producing step failed.
@@ -55,7 +54,7 @@ runs:
         shopt -s globstar nullglob dotglob
         src="${SOURCE_DIR%/}"
         found=0
-        echo "Uploading '$PATTERN' from '$src' to container '$CONTAINER_NAME':"
+        echo "Uploading '$PATTERN' from '$src':"
         # shellcheck disable=SC2231 # PATTERN is deliberately unquoted so it globs
         for f in "$src"/**/$PATTERN; do
           [ -f "$f" ] || continue
