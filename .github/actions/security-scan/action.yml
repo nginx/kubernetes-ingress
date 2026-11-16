@@ -1,12 +1,15 @@
 name: Security Scan
-description: Scan an image with Docker Scout into a SARIF file, and optionally upload the SARIF to Azure Blob Storage.
+description: Scan an image with Docker Scout into a SARIF file, and optionally upload the SARIF to GitHub code scanning or Azure Blob Storage.
 
 # The scan fails this step on error; callers that want a soft fail set `continue-on-error: true`
-# and gate follow-up steps on `steps.<id>.outcome == 'success'`. The upload only runs after a successful scan.
+# and gate follow-up steps on `steps.<id>.outcome == 'success'`. Uploads only run after a successful scan.
 #
-# Azure upload: composite actions cannot read `vars`, so callers pass
-#   azure-upload: ${{ vars.IS_PUBLIC != 'true' }}
-# SARIF from the internal repository goes to Azure instead of GHSA. Uploading needs
+# Where the SARIF goes: composite actions cannot read `vars`, so callers pass both
+#   github-upload: ${{ vars.IS_PUBLIC == 'true' }}
+#   azure-upload: ${{ vars.IS_PUBLIC == 'false' }}
+# Both compare against an explicit value, so an unset IS_PUBLIC uploads nowhere instead of to the wrong place.
+# The public repository uploads to GitHub code scanning (Security tab), which needs `permissions: security-events: write`.
+# The internal repository is private, so its SARIF goes to Azure instead. That needs
 # `permissions: id-token: write` and a non-empty `prefix`, and stores the file as <prefix>/<blob-name>.
 #
 # Run docker/login-action for Docker Hub before this action; Docker Scout needs it.
@@ -24,8 +27,12 @@ inputs:
     description: Ignore vulnerabilities from the base image
     required: false
     default: "false"
+  github-upload:
+    description: Upload the SARIF to GitHub code scanning (pass vars.IS_PUBLIC == 'true')
+    required: false
+    default: "false"
   azure-upload:
-    description: Upload the SARIF to Azure Blob Storage (pass vars.IS_PUBLIC != 'true')
+    description: Upload the SARIF to Azure Blob Storage (pass vars.IS_PUBLIC == 'false')
     required: false
     default: "false"
   prefix:
@@ -83,6 +90,12 @@ runs:
         sarif-file: ${{ inputs.sarif-file }}
         write-comment: false
         summary: true
+
+    - name: Upload SARIF to GitHub code scanning
+      if: ${{ inputs.github-upload == 'true' }}
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
 
     # azure-blob uploads a directory, so stage the SARIF under its blob name inside the workspace
     # (the Azure CLI step only mounts GITHUB_WORKSPACE).
