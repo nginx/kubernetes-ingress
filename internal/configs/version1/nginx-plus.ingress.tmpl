@@ -612,6 +612,15 @@ server {
 		grpc_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
 		grpc_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else}}$scheme{{end}};
 		{{- end}}
+		{{- with $location.AuthResponseHeaders }}
+		{{- range $h := .Headers }}
+		auth_request_set {{ $h.Variable }} {{ $h.Source }};
+		grpc_set_header {{ $h.Name }} {{ $h.Variable }};
+		{{- end }}
+		{{- end }}
+		{{- range $name := $location.StrippedAuthResponseHeaders }}
+		grpc_set_header {{ $name }} "";
+		{{- end }}
 
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
@@ -692,6 +701,15 @@ server {
 		proxy_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
 		proxy_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		{{- end}}
+		{{- with $location.AuthResponseHeaders }}
+		{{- range $h := .Headers }}
+		auth_request_set {{ $h.Variable }} {{ $h.Source }};
+		proxy_set_header {{ $h.Name }} {{ $h.Variable }};
+		{{- end }}
+		{{- end }}
+		{{- range $name := $location.StrippedAuthResponseHeaders }}
+		proxy_set_header {{ $name }} "";
+		{{- end }}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
 		proxy_buffers {{$location.ProxyBuffers}};
@@ -782,6 +800,9 @@ server {
 	location @custom_default_backend {
 		internal;
 		proxy_intercept_errors off;
+		{{- range $name := $server.AuthResponseHeaderNames }}
+		proxy_set_header {{ $name }} "";
+		{{- end }}
 		proxy_pass http://{{$server.CustomHTTPErrorBackend}};
 	}
 	{{- end}}

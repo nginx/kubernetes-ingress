@@ -681,6 +681,35 @@ spec:
                   be used for example with the oauth2-proxy or any custom authentication
                   server.
                 properties:
+                  authResponseHeaders:
+                    description: AuthResponseHeaders lists headers of the external
+                      authentication server's response that are passed to the backend
+                      after the server allows a request with a 2xx response. The server's
+                      value replaces a header of the same name from the client or
+                      from other configuration, and a listed header that the server
+                      does not return is removed. Names contain letters, digits, and
+                      hyphens, have at most 46 characters, and must be unique, ignoring
+                      case. At most 32 names are allowed. Host, Connection, Proxy-Connection,
+                      Content-Length, Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade,
+                      X-Real-IP, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port,
+                      and X-Forwarded-Proto are not allowed.
+                    items:
+                      maxLength: 46
+                      pattern: ^[A-Za-z0-9-]+$
+                      type: string
+                    maxItems: 32
+                    type: array
+                    x-kubernetes-validations:
+                    - message: header names must be unique, ignoring case
+                      rule: self.all(h, self.exists_one(x, x.lowerAscii() == h.lowerAscii()))
+                    - message: Host, Connection, Proxy-Connection, Content-Length,
+                        Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade, X-Real-IP,
+                        X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port, and X-Forwarded-Proto
+                        are managed by NGINX and cannot be taken from the auth response
+                      rule: self.all(h, !(h.lowerAscii() in ['host', 'connection',
+                        'proxy-connection', 'content-length', 'transfer-encoding',
+                        'te', 'keep-alive', 'expect', 'upgrade', 'x-real-ip', 'x-forwarded-for',
+                        'x-forwarded-host', 'x-forwarded-port', 'x-forwarded-proto']))
                   authServiceName:
                     description: AuthServiceName is the name of the Kubernetes service
                       to which the request will be sent for authentication.  It can

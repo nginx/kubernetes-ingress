@@ -1,10 +1,16 @@
 """Shared helpers, file path constants, and fixtures for external auth policy tests."""
 
+import json
 import logging
 from base64 import b64encode
 
+import grpc
 import pytest
-from settings import TEST_DATA
+import requests
+from kubernetes.stream import stream
+from settings import DEPLOYMENTS, TEST_DATA
+from suite.grpc.helloworld_pb2 import HelloRequest
+from suite.grpc.helloworld_pb2_grpc import GreeterStub
 from suite.utils.policy_resources_utils import (
     setup_policy_backend,
     teardown_policy_backend,
@@ -12,15 +18,22 @@ from suite.utils.policy_resources_utils import (
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
+    create_secret_from_yaml,
     delete_common_app,
     delete_items_from_yaml,
+    delete_secret,
+    ensure_response_from_backend,
     generate_e2e_run_id,
     get_e2e_run_selector,
+    get_first_pod_name,
     get_reload_count,
+    replace_configmap_from_yaml,
+    wait_before_test,
     wait_for_reload,
     wait_until_all_pods_are_ready,
 )
-from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
+from suite.utils.ssl_utils import get_certificate
+from suite.utils.vs_vsr_resources_utils import apply_and_assert_valid_vs, delete_and_create_vs_from_yaml
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml
 
 logger = logging.getLogger(__name__)
@@ -359,3 +372,156 @@ def ext_auth_restore_vs(kube_apis, virtual_server_setup):
         )
     except Exception:
         logger.debug("ext_auth_restore_vs teardown: ignoring error during VS restore")
+
+
+# ---------------------------------------------------------------------------
+# authResponseHeaders acceptance scenarios
+# (docs/developer/external-auth-response-headers-high-level-design.md)
+# ---------------------------------------------------------------------------
+
+headers_echo_backend_src = f"{TEST_DATA}/external-auth/backend/headers-echo-backend.yaml"
+ext_auth_pol_response_headers_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-response-headers.yaml"
+
+
+# Listed by Policy P, and returned by the test auth services on every response.
+RETURNED_HEADERS = (("Tenant-UUID", "tenant-123"), ("User-UUID", "user-456"), ("X-Session-ID", "session-789"))
+
+# The longest name the field accepts. The test auth services return it.
+LONGEST_HEADER_NAME = "X-Longest-Auth-Response-Header-Name-Allowed-46"
+
+
+def deploy_headers_echo(kube_apis, namespace, e2e_run_id):
+    """Deploy the echo backend that reports request header lines, and wait for it."""
+    create_items_from_yaml(kube_apis, headers_echo_backend_src, namespace, e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, namespace, get_e2e_run_selector(e2e_run_id))
+
+
+def delete_headers_echo(kube_apis, namespace):
+    """Delete the echo backend."""
+    delete_items_from_yaml(kube_apis, headers_echo_backend_src, namespace)
+
+
+@pytest.fixture
+def headers_echo_backend(request, kube_apis, test_namespace, e2e_run_id):
+    """Deploy the echo backend in the test namespace, with guaranteed teardown."""
+    deploy_headers_echo(kube_apis, test_namespace, e2e_run_id)
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            try:
+                delete_headers_echo(kube_apis, test_namespace)
+            except Exception:
+                logger.debug("headers_echo_backend teardown: ignoring error (resource may already be deleted)")
+
+    request.addfinalizer(fin)
+    return test_namespace
+
+
+@pytest.fixture
+def ext_auth_http2_config(request, kube_apis, ingress_controller_prerequisites, test_namespace):
+    """Turn on HTTP/2 in the ConfigMap, and add the TLS secret of the gRPC VirtualServers."""
+    cm_name = ingress_controller_prerequisites.config_map["metadata"]["name"]
+    cm_namespace = ingress_controller_prerequisites.namespace
+    replace_configmap_from_yaml(
+        kube_apis.v1, cm_name, cm_namespace, f"{TEST_DATA}/virtual-server-grpc/nginx-config.yaml"
+    )
+    secret_name = create_secret_from_yaml(
+        kube_apis.v1, test_namespace, f"{TEST_DATA}/virtual-server-grpc/tls-secret.yaml"
+    )
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            delete_secret(kube_apis.v1, secret_name, test_namespace)
+            replace_configmap_from_yaml(kube_apis.v1, cm_name, cm_namespace, f"{DEPLOYMENTS}/common/nginx-config.yaml")
+
+    request.addfinalizer(fin)
+
+
+def echoed_lines(body):
+    """Return the request header lines that the echo backend reports, as (name, value) pairs."""
+    return [(name, value) for name, value in json.loads(body)["headers"]]
+
+
+def header_values(lines, name):
+    """Return the values of every line named name, compared ignoring case, in order."""
+    return [value for line_name, value in lines if line_name.lower() == name.lower()]
+
+
+def lines_named(lines, name):
+    """Return the lines named name, compared ignoring case, each with its own spelling."""
+    return [(line_name, value) for line_name, value in lines if line_name.lower() == name.lower()]
+
+
+def request_echo(url, host, headers=None, credentials=valid_credentials):
+    """Send a request through NIC, with credentials and extra headers, and return the response."""
+    request_headers = build_ext_auth_headers(host, credentials)
+    request_headers.update(headers or {})
+    return requests.get(url, headers=request_headers)
+
+
+def request_lines(url, host, headers=None, credentials=valid_credentials):
+    """Send a request through NIC, and return the header lines that the echo backend received."""
+    resp = request_echo(url, host, headers, credentials)
+    assert resp.status_code == 200, resp.text
+    return echoed_lines(resp.text)
+
+
+def wait_and_request_lines(url, host, headers=None):
+    """Wait until NIC answers with valid credentials, then return the lines of a request with extra headers."""
+    ensure_response_from_backend(url, host, additional_headers=valid_auth_headers(), check404=True)
+    return request_lines(url, host, headers)
+
+
+def apply_vs_and_wait(kube_apis, setup, vs_src):
+    """Replace the VirtualServer, check that it is Valid, and wait until it answers."""
+    apply_and_assert_valid_vs(kube_apis, setup.namespace, setup.vs_name, vs_src)
+    ensure_response_from_backend(setup.backend_1_url, setup.vs_host, additional_headers=valid_auth_headers())
+
+
+def echo_from_pod(kube_apis, namespace, headers):
+    """Send a request straight to the echo backend from inside its pod, and return the lines it reports."""
+    pod = get_first_pod_name(kube_apis.v1, namespace, "app=headers-echo")
+    command = ["wget", "-qO-"]
+    for name, value in headers.items():
+        command += ["--header", f"{name}: {value}"]
+    command.append("http://127.0.0.1:8080/")
+    body = stream(
+        kube_apis.v1.connect_get_namespaced_pod_exec,
+        pod,
+        namespace,
+        command=command,
+        stderr=True,
+        stdin=False,
+        stdout=True,
+        tty=False,
+    )
+    return echoed_lines(body)
+
+
+def grpc_auth_metadata(extra=()):
+    """Return gRPC call metadata with valid credentials, followed by extra entries."""
+    return (("authorization", valid_auth_headers()["authorization"]),) + tuple(extra)
+
+
+def _say_hello_lines(channel_factory, metadata, attempts):
+    for attempt in range(attempts):
+        with channel_factory() as channel:
+            try:
+                reply = GreeterStub(channel).SayHello(HelloRequest(name="scenario"), metadata=metadata, timeout=10)
+                return echoed_lines(reply.message)
+            except grpc.RpcError as e:
+                if attempt == attempts - 1:
+                    pytest.fail(f"gRPC call failed: {e.code()} {e.details()}")
+                wait_before_test()
+
+
+def grpc_tls_lines(endpoint, host, metadata, attempts=10):
+    """Call the gRPC echo backend through NIC over TLS, and return the metadata it received."""
+    cert = get_certificate(endpoint.public_ip, host, endpoint.port_ssl)
+    credentials = grpc.ssl_channel_credentials(root_certificates=cert.encode())
+    options = (("grpc.ssl_target_name_override", host),)
+    return _say_hello_lines(
+        lambda: grpc.secure_channel(f"{endpoint.public_ip}:{endpoint.port_ssl}", credentials, options),
+        metadata,
+        attempts,
+    )

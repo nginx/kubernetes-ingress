@@ -270,7 +270,6 @@ jobs:
       nginx_registry: true
       gcr_release_registry: false
       gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       target_tag: "edge"
@@ -459,7 +458,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
+            suffix=${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -559,7 +558,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/${{ matrix.image }}
           flavor: |
-            suffix=${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ matrix.tag_suffix }}
+            suffix=${{ matrix.tag_suffix }}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 

@@ -2097,6 +2097,68 @@ func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, 
 	// Validate SSL fields
 	allErrs = append(allErrs, validateExternalAuthSSLFields(externalAuth, fieldPath)...)
 
+	allErrs = append(allErrs, validateAuthResponseHeaders(externalAuth.AuthResponseHeaders, fieldPath.Child("authResponseHeaders"))...)
+
+	return allErrs
+}
+
+const (
+	maxAuthResponseHeaders = 32
+	// maxAuthResponseHeaderNameLength is the longest header name that fits the 64-byte proxy and
+	// gRPC header hash buckets of NGINX on 64-bit platforms.
+	maxAuthResponseHeaderNameLength = 46
+)
+
+// reservedAuthResponseHeaders are managed by NGINX or NGINX Ingress Controller on every backend
+// request, so they cannot be taken from the auth response.
+var reservedAuthResponseHeaders = map[string]bool{
+	"host":              true,
+	"connection":        true,
+	"proxy-connection":  true,
+	"content-length":    true,
+	"transfer-encoding": true,
+	"te":                true,
+	"keep-alive":        true,
+	"expect":            true,
+	"upgrade":           true,
+	"x-real-ip":         true,
+	"x-forwarded-for":   true,
+	"x-forwarded-host":  true,
+	"x-forwarded-port":  true,
+	"x-forwarded-proto": true,
+}
+
+func validateAuthResponseHeaders(headers []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(headers) > maxAuthResponseHeaders {
+		allErrs = append(allErrs, field.TooMany(fieldPath, len(headers), maxAuthResponseHeaders))
+	}
+
+	seen := make(map[string]bool, len(headers))
+	for i, name := range headers {
+		idxPath := fieldPath.Index(i)
+
+		for _, msg := range validation.IsHTTPHeaderName(name) {
+			allErrs = append(allErrs, field.Invalid(idxPath, name, msg))
+		}
+		if ContainsDangerousChars(name) {
+			allErrs = append(allErrs, field.Invalid(idxPath, name, "contains invalid characters"))
+		}
+		if len(name) > maxAuthResponseHeaderNameLength {
+			allErrs = append(allErrs, field.TooLong(idxPath, name, maxAuthResponseHeaderNameLength))
+		}
+
+		lower := strings.ToLower(name)
+		if reservedAuthResponseHeaders[lower] {
+			allErrs = append(allErrs, field.Forbidden(idxPath, fmt.Sprintf("%s is managed by NGINX and cannot be taken from the auth response", name)))
+		}
+		if seen[lower] {
+			allErrs = append(allErrs, field.Duplicate(idxPath, name))
+		}
+		seen[lower] = true
+	}
+
 	return allErrs
 }
 

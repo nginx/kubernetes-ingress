@@ -785,8 +785,10 @@ server {
         auth_jwt "" token=$session_jwt;
         error_page 401 = @do_oidc_flow;
         auth_jwt_key_request /_jwks_uri;
+        {{- if not (hasAuthResponseHeader $l.AuthResponseHeaders "username") }}
         {{- $proxyOrGRPC }}_set_header username $jwt_claim_sub;
-            {{- if $s.OIDC.AccessTokenEnable }}
+        {{- end }}
+            {{- if and $s.OIDC.AccessTokenEnable (not (hasAuthResponseHeader $l.AuthResponseHeaders "Authorization")) }}
         {{ $proxyOrGRPC }}_set_header Authorization "Bearer $access_token";
             {{- end }}
         {{- end }}
@@ -975,6 +977,15 @@ server {
 
         {{- range $h := $l.ProxySetHeaders }}
         {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ printf "%q" $h.Value }};
+        {{- end }}
+        {{- with $l.AuthResponseHeaders }}
+        {{- range $h := .Headers }}
+        auth_request_set {{ $h.Variable }} {{ $h.Source }};
+        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ $h.Variable }};
+        {{- end }}
+        {{- end }}
+        {{- range $name := $l.StrippedAuthResponseHeaders }}
+        {{ $proxyOrGRPC }}_set_header {{ $name }} "";
         {{- end }}
 
             {{- range $h := $l.ProxyHideHeaders }}

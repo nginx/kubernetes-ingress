@@ -9706,3 +9706,159 @@ func TestExecuteTemplatesForIngressWithConnectionLimitMinions(t *testing.T) {
 		})
 	}
 }
+
+// TestExecuteTemplate_ForIngressWithAuthResponseHeaders covers the Ingress rendering of the ExternalAuth response
+// headers design: a pair of directives per listed name, grpc_set_header for gRPC backends, nothing for locations
+// without a list, unchanged auth_request handling, and a @custom_default_backend that removes the names and never
+// reads the captured values.
+func TestExecuteTemplate_ForIngressWithAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	tenantUUID := version2.AuthResponseHeader{Name: "Tenant-UUID", Variable: "$auth_resp_tenant_uuid", Source: "$upstream_http_tenant_uuid"}
+	sessionID := version2.AuthResponseHeader{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"}
+	newCfg := func() IngressNginxConfig {
+		cfg := newIngressConfigWithExternalAuth("location", "")
+		server := &cfg.Servers[0]
+		tea := server.Locations[0]
+		tea.AuthResponseHeaders = &version2.AuthResponseHeaders{Policy: "default/p", Headers: []version2.AuthResponseHeader{tenantUUID, sessionID}}
+
+		grpc := Location{
+			Path:                "/helloworld.Greeter",
+			Upstream:            testUpstream,
+			GRPC:                true,
+			ExternalAuth:        tea.ExternalAuth,
+			AuthResponseHeaders: &version2.AuthResponseHeaders{Policy: "default/p", Headers: []version2.AuthResponseHeader{tenantUUID}},
+		}
+		coffee := Location{Path: "/coffee", Upstream: testUpstream, ProxyPass: "http://test", ExternalAuth: tea.ExternalAuth}
+
+		server.Locations = []Location{tea, grpc, coffee}
+		server.HTTP2 = true
+		server.CustomHTTPErrorCodes = []int{403}
+		server.CustomHTTPErrorBackend = "ing_default_cafe-ingress_default-svc_80"
+		server.AuthResponseHeaderNames = []string{"Tenant-UUID", "X-Session-ID"}
+		return cfg
+	}
+	authLines := func(block string) []string {
+		var lines []string
+		for _, line := range strings.Split(block, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "auth_request ") || strings.HasPrefix(line, "error_page 401") {
+				lines = append(lines, line)
+			}
+		}
+		return lines
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := test.newTmpl(t).Execute(buf, newCfg()); err != nil {
+				t.Fatal(err)
+			}
+			conf := buf.String()
+
+			tea := locationBlock(t, conf, `location "/tea" {`)
+			assertCount(t, tea, "auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;", 1)
+			assertCount(t, tea, "proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;", 1)
+			assertCount(t, tea, "auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;", 1)
+			assertCount(t, tea, "proxy_set_header X-Session-ID $auth_resp_x_session_id;", 1)
+
+			grpc := locationBlock(t, conf, `location "/helloworld.Greeter" {`)
+			assertCount(t, grpc, "auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;", 1)
+			assertCount(t, grpc, "grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;", 1)
+			assertCount(t, grpc, "proxy_set_header Tenant-UUID", 0)
+
+			// Unlisted headers stay behind: only listed names render, and only where a list applies.
+			coffee := locationBlock(t, conf, `location "/coffee" {`)
+			assertCount(t, coffee, "auth_request_set", 0)
+			assertCount(t, conf, "auth_request_set", 3)
+
+			// Rejections are unchanged: a list does not change the auth_request and 401 handling.
+			if want, got := authLines(coffee), authLines(tea); len(want) == 0 || !slices.Equal(want, got) {
+				t.Errorf("auth_request lines with a list %q, want %q", got, want)
+			}
+
+			// Shared default backend location: names removed, captured values never read.
+			fallback := locationBlock(t, conf, "location @custom_default_backend {")
+			assertCount(t, fallback, `proxy_set_header Tenant-UUID "";`, 1)
+			assertCount(t, fallback, `proxy_set_header X-Session-ID "";`, 1)
+			assertCount(t, fallback, "$auth_resp_", 0)
+
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithStrippedAuthResponseHeaders covers the scenario "Client copies are removed": a
+// location renders an empty header for each listed name that it does not forward, for proxy and gRPC backends.
+func TestExecuteTemplate_ForIngressWithStrippedAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	sessionID := version2.AuthResponseHeader{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"}
+	newCfg := func() IngressNginxConfig {
+		cfg := newIngressConfigWithExternalAuth("location", "")
+		server := &cfg.Servers[0]
+		tea := server.Locations[0]
+		tea.StrippedAuthResponseHeaders = []string{"Tenant-UUID", "X-Session-ID"}
+
+		grpc := Location{
+			Path:                        "/helloworld.Greeter",
+			Upstream:                    testUpstream,
+			GRPC:                        true,
+			StrippedAuthResponseHeaders: []string{"Tenant-UUID"},
+		}
+		coffee := Location{
+			Path:                        "/coffee",
+			Upstream:                    testUpstream,
+			ProxyPass:                   "http://test",
+			ExternalAuth:                tea.ExternalAuth,
+			AuthResponseHeaders:         &version2.AuthResponseHeaders{Policy: "default/q", Headers: []version2.AuthResponseHeader{sessionID}},
+			StrippedAuthResponseHeaders: []string{"Tenant-UUID"},
+		}
+
+		server.Locations = []Location{tea, grpc, coffee}
+		server.HTTP2 = true
+		return cfg
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := test.newTmpl(t).Execute(buf, newCfg()); err != nil {
+				t.Fatal(err)
+			}
+			conf := buf.String()
+
+			tea := locationBlock(t, conf, `location "/tea" {`)
+			assertCount(t, tea, `proxy_set_header Tenant-UUID "";`, 1)
+			assertCount(t, tea, `proxy_set_header X-Session-ID "";`, 1)
+
+			grpc := locationBlock(t, conf, `location "/helloworld.Greeter" {`)
+			assertCount(t, grpc, `grpc_set_header Tenant-UUID "";`, 1)
+			assertCount(t, grpc, "proxy_set_header Tenant-UUID", 0)
+
+			coffee := locationBlock(t, conf, `location "/coffee" {`)
+			assertCount(t, coffee, "proxy_set_header X-Session-ID $auth_resp_x_session_id;", 1)
+			assertCount(t, coffee, `proxy_set_header Tenant-UUID "";`, 1)
+
+			// Stripped names read no captured value.
+			assertCount(t, conf, "auth_request_set", 1)
+
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}

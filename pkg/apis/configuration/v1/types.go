@@ -1666,6 +1666,15 @@ type ExternalAuth struct {
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$`
 	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
 	SNIName string `json:"sniName,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxItems=32
+	// +kubebuilder:validation:items:MaxLength=46
+	// +kubebuilder:validation:items:Pattern=`^[A-Za-z0-9-]+$`
+	// +kubebuilder:validation:XValidation:rule="self.all(h, self.exists_one(x, x.lowerAscii() == h.lowerAscii()))",message="header names must be unique, ignoring case"
+	// +kubebuilder:validation:XValidation:rule="self.all(h, !(h.lowerAscii() in ['host', 'connection', 'proxy-connection', 'content-length', 'transfer-encoding', 'te', 'keep-alive', 'expect', 'upgrade', 'x-real-ip', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-port', 'x-forwarded-proto']))",message="Host, Connection, Proxy-Connection, Content-Length, Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade, X-Real-IP, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port, and X-Forwarded-Proto are managed by NGINX and cannot be taken from the auth response"
+	// AuthResponseHeaders lists headers of the external authentication server's response that are passed to the backend after the server allows a request with a 2xx response. The server's value replaces a header of the same name from the client or from other configuration, and a listed header that the server does not return is removed. Names contain letters, digits, and hyphens, have at most 46 characters, and must be unique, ignoring case. At most 32 names are allowed. Host, Connection, Proxy-Connection, Content-Length, Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade, X-Real-IP, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port, and X-Forwarded-Proto are not allowed.
+	AuthResponseHeaders []string `json:"authResponseHeaders,omitempty"`
 }
 
 // HSTS defines an HTTP Strict Transport Security policy for enforcing secure connections to the server.

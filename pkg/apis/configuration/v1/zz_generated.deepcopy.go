@@ -538,6 +538,11 @@ func (in *ExternalAuth) DeepCopyInto(out *ExternalAuth) {
 		*out = new(int)
 		**out = **in
 	}
+	if in.AuthResponseHeaders != nil {
+		in, out := &in.AuthResponseHeaders, &out.AuthResponseHeaders
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

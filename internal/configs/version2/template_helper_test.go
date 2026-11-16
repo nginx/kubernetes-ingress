@@ -868,3 +868,18 @@ func TestBoolToInt(t *testing.T) {
 		})
 	}
 }
+
+func TestHasAuthResponseHeader(t *testing.T) {
+	t.Parallel()
+
+	headers := &AuthResponseHeaders{Headers: []AuthResponseHeader{{Name: "Authorization"}}}
+	if !hasAuthResponseHeader(headers, "authorization") {
+		t.Error("hasAuthResponseHeader() did not find a listed name spelled in another letter case")
+	}
+	if hasAuthResponseHeader(headers, "username") {
+		t.Error("hasAuthResponseHeader() found a name that is not listed")
+	}
+	if hasAuthResponseHeader(nil, "username") {
+		t.Error("hasAuthResponseHeader() found a name in a nil list")
+	}
+}

@@ -2374,6 +2374,30 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			},
 			msg: "explicit SNIName should override the derived default",
 		},
+		{
+			name: "auth response headers",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:             "/auth",
+				AuthServiceName:     "auth-svc",
+				AuthResponseHeaders: []string{"Tenant-UUID", "X-Session-ID"},
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				ResponseHeaders: &version2.AuthResponseHeaders{
+					Policy: "default/ext-auth-policy",
+					Headers: []version2.AuthResponseHeader{
+						{Name: "Tenant-UUID", Variable: "$auth_resp_tenant_uuid", Source: "$upstream_http_tenant_uuid"},
+						{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"},
+					},
+				},
+			},
+			msg: "the listed auth response headers should be derived and keyed by the Policy",
+		},
 	}
 
 	for _, test := range tests {

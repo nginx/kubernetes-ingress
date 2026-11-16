@@ -101,6 +101,7 @@ type NginxCfgParams struct {
 	dosResource               *appProtectDosResource
 	BaseCfgParams             *ConfigParams
 	isMinion                  bool
+	isMaster                  bool
 	isPlus                    bool
 	isResolverConfigured      bool
 	isWildcardEnabled         bool
@@ -388,6 +389,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		maps = append(maps, *policyCfg.CORSMap)
 	}
 
+	// replacedHeaders adds each warning once, however many hosts repeat it.
+	replacedHeaders := newHeaderWarnings(allWarnings)
 	for _, rule := range ncp.ingEx.Ingress.Spec.Rules {
 		// skipping invalid hosts
 		if !ncp.ingEx.ValidHosts[rule.Host] {
@@ -827,6 +830,11 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				CustomHTTPErrorsAnnotation)
 		}
 
+		// generateNginxCfgForMergeableIngresses resolves the merged server of masters and minions.
+		if !ncp.isMinion && !ncp.isMaster {
+			server.AuthResponseHeaderNames = resolveIngressAuthResponseHeaders(locations, server.ExternalAuth,
+				func(*version1.Location) runtime.Object { return ncp.ingEx.Ingress }, replacedHeaders)
+		}
 		server.Locations = locations
 		server.ACMEChallengeActive = hasACMEChallengeLocation(locations)
 		server.HealthChecks = healthChecks
@@ -1431,6 +1439,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		apResources:               ncp.apResources,
 		dosResource:               ncp.dosResource,
 		isMinion:                  isMinion,
+		isMaster:                  true,
 		isPlus:                    ncp.isPlus,
 		BaseCfgParams:             ncp.BaseCfgParams,
 		isResolverConfigured:      ncp.isResolverConfigured,
@@ -1470,9 +1479,11 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true
 	hasGRPCLocations := false
+	minionOwners := make(map[string]runtime.Object, len(minions))
 	for _, minion := range minions {
 		// replace minion with a deepcopy because we will modify it
 		originalMinion := minion.Ingress
+		minionOwners[originalMinion.Namespace+"/"+originalMinion.Name] = originalMinion
 		minion.Ingress = minion.Ingress.DeepCopy()
 
 		// Remove the default backend so that "/" will not be generated
@@ -1611,6 +1622,10 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	masterServer.HealthChecks = healthChecks
 	masterServer.Locations = append(masterInternalLocations, locations...)
+	// Resolve after the merge above, which set each minion location's ProxySetHeaders and cleared an
+	// ExternalAuth that duplicates the master's. Warnings go to the original objects, as above.
+	masterServer.AuthResponseHeaderNames = resolveIngressAuthResponseHeaders(masterServer.Locations, masterServer.ExternalAuth,
+		mergeableLocationOwner(minionOwners, originalMaster), newHeaderWarnings(warnings))
 	masterServer.ACMEChallengeActive = hasACMEChallengeLocation(masterServer.Locations)
 	masterServer.HasGRPCLocations = hasGRPCLocations
 	masterServer.GRPCOnly = hasGRPCLocations && grpcOnly

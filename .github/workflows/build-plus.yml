@@ -84,7 +84,7 @@ jobs:
     name: "${{ contains(inputs.build-os, 'nap') && 'NAP' || 'Plus' }} ${{ inputs.build-os }}, ${{ inputs.target }}, ${{ inputs.platforms }}, ${{ inputs.nap-modules != '' && inputs.nap-modules || 'plus' }}"
     permissions:
       contents: read # for docker/build-push-action to read repo content
-      id-token: write # for OIDC login to AWS
+      id-token: write # for OIDC login
       pull-requests: write # for scout report
     runs-on: ${{ inputs.runner }}
     steps:
@@ -166,7 +166,7 @@ jobs:
           labels: |
             org.opencontainers.image.description=NGINX Plus Ingress Controller for Kubernetes
         env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: ${{ contains(inputs.target, 'aws') && 'manifest' || 'manifest,index' }}
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: 'manifest,index'
 
       - name: Set base name variable
         id: base_name
@@ -250,7 +250,7 @@ jobs:
           load: false
           push: ${{ inputs.authenticated }}
           pull: true
-          sbom: ${{ inputs.authenticated && !contains(inputs.target, 'aws') }}
+          sbom: ${{ inputs.authenticated }}
           provenance: false
           build-args: |
             BUILD_OS=${{ inputs.build-os }}
@@ -260,7 +260,6 @@ jobs:
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image ) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
-            ${{ (contains(inputs.target, 'aws') && inputs.nap-modules != '') && format('NAP_MODULES_AWS={0}', steps.nap_modules.outputs.modules) || '' }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
