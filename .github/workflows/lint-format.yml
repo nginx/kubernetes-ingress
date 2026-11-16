@@ -4,6 +4,10 @@ on:
   pull_request:
     branches:
       - main
+      - embargo/security-fixes*
+      - embargo/security-fixes-work/**
+    paths-ignore:
+      - .github/permissions-tracking.md
   merge_group:
 
 defaults:
@@ -21,8 +25,8 @@ jobs:
 
   format:
     name: Format
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,8 +43,8 @@ jobs:
 
   lint:
     name: Lint
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
       pull-requests: read # for golangci-lint-action
@@ -67,8 +71,8 @@ jobs:
 
   python-unit:
     name: Python Test Utils Unit Tests
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,8 +91,8 @@ jobs:
 
   actionlint:
     name: Actionlint
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -104,8 +108,8 @@ jobs:
 
   chart-lint:
     name: Chart Lint
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,8 +124,8 @@ jobs:
 
   markdown-lint:
     name: Markdown Lint
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-26.04
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
