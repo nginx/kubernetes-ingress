@@ -21,7 +21,6 @@ from suite.utils.resources_utils import (
 )
 
 PLM_CHART = "f5-waf-policy-controller"
-PLM_CHART_REPO = "https://helm.nginx.com/stable"
 PLM_RELEASE = "plm"
 PLM_NAMESPACE = "plm"
 # The chart prefixes its SeaweedFS objects with "<release>-f5-waf".
@@ -112,7 +111,7 @@ def remove_plm_finalizers(custom_objects: CustomObjectsApi) -> None:
 @pytest.fixture(scope="session")
 def plm_setup(request, kube_apis, cli_arguments) -> PLMSetup:
     """
-    Install PLM from its Helm chart, with images from NGX_REG and SeaweedFS TLS disabled.
+    Install PLM from the --plm-helm-repo Helm chart, with images from NGX_REG and SeaweedFS TLS disabled.
 
     The chart installs the appprotect.f5.com/v1 CRDs, so the cluster must not have any appprotect.f5.com CRDs yet.
 
@@ -168,14 +167,14 @@ def plm_setup(request, kube_apis, cli_arguments) -> PLMSetup:
         values[f"{key}.repository"] = f"{NGX_REG}/nap/{image}"
         values[f"{key}.tag"] = PLM_VERSION
     set_args = [arg for key, value in values.items() for arg in ("--set", f"{key}={value}")]
+    helm_repo = request.config.getoption("--plm-helm-repo")
+    chart = [f"{helm_repo}/{PLM_CHART}"] if helm_repo.startswith("oci://") else [PLM_CHART, "--repo", helm_repo]
     try:
         helm(
             cli_arguments,
             "install",
             PLM_RELEASE,
-            PLM_CHART,
-            "--repo",
-            PLM_CHART_REPO,
+            *chart,
             "--version",
             PLM_VERSION,
             "--namespace",
