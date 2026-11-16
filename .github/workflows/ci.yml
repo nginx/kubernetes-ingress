@@ -379,7 +379,7 @@ jobs:
         continue-on-error: true # soft-fail: scans fall back to an authenticated download
         with:
           mode: seed
-          # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
+          # Keep in sync with the docker/scout-action pin in build-oss.yml, build-plus.yml and .github/actions/security-scan.
           version: v1.29.0
           sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
 
