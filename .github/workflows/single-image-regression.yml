@@ -75,9 +75,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Resolve CI vars
-        id: ci-vars
-        uses: ./.github/actions/setup-ci-vars
+      - name: Resolve test runner
+        id: test-runner
+        uses: ./.github/actions/resolve-test-runner
         with:
           test-runner-registry: ${{ vars.TEST_RUNNER_REGISTRY }}
 
@@ -129,7 +129,7 @@ jobs:
       - name: Check if test image exists
         id: check-image
         run: |
-          docker manifest inspect "${{ steps.ci-vars.outputs.test_runner_image }}"
+          docker manifest inspect "${{ steps.test-runner.outputs.test_runner_image }}"
         shell: bash
         continue-on-error: true
 
@@ -139,7 +139,7 @@ jobs:
           file: tests/Dockerfile
           context: "."
           cache-from: type=gha,scope=test-runner
-          tags: "${{ steps.ci-vars.outputs.test_runner_image }}"
+          tags: "${{ steps.test-runner.outputs.test_runner_image }}"
           pull: true
           push: false
           load: true
@@ -159,6 +159,6 @@ jobs:
           label: "${{ inputs.image }} regression"
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
-          test-image: "${{ steps.ci-vars.outputs.test_runner_image }}"
+          test-image: "${{ steps.test-runner.outputs.test_runner_image }}"
           plus-jwt: ${{ env.PLUS_JWT }}
           plm-helm-repo: ${{ vars.PLM_HELM_REPO }}

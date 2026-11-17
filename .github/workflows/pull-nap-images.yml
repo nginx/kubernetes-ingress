@@ -30,8 +30,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (github.event_name != 'schedule' || github.repository == 'nginx/kubernetes-ingress')
-    runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ vars.RUNNER || 'ubuntu-24.04-amd64' }} # needs a runner with access to docker-mgmt.nginx.com
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
