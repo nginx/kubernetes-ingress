@@ -22,7 +22,7 @@ permissions:
 jobs:
   build-binaries:
     name: Build Binary Container Image
-    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     permissions:
       packages: write
@@ -45,20 +45,16 @@ jobs:
           secret-names: "rhel-creds"
           env-names: "RHEL_CREDS"
 
-      - name: Setup Common secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: Setup NGINX package secrets
+        uses: ./.github/actions/nginx-pkg-secrets
         with:
-          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-pkg-certificate, nginx-pkg-key"
-          env-names: "PLUS_CERT, PLUS_KEY"
 
       - name: Write secrets
         run: |
           echo "$RHEL_CREDS" > rhel_license
-          echo "$PLUS_CERT" > nginx-repo.crt
-          echo "$PLUS_KEY" > nginx-repo.key
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
