@@ -179,7 +179,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       inputs.force ||
       needs.checks.outputs.run_tests == 'true'
       )
@@ -213,7 +213,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    if: github.repository == 'nginx/kubernetes-ingress'
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
     runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
@@ -284,7 +284,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       inputs.force ||
       needs.checks.outputs.run_tests == 'true'
       )
@@ -317,7 +317,7 @@ jobs:
       contents: read
     needs: checks
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       inputs.force ||
       needs.checks.outputs.run_tests == 'true'
       )
@@ -364,7 +364,7 @@ jobs:
   build-artifacts:
     name: Build Artifacts
     needs: [checks, unit-tests, scout-cache]
-    if: github.repository == 'nginx/kubernetes-ingress'
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.run_tests == 'true' }}
@@ -402,7 +402,7 @@ jobs:
       dry_run: false
     secrets: inherit
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       needs.checks.outputs.forked_workflow == 'false' &&
       (needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true')
@@ -410,7 +410,7 @@ jobs:
       )
   package-tests:
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
       )
@@ -471,7 +471,7 @@ jobs:
 
   helm-tests:
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
       )
@@ -629,7 +629,7 @@ jobs:
 
   setup-matrix:
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
       )
@@ -702,7 +702,7 @@ jobs:
 
   smoke-tests-oss:
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
@@ -738,7 +738,7 @@ jobs:
 
   smoke-tests-plus:
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
       )
@@ -771,7 +771,7 @@ jobs:
 
   smoke-tests-nap:
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
+      (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (
       (needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true') &&
       fromJSON(needs.setup-matrix.outputs.matrix_nap).image[0] != null
@@ -822,7 +822,7 @@ jobs:
 
       )
   final-results:
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (!cancelled())
     runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     name: Final CI Results
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
