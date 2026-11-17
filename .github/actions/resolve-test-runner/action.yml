@@ -1,4 +1,4 @@
-name: Setup CI vars
+name: Resolve test runner
 description: Resolve the test-runner image and runner label in one step
 
 # Checkout: the image tag hashes tests/requirements.txt and tests/Dockerfile from the workspace,
@@ -16,12 +16,12 @@ description: Resolve the test-runner image and runner label in one step
 #     setup:
 #       runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}  # resolves its own runner
 #       outputs:
-#         runner: ${{ steps.ci-vars.outputs.runner }}
-#         test_runner_image: ${{ steps.ci-vars.outputs.test_runner_image }}
+#         runner: ${{ steps.test-runner.outputs.runner }}
+#         test_runner_image: ${{ steps.test-runner.outputs.test_runner_image }}
 #       steps:
 #         - uses: actions/checkout@...
-#         - id: ci-vars
-#           uses: ./.github/actions/setup-ci-vars
+#         - id: test-runner
+#           uses: ./.github/actions/resolve-test-runner
 #           with:
 #             runner: ${{ vars.RUNNER }}
 #             test-runner-registry: ${{ vars.TEST_RUNNER_REGISTRY }}
