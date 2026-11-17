@@ -1898,3 +1898,77 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateStreamUpstreamsResolveWithBackupService(t *testing.T) {
+	t.Parallel()
+	newTransportServerEx := func(externalNameSvcs map[string]bool) *TransportServerEx {
+		return &TransportServerEx{
+			TransportServer: &conf_v1.TransportServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "tcp-server",
+					Namespace: "default",
+				},
+				Spec: conf_v1.TransportServerSpec{
+					Upstreams: []conf_v1.TransportServerUpstream{
+						{
+							Name:       "tcp-app",
+							Service:    "tcp-app-svc",
+							Port:       5001,
+							Backup:     "tcp-backup-svc",
+							BackupPort: new(uint16(5002)),
+						},
+					},
+				},
+			},
+			Endpoints: map[string][]string{
+				"default/tcp-app-svc:5001":    {"tcp-app.example.com:5001"},
+				"default/tcp-backup-svc:5002": {"10.0.0.30:5002"},
+			},
+			ExternalNameSvcs: externalNameSvcs,
+		}
+	}
+
+	tests := []struct {
+		msg                  string
+		externalNameSvcs     map[string]bool
+		isResolverConfigured bool
+		expectedResolve      bool
+		expectedServer       string
+		expectedWarnings     int
+	}{
+		{
+			msg:                  "ExternalName service with a regular backup service",
+			externalNameSvcs:     map[string]bool{"default/tcp-app-svc": true},
+			isResolverConfigured: true,
+			expectedResolve:      true,
+			expectedServer:       "tcp-app.example.com:5001",
+		},
+		{
+			msg:                  "regular service with an ExternalName backup service",
+			externalNameSvcs:     map[string]bool{"default/tcp-backup-svc": true},
+			isResolverConfigured: true,
+			expectedResolve:      false,
+			expectedServer:       "tcp-app.example.com:5001",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			tsEx := newTransportServerEx(test.externalNameSvcs)
+			upstreams, warnings := generateStreamUpstreams(tsEx, newUpstreamNamerForTransportServer(tsEx.TransportServer), true, test.isResolverConfigured)
+			if len(upstreams) != 1 {
+				t.Fatalf("want 1 upstream, got %d", len(upstreams))
+			}
+			if upstreams[0].Resolve != test.expectedResolve {
+				t.Errorf("want Resolve %v, got %v", test.expectedResolve, upstreams[0].Resolve)
+			}
+			if len(upstreams[0].Servers) != 1 || upstreams[0].Servers[0].Address != test.expectedServer {
+				t.Errorf("want server %q, got %v", test.expectedServer, upstreams[0].Servers)
+			}
+			if len(warnings) != test.expectedWarnings {
+				t.Errorf("want %d warnings, got %v", test.expectedWarnings, warnings)
+			}
+		})
+	}
+}
