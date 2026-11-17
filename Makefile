@@ -36,7 +36,7 @@ endif
 PLUS_ARGS ?=  $(DOCKER_AUTH) --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO)
 
 # Variables that can be overridden
-UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:5dd6d1d479b10c6242d297bc113a17c931d0b8b4d5bb8690998524c9b2554692
+UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:853ed6139be16e96ca4e3fc1bc7526cac50de1cc78d92bed968f56db0468c67b
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
