@@ -85,7 +85,7 @@ validate_if_condition() {
 
 main() {
   local workflows
-  workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) ! \( -name "mirror-*" -o -name "build-oss.yml" -o -name "build-plus.yml" -o -name "build-artifacts.yml" -o -name "publish-helm.yml" \) )
+  workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) ! \( -name "mirror-*" -o -name "publish-helm.yml" \) )
 
   # Determine which yq binary to use.
   local YQ_BIN="yq"
