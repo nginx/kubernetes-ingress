@@ -63,20 +63,20 @@ NGINX with native Kubernetes integration.
 ### Install with Helm (recommended)
 
 ```bash
-helm install <RELEASE_NAME> oci://ghcr.io/nginx/charts/nginx-ingress --version 2.8.1
+helm install <RELEASE_NAME> oci://ghcr.io/nginx/charts/nginx-ingress --version 2.9.0
 ```
 
 ### Install with Manifests
 
 ```shell
 # Install the Custom Resource Definitions (required for the default configuration)
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deploy/crds.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deployments/common/ns-and-sa.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deployments/rbac/rbac.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deployments/common/nginx-config.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deployments/deployment/nginx-ingress.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deployments/service/loadbalancer.yaml
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/deployments/common/ingress-class.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deploy/crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deployments/common/ns-and-sa.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deployments/rbac/rbac.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deployments/common/nginx-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deployments/deployment/nginx-ingress.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deployments/service/loadbalancer.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/deployments/common/ingress-class.yaml
 ```
 
 **[Full Installation Guide →](https://docs.nginx.com/nginx-ingress-controller/install/)**
@@ -87,14 +87,14 @@ Once installed, deploy a sample application:
 
 ```bash
 # Deploy the Cafe example app
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/examples/ingress-resources/complete-example/cafe.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/examples/ingress-resources/complete-example/cafe.yaml
 
 # Create a self-signed TLS certificate for cafe.example.com and store it in the Secret referenced by the Ingress
 openssl req -x509 -nodes -newkey rsa:2048 -days 365 -keyout cafe.key -out cafe.crt \
   -subj "/CN=cafe.example.com" -addext "subjectAltName=DNS:cafe.example.com"
 kubectl create secret tls tls-secret --cert=cafe.crt --key=cafe.key
 
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.7.1/examples/ingress-resources/complete-example/cafe-ingress.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.8.0/examples/ingress-resources/complete-example/cafe-ingress.yaml
 ```
 
 See more [examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples) to explore all capabilities.
@@ -110,7 +110,7 @@ See more [examples](https://github.com/nginx/kubernetes-ingress/tree/main/exampl
 
 ## Docker Images
 
-The latest stable release is [5.7.1](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.7.1). For production
+The latest stable release is [5.8.0](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.8.0). For production
 use, we recommend that you choose the latest stable release.
 
 | Registry | Link |
@@ -127,12 +127,12 @@ You can also [build your own image](https://docs.nginx.com/nginx-ingress-control
 
 | Version | Description | Image for NGINX | Image for NGINX Plus | Installation Manifests and Helm Chart | Documentation and Examples |
 | ------- | ----------- | --------------- | -------------------- | --------------------------------------- | -------------------------- |
-| Latest stable release | For production use | Use the 5.7.1 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 5.7.1 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/v5.7.1/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/v5.7.1/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
+| Latest stable release | For production use | Use the 5.8.0 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 5.8.0 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/v5.8.0/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/v5.8.0/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
 | Edge/Nightly | For testing and experimenting | Use the edge or nightly images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/main/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/main/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller). [Examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples). |
 
 ## Releases
 
-The latest stable release is **[5.7.1](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.7.1)**. For
+The latest stable release is **[5.8.0](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.8.0)**. For
 production use, we recommend the latest stable release.
 
 The **edge** version is built from the [latest commit](https://github.com/nginx/kubernetes-ingress/commits/main) on
