@@ -208,6 +208,12 @@ def annotations_grpc_setup(
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up gRPC Annotations Example:")
             delete_items_from_yaml(kube_apis, f"{TEST_DATA}/annotations/grpc/annotations-ingress.yaml", test_namespace)
+            replace_configmap_from_yaml(
+                kube_apis.v1,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+                ingress_controller_prerequisites.namespace,
+                f"{DEPLOYMENTS}/common/nginx-config.yaml",
+            )
 
     request.addfinalizer(fin)
 

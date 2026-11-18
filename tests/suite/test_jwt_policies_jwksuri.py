@@ -198,6 +198,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     ],
     indirect=True,
 )
+@pytest.mark.usefixtures("restore_configmap")
 class TestJWTPoliciesVsJwksuri:
     @pytest.mark.parametrize("jwt_virtual_server", [jwt_vs_spec_src, jwt_vs_route_src, jwt_spec_and_route_src])
     def test_jwt_policy_jwksuri(
@@ -527,6 +528,7 @@ class TestJWTPoliciesVsJwksuri:
     ],
     indirect=True,
 )
+@pytest.mark.usefixtures("restore_configmap")
 class TestJWTAuthorizationJwksUnavailable:
     def test_keys_unavailable_rejects_requests(
         self,
