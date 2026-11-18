@@ -107,7 +107,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `lint-format.yml` | PR to `main`/`release-*`, merge_group | Format & lint checks (gofumpt, goimports, golangci-lint, actionlint, markdownlint, yamllint, workflow gating validation) |
 | `regression.yml` | Daily cron (03:00 UTC), manual dispatch | Multi-K8s-version regression matrix tests |
 | `single-image-regression.yml` | Manual dispatch | Runs Python e2e tests on a single image variant and K8s version |
-| `build-base-images.yml` | Weekday cron (04:30 UTC), manual, workflow_call | Rebuilds all base images (alpine, debian, ubi) |
+| `build-base-images.yml` | Weekday cron (04:30 UTC), manual (optional `push_images`) | Rebuilds all base images (alpine, debian, ubi) |
 | `build-ubi-dependency.yml` | Push to `main` touching `build/dependencies/Dockerfile.ubi10`, manual | Builds the UBI dependency image published to `ghcr.io/nginx/dependencies/nginx-ubi` |
 | `image-promotion.yml` | Push to `main`/`release-*`, workflow_call | Rebuilds images via `build-artifacts.yml` (`force: true`), tags `edge`/`stable`, runs security scans, publishes GHCR edge chart |
 
