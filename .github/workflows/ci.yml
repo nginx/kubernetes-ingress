@@ -274,7 +274,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2 # renovate: datasource=github-releases depName=helm/helm
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
@@ -411,7 +411,7 @@ jobs:
         continue-on-error: true # soft-fail: scans fall back to an authenticated download
         with:
           mode: seed
-          # Keep in sync with the docker/scout-action pin in build-oss.yml and build-plus.yml.
+          # Keep in sync with the docker/scout-action pin in build-oss.yml, build-plus.yml and .github/actions/security-scan.
           version: v1.29.0
           sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
 
@@ -573,7 +573,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup NIC secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730

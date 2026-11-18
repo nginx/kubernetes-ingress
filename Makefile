@@ -11,12 +11,12 @@ WAF_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app prot
 DOS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app protect dos from
 
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.8
-NGINX_PLUS_VERSION            ?= R37.2
+NGINX_OSS_VERSION             ?= 1.31.9
+NGINX_PLUS_VERSION            ?= R37.3
 
-NAP_WAF_VERSION               ?= 37.2+5.777
+NAP_WAF_VERSION               ?= 37.3+5.777
 NAP_WAF_COMMON_VERSION        ?= 11.869
-NAP_WAF_PLUGIN_VERSION        ?= 6.32
+NAP_WAF_PLUGIN_VERSION        ?= 6.34
 NAP_WAF_IPI_VERSION           ?= 1.71
 
 AGENT_V2_VERSION              ?= 2
@@ -36,7 +36,7 @@ endif
 PLUS_ARGS ?=  $(DOCKER_AUTH) --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO)
 
 # Variables that can be overridden
-UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d622f38e0d0f4dba7bfc6228fee7241adf7e1c981f16c532cfbd47eccfc9
+UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:853ed6139be16e96ca4e3fc1bc7526cac50de1cc78d92bed968f56db0468c67b
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
