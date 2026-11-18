@@ -368,6 +368,7 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ env.PLUS_JWT }}
+          plm-helm-repo: ${{ vars.PLM_HELM_REPO }}
           # pyproject.toml has -x; override it so one failure does not hide the rest of the nightly
           pytest-args: --maxfail=100
 

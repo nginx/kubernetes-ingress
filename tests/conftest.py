@@ -12,6 +12,7 @@ from settings import (
     DEFAULT_DEPLOYMENT_TYPE,
     DEFAULT_IC_TYPE,
     DEFAULT_IMAGE,
+    DEFAULT_PLM_HELM_REPO,
     DEFAULT_PULL_POLICY,
     DEFAULT_SERVICE,
     NS_COUNT,
@@ -149,6 +150,12 @@ def pytest_addoption(parser) -> None:
         action="store",
         default="",
         help="Docker registry token",
+    )
+    parser.addoption(
+        "--plm-helm-repo",
+        action="store",
+        default=DEFAULT_PLM_HELM_REPO,
+        help="The Helm repository URL or oci:// registry path of the F5 WAF Policy Controller (PLM) chart.",
     )
 
 
