@@ -207,13 +207,13 @@ def annotations_grpc_setup(
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up gRPC Annotations Example:")
-            delete_items_from_yaml(kube_apis, f"{TEST_DATA}/annotations/grpc/annotations-ingress.yaml", test_namespace)
             replace_configmap_from_yaml(
                 kube_apis.v1,
                 ingress_controller_prerequisites.config_map["metadata"]["name"],
                 ingress_controller_prerequisites.namespace,
                 f"{DEPLOYMENTS}/common/nginx-config.yaml",
             )
+            delete_items_from_yaml(kube_apis, f"{TEST_DATA}/annotations/grpc/annotations-ingress.yaml", test_namespace)
 
     request.addfinalizer(fin)
 
@@ -244,14 +244,14 @@ def grpc_h2c_setup(
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Clean up gRPC Ingress without TLS:")
-            delete_items_from_yaml(kube_apis, src, test_namespace)
-            delete_common_app(kube_apis, "grpc", test_namespace)
             replace_configmap_from_yaml(
                 kube_apis.v1,
                 ingress_controller_prerequisites.config_map["metadata"]["name"],
                 ingress_controller_prerequisites.namespace,
                 f"{DEPLOYMENTS}/common/nginx-config.yaml",
             )
+            delete_items_from_yaml(kube_apis, src, test_namespace)
+            delete_common_app(kube_apis, "grpc", test_namespace)
 
     request.addfinalizer(fin)
     replace_configmap_from_yaml(
