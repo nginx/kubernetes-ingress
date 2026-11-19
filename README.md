@@ -63,7 +63,7 @@ NGINX with native Kubernetes integration.
 ### Install with Helm (recommended)
 
 ```bash
-helm install <RELEASE_NAME> oci://ghcr.io/nginx/charts/nginx-ingress --version 2.9.0
+helm install <RELEASE_NAME> oci://ghcr.io/nginx/charts/nginx-ingress --version 2.9.1
 ```
 
 ### Install with Manifests
