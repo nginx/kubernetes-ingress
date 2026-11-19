@@ -3292,6 +3292,91 @@ func TestValidateUpstreamLBMethodFails(t *testing.T) {
 	}
 }
 
+func TestValidateHashSubset(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		upstream v1.Upstream
+		valid    bool
+	}{
+		{
+			name: "valid",
+			upstream: v1.Upstream{
+				HashSubset: &v1.HashSubset{Key: "$arg_user", Size: 3},
+			},
+			valid: true,
+		},
+		{
+			name: "missing key",
+			upstream: v1.Upstream{
+				HashSubset: &v1.HashSubset{Size: 3},
+			},
+		},
+		{
+			name: "zero size",
+			upstream: v1.Upstream{
+				HashSubset: &v1.HashSubset{Key: "$arg_user"},
+			},
+		},
+		{
+			name: "invalid key",
+			upstream: v1.Upstream{
+				HashSubset: &v1.HashSubset{Key: "$arg_user; return 200", Size: 3},
+			},
+		},
+		{
+			name: "conflicting load balancing method",
+			upstream: v1.Upstream{
+				LBMethod:   "random",
+				HashSubset: &v1.HashSubset{Key: "$arg_user", Size: 3},
+			},
+		},
+		{
+			name: "cluster IP",
+			upstream: v1.Upstream{
+				UseClusterIP: true,
+				HashSubset:   &v1.HashSubset{Key: "$arg_user", Size: 3},
+			},
+		},
+		{
+			name: "backup",
+			upstream: v1.Upstream{
+				Backup:     "backup-svc",
+				HashSubset: &v1.HashSubset{Key: "$arg_user", Size: 3},
+			},
+		},
+		{
+			name: "session cookie",
+			upstream: v1.Upstream{
+				SessionCookie: &v1.SessionCookie{Enable: true},
+				HashSubset:    &v1.HashSubset{Key: "$arg_user", Size: 3},
+			},
+		},
+		{
+			name: "slow start",
+			upstream: v1.Upstream{
+				SlowStart:  "10s",
+				HashSubset: &v1.HashSubset{Key: "$arg_user", Size: 3},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			errs := validateHashSubset(test.upstream, field.NewPath("upstreams").Index(0))
+			if test.valid && len(errs) != 0 {
+				t.Errorf("validateHashSubset() returned errors %v for valid input", errs)
+			}
+			if !test.valid && len(errs) == 0 {
+				t.Error("validateHashSubset() returned no errors for invalid input")
+			}
+		})
+	}
+}
+
 func TestValidatePositiveIntOrZeroFromPointer(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

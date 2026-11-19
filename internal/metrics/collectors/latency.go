@@ -72,11 +72,13 @@ type metricsSet map[string]struct{}
 // LatencyMetricsCollector implements the LatencyCollector interface and prometheus.Collector interface
 type LatencyMetricsCollector struct {
 	httpLatency                  *prometheus.HistogramVec
+	upstreamCacheResponses       *prometheus.CounterVec
 	upstreamServerLabelNames     []string
 	upstreamServerPeerLabelNames []string
 	upstreamServerLabels         map[string][]string
 	upstreamServerPeerLabels     map[string][]string
 	metricsPublishedMap          metricsPublishedMap
+	cacheMetricsPublishedMap     metricsPublishedMap
 	metricsPublishedMutex        sync.Mutex
 	variableLabelsMutex          sync.RWMutex
 	logger                       *slog.Logger
@@ -105,9 +107,19 @@ func NewLatencyMetricsCollector(
 			},
 			createLatencyLabelNames(upstreamServerLabelNames, upstreamServerPeerLabelNames),
 		),
+		upstreamCacheResponses: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace:   metricsNamespace,
+				Name:        "upstream_cache_responses_total",
+				Help:        "Total responses grouped by upstream cache status",
+				ConstLabels: constLabels,
+			},
+			createCacheLabelNames(upstreamServerLabelNames),
+		),
 		upstreamServerLabels:         make(map[string][]string),
 		upstreamServerPeerLabels:     make(map[string][]string),
 		metricsPublishedMap:          make(metricsPublishedMap),
+		cacheMetricsPublishedMap:     make(metricsPublishedMap),
 		upstreamServerLabelNames:     upstreamServerLabelNames,
 		upstreamServerPeerLabelNames: upstreamServerPeerLabelNames,
 		logger:                       nl.LoggerFromContext(ctx),
@@ -143,6 +155,15 @@ func (l *LatencyMetricsCollector) UpdateUpstreamServerLabels(newLabelValues map[
 
 // DeleteUpstreamServerLabels deletes upstream server labels
 func (l *LatencyMetricsCollector) DeleteUpstreamServerLabels(upstreamNames []string) {
+	for _, name := range upstreamNames {
+		for _, labelValues := range l.listAndDeleteCacheMetricsPublished(name) {
+			success := l.upstreamCacheResponses.DeleteLabelValues(labelValues...)
+			if !success {
+				nl.Warnf(l.logger, "could not delete cache metric for upstream: %s with values: %v", name, labelValues)
+			}
+		}
+	}
+
 	l.variableLabelsMutex.Lock()
 	for _, k := range upstreamNames {
 		delete(l.upstreamServerLabels, k)
@@ -182,18 +203,27 @@ func (l *LatencyMetricsCollector) Register(registry *prometheus.Registry) error 
 // Describe implements prometheus.Collector interface Describe method
 func (l *LatencyMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
 	l.httpLatency.Describe(ch)
+	l.upstreamCacheResponses.Describe(ch)
 }
 
 // Collect implements the prometheus.Collector interface Collect method
 func (l *LatencyMetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	l.httpLatency.Collect(ch)
+	l.upstreamCacheResponses.Collect(ch)
 }
 
 // RecordLatency parses a syslog message and records latency
 func (l *LatencyMetricsCollector) RecordLatency(syslogMsg string) {
-	lm, err := parseMessage(syslogMsg)
+	sm, err := parseSyslogMessage(syslogMsg)
 	if err != nil {
 		nl.Debugf(l.logger, "could not parse syslog message: %v", err)
+		return
+	}
+	l.recordCacheStatus(sm)
+
+	lm, err := createLatencyMetric(sm)
+	if err != nil {
+		nl.Debugf(l.logger, "could not parse latency metric: %v", err)
 		return
 	}
 
@@ -226,6 +256,30 @@ func (l *LatencyMetricsCollector) updateMetricsPublished(upstreamName, server st
 	l.metricsPublishedMutex.Unlock()
 }
 
+func (l *LatencyMetricsCollector) recordCacheStatus(sm syslogMsg) {
+	cacheStatus := parseCacheStatus(sm.UpstreamCacheStatus)
+	if cacheStatus == "" {
+		return
+	}
+
+	labelValues, err := l.createCacheLabelValues(sm.ProxyHost, cacheStatus)
+	if err != nil {
+		nl.Errorf(l.logger, "cannot record cache status for upstream %s: %v", sm.ProxyHost, err)
+		return
+	}
+	l.upstreamCacheResponses.WithLabelValues(labelValues...).Inc()
+	l.updateCacheMetricsPublished(sm.ProxyHost, labelValues)
+}
+
+func (l *LatencyMetricsCollector) updateCacheMetricsPublished(upstreamName string, labelValues []string) {
+	l.metricsPublishedMutex.Lock()
+	if _, ok := l.cacheMetricsPublishedMap[upstreamName]; !ok {
+		l.cacheMetricsPublishedMap[upstreamName] = make(metricsSet)
+	}
+	l.cacheMetricsPublishedMap[upstreamName][strings.Join(labelValues, "+")] = struct{}{}
+	l.metricsPublishedMutex.Unlock()
+}
+
 func (l *LatencyMetricsCollector) listAndDeleteMetricsPublished(key string) (metricsPublished [][]string) {
 	l.metricsPublishedMutex.Lock()
 	defer l.metricsPublishedMutex.Unlock()
@@ -233,6 +287,16 @@ func (l *LatencyMetricsCollector) listAndDeleteMetricsPublished(key string) (met
 		metricsPublished = append(metricsPublished, strings.Split(labelValues, "+"))
 	}
 	delete(l.metricsPublishedMap, key)
+	return metricsPublished
+}
+
+func (l *LatencyMetricsCollector) listAndDeleteCacheMetricsPublished(key string) (metricsPublished [][]string) {
+	l.metricsPublishedMutex.Lock()
+	defer l.metricsPublishedMutex.Unlock()
+	for labelValues := range l.cacheMetricsPublishedMap[key] {
+		metricsPublished = append(metricsPublished, strings.Split(labelValues, "+"))
+	}
+	delete(l.cacheMetricsPublishedMap, key)
 	return metricsPublished
 }
 
@@ -253,8 +317,22 @@ func (l *LatencyMetricsCollector) createLatencyLabelValues(lm latencyMetric) ([]
 	return labelValues, nil
 }
 
+func (l *LatencyMetricsCollector) createCacheLabelValues(upstream, cacheStatus string) ([]string, error) {
+	labelValues := []string{upstream, cacheStatus}
+	upstreamServerLabelValues := l.getUpstreamServerLabels(upstream)
+	if len(l.upstreamServerLabelNames) != len(upstreamServerLabelValues) {
+		return nil, fmt.Errorf("wrong number of labels for upstream %v. For labels %v, got values: %v",
+			upstream, l.upstreamServerLabelNames, upstreamServerLabelValues)
+	}
+	return append(labelValues, upstreamServerLabelValues...), nil
+}
+
 func createLatencyLabelNames(upstreamServerLabelNames, upstreamServerPeerLabelNames []string) []string {
 	return append(append([]string{"upstream", "server", "code"}, upstreamServerLabelNames...), upstreamServerPeerLabelNames...)
+}
+
+func createCacheLabelNames(upstreamServerLabelNames []string) []string {
+	return append([]string{"upstream", "cache_status"}, upstreamServerLabelNames...)
 }
 
 type syslogMsg struct {
@@ -262,6 +340,7 @@ type syslogMsg struct {
 	UpstreamAddr         string `json:"upstreamAddress"`
 	UpstreamStatus       string `json:"upstreamStatus"`
 	UpstreamResponseTime string `json:"upstreamResponseTime"`
+	UpstreamCacheStatus  string `json:"upstreamCacheStatus"`
 }
 
 type latencyMetric struct {
@@ -272,15 +351,27 @@ type latencyMetric struct {
 }
 
 func parseMessage(msg string) (latencyMetric, error) {
+	sm, err := parseSyslogMessage(msg)
+	if err != nil {
+		return latencyMetric{}, err
+	}
+	return createLatencyMetric(sm)
+}
+
+func parseSyslogMessage(msg string) (syslogMsg, error) {
 	msgParts := strings.Split(msg, nginxSeparator)
 	if len(msgParts) != 2 {
-		return latencyMetric{}, fmt.Errorf("wrong message format: %s, expected message to start with \"%s\"", msg, nginxSeparator)
+		return syslogMsg{}, fmt.Errorf("wrong message format: %s, expected message to start with \"%s\"", msg, nginxSeparator)
 	}
 	var sm syslogMsg
 	info := msgParts[1]
 	if err := json.Unmarshal([]byte(info), &sm); err != nil {
-		return latencyMetric{}, fmt.Errorf("could not unmarshal %s: %w", msg, err)
+		return syslogMsg{}, fmt.Errorf("could not unmarshal %s: %w", msg, err)
 	}
+	return sm, nil
+}
+
+func createLatencyMetric(sm syslogMsg) (latencyMetric, error) {
 	if sm.UpstreamAddr == sm.ProxyHost {
 		// no upstream connected so don't publish a metric
 		return latencyMetric{}, fmt.Errorf("nginx could not connect to upstream")
@@ -299,6 +390,16 @@ func parseMessage(msg string) (latencyMetric, error) {
 	}
 
 	return lm, nil
+}
+
+func parseCacheStatus(cacheStatus string) string {
+	status := strings.ToUpper(strings.TrimSpace(parseMultipartResponse(cacheStatus)))
+	switch status {
+	case "HIT", "MISS", "BYPASS", "EXPIRED", "STALE", "UPDATING", "REVALIDATED":
+		return status
+	default:
+		return ""
+	}
 }
 
 // parseMultipartResponse checks if the input string contains commas.
