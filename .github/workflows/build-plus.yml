@@ -71,6 +71,11 @@ on:
         required: false
         type: string
         default: "pkgs.nginx.com"
+      blob-upload-prefix:
+        description: "The prefix for the blob name when uploading scan results to Azure"
+        required: false
+        type: string
+        default: ""
 
 defaults:
   run:
@@ -85,7 +90,7 @@ jobs:
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login
-      pull-requests: write # for scout report
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout Repository
@@ -94,47 +99,21 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
-      - name: Setup NIC secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: NGINX package secrets
+        uses: ./.github/actions/nginx-pkg-secrets
         with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
-        if: ${{ inputs.authenticated }}
-
-      - name: Setup Common secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-pkg-certificate, nginx-pkg-key, docker-username, docker-password"
-          env-names: "PLUS_CERT, PLUS_KEY, DOCKER_USERNAME, DOCKER_PASSWORD"
+          fetch-docker: "true"
         if: ${{ inputs.authenticated }}
 
-      - name: Write secrets
-        run: |
-          echo "$PLUS_CERT" > nginx-repo.crt
-          echo "$PLUS_KEY" > nginx-repo.key
-        if: ${{ inputs.authenticated }}
-
-      - name: Authenticate to Google Cloud
-        id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      - name: GCR login
+        uses: ./.github/actions/vault-gcr-login
         with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-        if: ${{ inputs.authenticated }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
         if: ${{ inputs.authenticated }}
 
       - name: DockerHub Login
@@ -265,22 +244,33 @@ jobs:
             nginx-repo.key=nginx-repo.key
         if: ${{  steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
-      - name: Make directory for security scan results
-        run: |
-          mkdir -p "${{ inputs.build-os }}-results/"
-        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
-
-      - name: Run Docker Scout vulnerability scanner
-        id: docker-scout
-        uses: docker/scout-action@e7e2a72bf1485d10a58f30696b6c513b261ce4fa # v1.29.0
+      - name: Get dev storage names
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          command: cves
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "azure-storage-account, azure-dev-storage-bucket"
+          env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
+        continue-on-error: true
+        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' && inputs.blob-upload-prefix != '' && vars.IS_PUBLIC == 'false' }}
+
+      - name: Security scan
+        id: security-scan
+        uses: ./.github/actions/security-scan
+        with:
           image: ${{ steps.meta.outputs.tags }}
-          ignore-base: true
-          sarif-file: "${{ inputs.build-os }}-results/scout.sarif"
-          write-comment: false
-          github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
-          summary: true
+          sarif-file: ${{ inputs.build-os }}-results/scout.sarif
+          ignore-base: "true"
+          azure-upload: ${{ vars.IS_PUBLIC == 'false' }}
+          prefix: ${{ inputs.blob-upload-prefix }}
+          # build-os repeats across NAP module variants, so add the module suffix to keep blob names unique.
+          blob-name: ${{ inputs.build-os }}${{ steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' }}.sarif
+          client-id: ${{ secrets.AZURE_UPLOAD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          storage-account: ${{ env.AZURE_STORAGE_ACCOUNT }}
+          container-name: ${{ env.AZURE_BUCKET_NAME }}
         continue-on-error: true
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
 
