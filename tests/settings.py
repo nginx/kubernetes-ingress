@@ -37,3 +37,5 @@ NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
 WAF_V5_VERSION = "5.16.2"
 # F5 WAF Policy Controller (PLM) chart and image version, must match WAF_V5_VERSION
 PLM_VERSION = "5.16.2"
+# PLM chart source: a Helm repository URL or an oci:// registry path
+DEFAULT_PLM_HELM_REPO = "https://helm.nginx.com/stable"
