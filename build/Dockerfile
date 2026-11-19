@@ -25,7 +25,7 @@ ARG IMAGE_NAME=nginx/nginx-ingress
 ARG GHCR_REGISTRY=ghcr.io
 ARG DOCKER_REGISTRY=docker.io
 
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:853ed6139be16e96ca4e3fc1bc7526cac50de1cc78d92bed968f56db0468c67b
+ARG UBI10_PACKAGES_IMAGE=${GHCR_REGISTRY}/nginx/dependencies/nginx-ubi:ubi10@sha256:853ed6139be16e96ca4e3fc1bc7526cac50de1cc78d92bed968f56db0468c67b
 
 
 ############################################# External dependency images #############################################

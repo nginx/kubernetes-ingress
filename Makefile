@@ -12,7 +12,7 @@ DOS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app prot
 # Local build through the F5 Artifactory mirror:
 #   F5_REPO_USER=<user> F5_REPO_TOKEN=<token> F5_REPO_HOST=<host> make debian-image
 # Check that no credentials or mirror URLs reached the image:
-#   docker run --rm --entrypoint sh <image> -c '! grep -rl "$0" /etc' <host>
+#   docker run --rm --user 0 --entrypoint sh <image> -c 'grep -rl "$0" /etc; test $? -eq 1' <host>
 F5_REPO_USER                  ?= ## The user for the F5 package repository.
 F5_REPO_TOKEN                 ?= ## The token for the F5 package repository.
 F5_REPO_HOST                  ?= ## The host of the F5 package mirror (Artifactory).

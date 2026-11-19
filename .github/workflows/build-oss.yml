@@ -255,7 +255,7 @@ jobs:
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Check base image for Artifactory references
-        run: docker run --rm --platform linux/amd64 --entrypoint sh "$IMAGE" -c '! grep -rl "$0" /etc' "$F5_REPO_HOST"
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
         env:
           IMAGE: ${{ steps.base_name.outputs.image }}
           F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
@@ -323,7 +323,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Check image for Artifactory references
-        run: docker run --rm --platform linux/amd64 --entrypoint sh "$IMAGE" -c '! grep -rl "$0" /etc' "$F5_REPO_HOST"
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
         env:
           IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
           F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
