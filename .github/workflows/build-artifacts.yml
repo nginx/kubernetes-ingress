@@ -268,13 +268,12 @@ jobs:
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
       pkg-src-oss: ${{ inputs.pkg-src-oss }}
-      prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
+      blob-upload-prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
     permissions:
       contents: read
       actions: read
       id-token: write
       packages: write
-      pull-requests: write # for scout report
     secrets: inherit
 
   build-docker-plus:
@@ -307,11 +306,10 @@ jobs:
       pkg-src-plus: ${{ inputs.pkg-src-plus }}
       pkg-src-waf: ${{ inputs.pkg-src-waf }}
       pkg-src-dos: ${{ inputs.pkg-src-dos }}
-      prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
+      blob-upload-prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
     permissions:
       contents: read
       id-token: write
-      pull-requests: write # for scout report
     secrets: inherit
 
   build-docker-nap:
@@ -345,9 +343,8 @@ jobs:
       pkg-src-plus: ${{ inputs.pkg-src-plus }}
       pkg-src-waf: ${{ inputs.pkg-src-waf }}
       pkg-src-dos: ${{ inputs.pkg-src-dos }}
-      prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
+      blob-upload-prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
     permissions:
       contents: read
       id-token: write # gcr login
-      pull-requests: write # for scout report
     secrets: inherit

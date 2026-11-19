@@ -71,7 +71,7 @@ on:
         required: false
         type: string
         default: "pkgs.nginx.com"
-      prefix:
+      blob-upload-prefix:
         description: "The prefix for the blob name when uploading scan results to Azure"
         required: false
         type: string
@@ -90,7 +90,6 @@ jobs:
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login
-      pull-requests: write # for scout report
     if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
     runs-on: ${{ inputs.runner }}
     steps:
@@ -245,16 +244,16 @@ jobs:
             nginx-repo.key=nginx-repo.key
         if: ${{  steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
-      - name: Setup Azure storage secrets
+      - name: Get dev storage names
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "azure-storage-account, azure-storage-bucket"
+          secret-names: "azure-storage-account, azure-dev-storage-bucket"
           env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
         continue-on-error: true
-        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' && inputs.prefix != '' && vars.IS_PUBLIC == 'false' }}
+        if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' && inputs.blob-upload-prefix != '' && vars.IS_PUBLIC == 'false' }}
 
       - name: Security scan
         id: security-scan
@@ -264,10 +263,10 @@ jobs:
           sarif-file: ${{ inputs.build-os }}-results/scout.sarif
           ignore-base: "true"
           azure-upload: ${{ vars.IS_PUBLIC == 'false' }}
-          prefix: ${{ inputs.prefix }}
+          prefix: ${{ inputs.blob-upload-prefix }}
           # build-os repeats across NAP module variants, so add the module suffix to keep blob names unique.
           blob-name: ${{ inputs.build-os }}${{ steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' }}.sarif
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_UPLOAD_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           storage-account: ${{ env.AZURE_STORAGE_ACCOUNT }}
