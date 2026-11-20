@@ -1,4 +1,5 @@
 # Tenant release for team-b, installed in team-b by an admin of team-b.
+installMode: tenant
 controller:
   serviceAccount:
     name: nic
