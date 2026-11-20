@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{ if .Values.controller.globalConfiguration.create }}
 apiVersion: k8s.nginx.org/v1
 kind: GlobalConfiguration
@@ -13,4 +14,5 @@ metadata:
     {{- include "nginx-ingress.labels" . | nindent 4 }}
 spec:
 {{ toYaml .Values.controller.globalConfiguration.spec | indent 2 }}
+{{- end }}
 {{- end }}

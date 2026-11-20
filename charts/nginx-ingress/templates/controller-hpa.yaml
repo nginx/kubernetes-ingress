@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if and .Values.controller.autoscaling.enabled .Values.controller.autoscaling.create (eq .Values.controller.kind "deployment") (.Capabilities.APIVersions.Has "autoscaling/v2") -}}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -38,4 +39,5 @@ spec:
           type: Utilization
           averageUtilization: {{ .Values.controller.autoscaling.targetCPUUtilizationPercentage }}
     {{- end }}
+{{- end }}
 {{- end }}

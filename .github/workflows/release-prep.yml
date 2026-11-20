@@ -24,7 +24,7 @@ on:
         type: boolean
         default: false
       skip_step:
-        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,azure-upload)"
+        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,stage-tenant-helm-chart,azure-upload)"
         type: string
         required: false
 
@@ -223,6 +223,32 @@ jobs:
       branch: ${{ inputs.release_branch }}
       ic_version: ${{ inputs.nic_version }}
       chart_version: ${{ needs.variables.outputs.chart_version }}
+      nginx_helm_repo: false
+      runner: "aw-ubuntu-24.04-amd64"
+      oci_registries: "oci://docker-mgmt-test.nginx.com/nginx-ic/helm"
+    secrets: inherit
+
+  # The same chart, repackaged for tenant installs: no CRDs and installMode tenant.
+  stage-tenant-helm-chart:
+    name: Build & Stage Tenant Helm Chart
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress-internal' && (
+      !cancelled() &&
+      needs.stage-helm-chart.result == 'success' &&
+      !contains(inputs.skip_step, 'stage-tenant-helm-chart')
+      )
+    needs: [variables, stage-helm-chart]
+    permissions:
+      packages: write # for pushing the staged chart to the helm repo
+      contents: write # for pushing the staged chart to the helm repo
+      id-token: write # for getting ID token to login to docker-mgmt-test.nginx.com
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      branch: ${{ inputs.release_branch }}
+      ic_version: ${{ inputs.nic_version }}
+      chart_version: ${{ needs.variables.outputs.chart_version }}
+      chart_name: "nginx-ingress-tenant"
+      tenant: true
       nginx_helm_repo: false
       runner: "aw-ubuntu-24.04-amd64"
       oci_registries: "oci://docker-mgmt-test.nginx.com/nginx-ic/helm"

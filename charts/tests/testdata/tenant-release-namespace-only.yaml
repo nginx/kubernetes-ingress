@@ -1,0 +1,6 @@
+installMode: tenant
+controller:
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a

@@ -1,0 +1,36 @@
+{{- if and (include "nginx-ingress.isTenant" .) .Values.rbac.create }}
+{{- $root := . }}
+{{- range $i, $namespace := splitList "," (include "nginx-ingress.tenantWatchNamespaces" .) }}
+{{- if $i }}
+---
+{{- end }}
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "nginx-ingress.fullname" $root }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "nginx-ingress.labels" $root | nindent 4 }}
+rules:
+{{- include "nginx-ingress.rbac.tenantWatchedRules" (dict "root" $root "secrets" (include "nginx-ingress.tenantWatchesSecrets" (dict "root" $root "namespace" $namespace))) | nindent 0 }}
+{{- if eq $namespace $root.Release.Namespace }}
+{{- include "nginx-ingress.rbac.tenantReleaseNamespaceRules" $root | nindent 0 }}
+{{- end }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "nginx-ingress.fullname" $root }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "nginx-ingress.labels" $root | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "nginx-ingress.fullname" $root }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "nginx-ingress.serviceAccountName" $root }}
+  namespace: {{ $root.Release.Namespace }}
+{{- end }}
+{{- end }}

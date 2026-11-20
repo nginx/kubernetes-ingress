@@ -1,13 +1,47 @@
+{{- include "nginx-ingress.validateInstallMode" . -}}
+{{- if include "nginx-ingress.isPlatform" . -}}
+NGINX Ingress Controller {{ .Chart.AppVersion }} platform resources for the tenant in namespace "{{ .Values.platform.tenantNamespace }}" have been installed.
+{{- if .Values.controller.ingressClass.create }}
+
+IngressClass: {{ .Values.controller.ingressClass.name }}
+{{- end }}
+{{- if .Values.platform.tenantReader.create }}
+Tenant reader ClusterRole: {{ include "nginx-ingress.fullname" . }}-tenant-reader, bound to ServiceAccount {{ .Values.platform.tenantNamespace }}/{{ .Values.controller.serviceAccount.name }}
+{{- end }}
+
+Before the tenant installs the nginx-ingress-tenant chart, apply these once per cluster:
+  $ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v{{ .Chart.AppVersion }}/deploy/crds.yaml
+  $ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v{{ .Chart.AppVersion }}/deployments/rbac/nic-tenant-aggregate.yaml
+
+The tenant release must set controller.ingressClass.name={{ .Values.controller.ingressClass.name }}
+{{- with .Values.controller.serviceAccount.name }} and controller.serviceAccount.name={{ . }}{{ end }}.
+{{- else -}}
 NGINX Ingress Controller {{ .Chart.AppVersion }} has been installed.
 
 For release notes, see: https://docs.nginx.com/nginx-ingress-controller/changelog/
 
 For Helm installation instructions, see: https://docs.nginx.com/nginx-ingress-controller/install/helm/
+{{- if include "nginx-ingress.isTenant" . }}
+
+Installed in tenant mode. The Ingress Controller watches these namespaces: {{ include "nginx-ingress.tenantWatchNamespaces" . }}
+It requires these platform prerequisites, installed by a cluster admin:
+  - the NGINX Ingress Controller CRDs (deploy/crds.yaml)
+  - the deployments/rbac/nic-tenant-aggregate.yaml manifest
+  - a platform release (installMode "platform") with platform.tenantNamespace={{ .Release.Namespace }}, controller.serviceAccount.name={{ .Values.controller.serviceAccount.name }} and the IngressClass "{{ .Values.controller.ingressClass.name }}"
+{{- end }}
 
 {{ if .Release.IsUpgrade -}}
+{{- if include "nginx-ingress.isTenant" . -}}
+This tenant release does not manage the Custom Resource Definitions (CRD). If the new version changes them, ask your cluster admin to apply the CRDs for v{{ .Chart.AppVersion }}:
+  $ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v{{ .Chart.AppVersion }}/deploy/crds.yaml
+
+For the upgrade order of the cluster-wide prerequisites, platform releases and tenant releases, see: https://github.com/nginx/kubernetes-ingress/tree/v{{ .Chart.AppVersion }}/examples/shared-examples/multi-tenant
+{{- else -}}
 If you are upgrading from a version of the chart that uses older Custom Resource Definitions (CRD) it is necessary to manually upgrade the CRDs as this is not managed by Helm.
 To update to the latest version of the CRDs:
   $ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v{{ .Chart.AppVersion }}/deploy/crds.yaml
 
 For more details on upgrading the CRDs, see: https://docs.nginx.com/nginx-ingress-controller/install/upgrade/#upgrade-nginx-ingress-controller-crds
+{{- end -}}
+{{- end -}}
 {{- end -}}
