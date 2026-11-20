@@ -23,6 +23,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	pkgversion "k8s.io/apimachinery/pkg/version"
 	fakediscovery "k8s.io/client-go/discovery/fake"
@@ -567,7 +568,7 @@ func TestValidateIngressClass(t *testing.T) {
 			mode:      ingressClassValidationStrict,
 			objects:   []runtime.Object{ingressClass("nginx", k8s.IngressControllerName)},
 			forbidden: true,
-			wantErr:   `error when getting IngressClass nginx: ingressclasses.networking.k8s.io "nginx" is forbidden`,
+			wantErr:   `error when getting IngressClass nginx: missing permission: get ingressclasses.networking.k8s.io "nginx" (cluster-scoped); grant it to the NIC ServiceAccount in a ClusterRole, or set -ingress-class-validation=skip: ingressclasses.networking.k8s.io "nginx" is forbidden`,
 			wantCalls: 1,
 		},
 		{
@@ -612,6 +613,9 @@ func TestValidateIngressClass(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), test.wantErr) {
 					t.Errorf("validateIngressClass() error = %q, want it to contain %q", err.Error(), test.wantErr)
+				}
+				if test.forbidden && !k8serrors.IsForbidden(err) {
+					t.Errorf("validateIngressClass() error = %v, want it to wrap a forbidden error", err)
 				}
 			}
 
@@ -731,5 +735,439 @@ func TestGetControllerTopology(t *testing.T) {
 				t.Errorf("getControllerTopology() made %d API calls, want %d", got, test.wantActions)
 			}
 		})
+	}
+}
+
+// forbidVerb makes every request with verb on resource fail with a Kubernetes "forbidden" error.
+func forbidVerb(clientset *fake.Clientset, verb string, gr schema.GroupResource) {
+	clientset.PrependReactor(verb, gr.Resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
+		name := ""
+		if getAction, ok := action.(k8stesting.GetAction); ok {
+			name = getAction.GetName()
+		}
+		return true, nil, k8serrors.NewForbidden(gr, name, errors.New(`User "system:serviceaccount:team-a:nic" cannot `+verb+` resource`))
+	})
+}
+
+func TestForbiddenError(t *testing.T) {
+	t.Parallel()
+
+	forbidden := k8serrors.NewForbidden(api_v1.Resource("secrets"), "tls", errors.New("access denied"))
+	notFound := k8serrors.NewNotFound(api_v1.Resource("secrets"), "tls")
+
+	tests := []struct {
+		name      string
+		err       error
+		verb      string
+		resource  schema.GroupResource
+		namespace string
+		objName   string
+		hint      string
+		want      string
+	}{
+		{
+			name:      "namespaced get with default hint",
+			err:       forbidden,
+			verb:      "get",
+			resource:  api_v1.Resource("secrets"),
+			namespace: "team-a",
+			objName:   "tls",
+			want:      `missing permission: get secrets "tls" in namespace team-a; grant it to the NIC ServiceAccount in a Role or ClusterRole: secrets "tls" is forbidden: access denied`,
+		},
+		{
+			name:     "cluster-scoped list with custom hint",
+			err:      k8serrors.NewForbidden(api_v1.Resource("nodes"), "", errors.New("access denied")),
+			verb:     "list",
+			resource: api_v1.Resource("nodes"),
+			hint:     "grant it in a ClusterRole",
+			want:     `missing permission: list nodes (cluster-scoped); grant it in a ClusterRole: nodes is forbidden: access denied`,
+		},
+		{
+			name:     "group resource",
+			err:      k8serrors.NewForbidden(networking.Resource("ingressclasses"), "nginx", errors.New("access denied")),
+			verb:     "get",
+			resource: networking.Resource("ingressclasses"),
+			objName:  "nginx",
+			want:     `missing permission: get ingressclasses.networking.k8s.io "nginx" (cluster-scoped)`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := forbiddenError(test.err, test.verb, test.resource, test.namespace, test.objName, test.hint)
+			if got == nil {
+				t.Fatal("forbiddenError() returned nil")
+			}
+			if !strings.Contains(got.Error(), test.want) {
+				t.Errorf("forbiddenError() = %q, want it to contain %q", got.Error(), test.want)
+			}
+			if !k8serrors.IsForbidden(got) {
+				t.Errorf("forbiddenError() = %v, want it to still be a forbidden error", got)
+			}
+			if !errors.Is(got, test.err) {
+				t.Errorf("forbiddenError() = %v, want it to wrap %v", got, test.err)
+			}
+		})
+	}
+
+	t.Run("other errors are unchanged", func(t *testing.T) {
+		t.Parallel()
+		if got := forbiddenError(notFound, "get", api_v1.Resource("secrets"), "team-a", "tls", ""); got != notFound { //nolint:errorlint // identity check
+			t.Errorf("forbiddenError(notFound) = %v, want the original error", got)
+		}
+		if got := forbiddenError(nil, "get", api_v1.Resource("secrets"), "team-a", "tls", ""); got != nil {
+			t.Errorf("forbiddenError(nil) = %v, want nil", got)
+		}
+	})
+}
+
+func TestStartupReadsNameMissingPermission(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		resource schema.GroupResource
+		verb     string
+		read     func(*fake.Clientset) error
+		want     string
+	}{
+		{
+			name:     "controller pod",
+			resource: api_v1.Resource("pods"),
+			verb:     "get",
+			read: func(c *fake.Clientset) error {
+				_, err := getControllerPod(context.Background(), c, "team-a", "nic-abc")
+				return err
+			},
+			want: `missing permission: get pods "nic-abc" in namespace team-a;`,
+		},
+		{
+			name:     "startup configmap",
+			resource: api_v1.Resource("configmaps"),
+			verb:     "get",
+			read: func(c *fake.Clientset) error {
+				_, err := getStartupConfigMap(context.Background(), c, "team-a", "nic-nginx-ingress")
+				return err
+			},
+			want: `missing permission: get configmaps "nic-nginx-ingress" in namespace team-a;`,
+		},
+		{
+			name:     "startup secret",
+			resource: api_v1.Resource("secrets"),
+			verb:     "get",
+			read: func(c *fake.Clientset) error {
+				_, err := getAndValidateSecret(c, "team-a/default-tls", secrets.RoleTLS)
+				return err
+			},
+			want: `could not find team-a/default-tls: missing permission: get secrets "default-tls" in namespace team-a;`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			clientset := fake.NewClientset()
+			forbidVerb(clientset, test.verb, test.resource)
+
+			err := test.read(clientset)
+			if err == nil {
+				t.Fatal("expected an error, got none")
+			}
+			if !strings.Contains(err.Error(), test.want) {
+				t.Errorf("error = %q, want it to contain %q", err.Error(), test.want)
+			}
+			if !k8serrors.IsForbidden(err) {
+				t.Errorf("error = %v, want it to wrap a forbidden error", err)
+			}
+		})
+	}
+}
+
+func TestStartupReadsSucceed(t *testing.T) {
+	t.Parallel()
+
+	clientset := fake.NewClientset(
+		&api_v1.Pod{ObjectMeta: meta_v1.ObjectMeta{Name: "nic-abc", Namespace: "team-a"}},
+		&api_v1.ConfigMap{ObjectMeta: meta_v1.ObjectMeta{Name: "nic-nginx-ingress", Namespace: "team-a"}},
+	)
+
+	pod, err := getControllerPod(context.Background(), clientset, "team-a", "nic-abc")
+	if err != nil || pod.Name != "nic-abc" {
+		t.Errorf("getControllerPod() = %v, %v; want pod nic-abc", pod, err)
+	}
+	cfm, err := getStartupConfigMap(context.Background(), clientset, "team-a", "nic-nginx-ingress")
+	if err != nil || cfm.Name != "nic-nginx-ingress" {
+		t.Errorf("getStartupConfigMap() = %v, %v; want configmap nic-nginx-ingress", cfm, err)
+	}
+
+	_, err = getStartupConfigMap(context.Background(), clientset, "team-a", "missing")
+	if !k8serrors.IsNotFound(err) || strings.Contains(err.Error(), "missing permission") {
+		t.Errorf("getStartupConfigMap(missing) error = %v, want an unchanged not-found error", err)
+	}
+}
+
+func TestGetControllerZoneForbidden(t *testing.T) {
+	t.Parallel()
+
+	clientset := fake.NewClientset()
+	forbidVerb(clientset, "list", api_v1.Resource("nodes"))
+
+	var buf bytes.Buffer
+	ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(&buf, nil)))
+
+	if got := getControllerZone(ctx, clientset, "node-1"); got != "" {
+		t.Errorf("getControllerZone() = %q, want empty zone", got)
+	}
+	want := "missing permission: list nodes (cluster-scoped); grant it to the NIC ServiceAccount in a ClusterRole"
+	if !strings.Contains(buf.String(), want) {
+		t.Errorf("log does not contain %q; log:\n%s", want, buf.String())
+	}
+	if !strings.Contains(buf.String(), "level=WARN") {
+		t.Errorf("forbidden node list is not logged as a warning; log:\n%s", buf.String())
+	}
+}
+
+func crdNames(reqs []requiredCRD) []string {
+	names := make([]string, 0, len(reqs))
+	for _, req := range reqs {
+		names = append(names, req.gvr.Resource+"."+req.gvr.Group+"/"+req.gvr.Version)
+	}
+	return names
+}
+
+func TestRequiredCRDs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		features crdFeatures
+		want     []string
+	}{
+		{
+			name:     "nothing enabled",
+			features: crdFeatures{},
+			want:     []string{},
+		},
+		{
+			name:     "custom resources",
+			features: crdFeatures{customResources: true},
+			want: []string{
+				"virtualservers.k8s.nginx.org/v1",
+				"virtualserverroutes.k8s.nginx.org/v1",
+				"transportservers.k8s.nginx.org/v1",
+				"policies.k8s.nginx.org/v1",
+			},
+		},
+		{
+			name:     "custom resources with global configuration and cert-manager",
+			features: crdFeatures{customResources: true, globalConfiguration: true, certManager: true},
+			want: []string{
+				"virtualservers.k8s.nginx.org/v1",
+				"virtualserverroutes.k8s.nginx.org/v1",
+				"transportservers.k8s.nginx.org/v1",
+				"policies.k8s.nginx.org/v1",
+				"globalconfigurations.k8s.nginx.org/v1",
+				"certificates.cert-manager.io/v1",
+			},
+		},
+		{
+			name:     "custom resource features need custom resources",
+			features: crdFeatures{globalConfiguration: true, certManager: true},
+			want:     []string{},
+		},
+		{
+			name:     "app protect waf",
+			features: crdFeatures{appProtect: true},
+			want: []string{
+				"appolicies.appprotect.f5.com/v1beta1",
+				"aplogconfs.appprotect.f5.com/v1beta1",
+				"apusersigs.appprotect.f5.com/v1beta1",
+			},
+		},
+		{
+			name:     "app protect waf with plm",
+			features: crdFeatures{appProtect: true, plm: true},
+			want: []string{
+				"appolicies.appprotect.f5.com/v1",
+				"aplogconfs.appprotect.f5.com/v1",
+			},
+		},
+		{
+			name:     "app protect dos",
+			features: crdFeatures{appProtectDos: true},
+			want: []string{
+				"apdospolicies.appprotectdos.f5.com/v1beta1",
+				"apdoslogconfs.appprotectdos.f5.com/v1beta1",
+				"dosprotectedresources.appprotectdos.f5.com/v1beta1",
+			},
+		},
+		{
+			name:     "ingresslink",
+			features: crdFeatures{ingressLink: true},
+			want:     []string{"ingresslinks.cis.f5.com/v1"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := crdNames(requiredCRDs(test.features))
+			if strings.Join(got, ",") != strings.Join(test.want, ",") {
+				t.Errorf("requiredCRDs() =\n  %v\nwant\n  %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRequiredCRDsSources(t *testing.T) {
+	t.Parallel()
+
+	reqs := requiredCRDs(crdFeatures{
+		customResources: true, certManager: true,
+		appProtect: true, appProtectDos: true, ingressLink: true,
+	})
+	wantSources := map[string]string{
+		"k8s.nginx.org":        crdSourceNIC,
+		"cert-manager.io":      crdSourceCertManager,
+		"appprotect.f5.com":    crdSourceNAPWAF,
+		"appprotectdos.f5.com": crdSourceNAPDoS,
+		"cis.f5.com":           crdSourceCIS,
+	}
+	for _, req := range reqs {
+		if want := wantSources[req.gvr.Group]; req.source != want {
+			t.Errorf("source of %s = %q, want %q", req.gvr.String(), req.source, want)
+		}
+	}
+
+	for _, req := range requiredCRDs(crdFeatures{appProtect: true, plm: true}) {
+		if req.source != crdSourcePLM {
+			t.Errorf("source of %s with PLM = %q, want %q", req.gvr.String(), req.source, crdSourcePLM)
+		}
+	}
+}
+
+func newFakeDiscovery(resources ...*meta_v1.APIResourceList) (*fakediscovery.FakeDiscovery, *fake.Clientset) {
+	clientset := fake.NewClientset()
+	discovery := clientset.Discovery().(*fakediscovery.FakeDiscovery)
+	discovery.Resources = resources
+	return discovery, clientset
+}
+
+func apiResourceList(groupVersion string, resources ...string) *meta_v1.APIResourceList {
+	list := &meta_v1.APIResourceList{GroupVersion: groupVersion}
+	for _, r := range resources {
+		list.APIResources = append(list.APIResources, meta_v1.APIResource{Name: r})
+	}
+	return list
+}
+
+func TestCheckCRDs(t *testing.T) {
+	t.Parallel()
+
+	customResources := requiredCRDs(crdFeatures{customResources: true, globalConfiguration: true})
+	appProtect := requiredCRDs(crdFeatures{appProtect: true})
+
+	tests := []struct {
+		name      string
+		resources []*meta_v1.APIResourceList
+		reqs      []requiredCRD
+		wantErrs  []string
+	}{
+		{
+			name: "all CRDs installed",
+			resources: []*meta_v1.APIResourceList{
+				apiResourceList("k8s.nginx.org/v1", "virtualservers", "virtualservers/status", "virtualserverroutes", "transportservers", "policies", "globalconfigurations"),
+			},
+			reqs: customResources,
+		},
+		{
+			name: "one CRD missing from a served group",
+			resources: []*meta_v1.APIResourceList{
+				apiResourceList("k8s.nginx.org/v1", "virtualservers", "virtualserverroutes", "policies", "globalconfigurations"),
+			},
+			reqs: customResources,
+			wantErrs: []string{
+				"CRD transportservers.k8s.nginx.org is not installed (version v1 is required); the platform admin must apply deploy/crds.yaml",
+			},
+		},
+		{
+			name: "group not served",
+			reqs: appProtect,
+			wantErrs: []string{
+				"CRD appolicies.appprotect.f5.com is not installed (version v1beta1 is required); the platform admin must apply deploy/crds-nap-waf.yaml",
+				"CRD aplogconfs.appprotect.f5.com is not installed (version v1beta1 is required); the platform admin must apply deploy/crds-nap-waf.yaml",
+				"CRD apusersigs.appprotect.f5.com is not installed (version v1beta1 is required); the platform admin must apply deploy/crds-nap-waf.yaml",
+			},
+		},
+		{
+			name: "CRD installed at another version",
+			resources: []*meta_v1.APIResourceList{
+				apiResourceList("appprotect.f5.com/v1", "appolicies", "aplogconfs", "apusersigs"),
+			},
+			reqs: appProtect,
+			wantErrs: []string{
+				"CRD appolicies.appprotect.f5.com is not installed (version v1beta1 is required)",
+				"CRD aplogconfs.appprotect.f5.com is not installed (version v1beta1 is required)",
+				"CRD apusersigs.appprotect.f5.com is not installed (version v1beta1 is required)",
+			},
+		},
+		{
+			name: "nothing required",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			discovery, _ := newFakeDiscovery(test.resources...)
+			var buf bytes.Buffer
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(&buf, nil)))
+
+			checkCRDs(ctx, discovery, test.reqs)
+
+			got := buf.String()
+			if n := strings.Count(got, "level=ERROR"); n != len(test.wantErrs) {
+				t.Errorf("logged %d errors, want %d; log:\n%s", n, len(test.wantErrs), got)
+			}
+			for _, want := range test.wantErrs {
+				if !strings.Contains(got, want) {
+					t.Errorf("log does not contain %q; log:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckCRDsDiscoveryError(t *testing.T) {
+	t.Parallel()
+
+	discovery, clientset := newFakeDiscovery(
+		apiResourceList("k8s.nginx.org/v1", "virtualservers", "virtualserverroutes", "policies"),
+	)
+	// FakeDiscovery runs the clientset's reactors; fail every discovery call.
+	clientset.PrependReactor("get", "resource", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{}, "", errors.New("discovery denied"))
+	})
+
+	var buf bytes.Buffer
+	ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(&buf, nil)))
+
+	checkCRDs(ctx, discovery, requiredCRDs(crdFeatures{customResources: true}))
+
+	got := buf.String()
+	if strings.Contains(got, "level=ERROR") {
+		t.Errorf("logged a missing CRD error after a discovery failure; log:\n%s", got)
+	}
+	want := "Could not check whether the CRDs in k8s.nginx.org/v1 are installed"
+	if n := strings.Count(got, want); n != 1 {
+		t.Errorf("logged %q %d times, want 1; log:\n%s", want, n, got)
+	}
+	if !strings.Contains(got, "level=WARN") {
+		t.Errorf("discovery failure is not logged as a warning; log:\n%s", got)
 	}
 }

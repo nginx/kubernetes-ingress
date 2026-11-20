@@ -63,6 +63,9 @@ func createPolicyHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 
 func (nsi *namespacedInformer) addPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().Policies().Informer()
+	if err := nsi.setWatchErrorHandler(informer, conf_v1.Resource("policies")); err != nil {
+		return err
+	}
 
 	if err := informer.AddIndexers(cache.Indexers{
 		policySecretIndex: policySecretIndexFunc,
