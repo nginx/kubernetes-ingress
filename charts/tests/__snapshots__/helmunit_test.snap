@@ -12233,10 +12233,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-validation-skip-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.8.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class-validation-skip
-    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 subjects:
 - kind: ServiceAccount
@@ -12253,10 +12253,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-validation-skip-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.8.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class-validation-skip
-    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 rules:
@@ -12313,10 +12313,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ingress-class-validation-skip-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.8.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class-validation-skip
-    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 roleRef:
@@ -12335,10 +12335,10 @@ metadata:
   name: ingress-class-validation-skip-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.8.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class-validation-skip
-    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -12363,10 +12363,10 @@ metadata:
   name: ingress-class-validation-skip-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.8.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class-validation-skip
-    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -12394,7 +12394,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.7.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -12492,10 +12492,10 @@ metadata:
   name: ingress-class-validation-skip-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.8.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class-validation-skip
-    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
@@ -17084,10 +17084,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nic-team-a-platform-nginx-ingress-tenant-reader
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic-team-a-platform
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -17118,10 +17118,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nic-team-a-platform-nginx-ingress-tenant-reader
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic-team-a-platform
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -17138,10 +17138,10 @@ kind: IngressClass
 metadata:
   name: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic-team-a-platform
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
@@ -17155,10 +17155,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nic-team-a-platform-nginx-ingress-tenant-reader
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic-team-a-platform
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -17189,10 +17189,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nic-team-a-platform-nginx-ingress-tenant-reader
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic-team-a-platform
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -17212,10 +17212,10 @@ kind: IngressClass
 metadata:
   name: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic-team-a-platform
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
@@ -23400,10 +23400,10 @@ metadata:
   name: nic
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -23413,10 +23413,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -23428,10 +23428,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/tenant-role.yaml
@@ -23441,10 +23441,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -23574,10 +23574,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -23663,10 +23663,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -23684,10 +23684,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -23705,10 +23705,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -23733,10 +23733,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -23764,7 +23764,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.8.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -23862,10 +23862,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
@@ -23878,10 +23878,10 @@ metadata:
   name: nic
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -23891,10 +23891,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -23906,10 +23906,10 @@ metadata:
   name: nic-nginx-ingress-mgmt
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
@@ -23921,10 +23921,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/tenant-role.yaml
@@ -23934,10 +23934,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -24123,10 +24123,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -24260,10 +24260,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -24281,10 +24281,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -24302,10 +24302,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -24330,10 +24330,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -24361,7 +24361,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.8.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -24466,10 +24466,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
@@ -24482,10 +24482,10 @@ metadata:
   name: nic
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -24495,10 +24495,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -24510,10 +24510,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/tenant-role.yaml
@@ -24523,10 +24523,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -24673,10 +24673,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -24779,10 +24779,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -24800,10 +24800,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -24821,10 +24821,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -24849,10 +24849,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -24880,7 +24880,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.8.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -24979,10 +24979,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
@@ -24995,10 +24995,10 @@ metadata:
   name: nic
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -25008,10 +25008,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -25023,10 +25023,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/tenant-role.yaml
@@ -25036,10 +25036,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -25169,10 +25169,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -25250,10 +25250,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-b
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -25339,10 +25339,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -25360,10 +25360,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -25381,10 +25381,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-b
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -25402,10 +25402,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -25430,10 +25430,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -25461,7 +25461,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.8.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -25560,10 +25560,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
@@ -25576,10 +25576,10 @@ metadata:
   name: nic
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -25589,10 +25589,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -25604,10 +25604,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/tenant-role.yaml
@@ -25617,10 +25617,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -25723,10 +25723,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -25785,10 +25785,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -25806,10 +25806,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a-apps
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -25827,10 +25827,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -25855,10 +25855,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -25886,7 +25886,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.8.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -25978,10 +25978,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
@@ -25994,10 +25994,10 @@ metadata:
   name: nic
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -26007,10 +26007,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -26022,10 +26022,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/tenant-role.yaml
@@ -26035,10 +26035,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -26168,10 +26168,10 @@ metadata:
   name: nic-nginx-ingress
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -26189,10 +26189,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -26217,10 +26217,10 @@ metadata:
   name: nic-nginx-ingress-controller
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -26248,7 +26248,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.8.0
+      - image: nginx/nginx-ingress:5.9.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -26346,10 +26346,10 @@ metadata:
   name: nic-nginx-ingress-leader-election
   namespace: team-a
   labels:
-    helm.sh/chart: nginx-ingress-2.9.0
+    helm.sh/chart: nginx-ingress-2.10.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: nic
-    app.kubernetes.io/version: "5.8.0"
+    app.kubernetes.io/version: "5.9.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
