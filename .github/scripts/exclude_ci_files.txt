@@ -12,6 +12,8 @@
 .github/scripts/create-release-tarballs.sh
 .github/scripts/docker-updater.sh
 .github/scripts/docs-shortcode-update.sh
+.github/scripts/nkp-catalog-new-version.sh
+.github/scripts/nkp-catalog-new-version_test.sh
 .github/scripts/pull-release-notes.py
 .github/scripts/release-docs.sh
 .github/scripts/release-notes.j2
@@ -37,6 +39,7 @@
 .github/workflows/issues.yaml
 .github/workflows/labeler.yml
 .github/workflows/lint-format.yml
+.github/workflows/nkp-catalog-pr.yml
 .github/workflows/notifications.yml
 .github/workflows/oss-release.yml
 .github/workflows/patch-image.yml
