@@ -1,0 +1,12 @@
+# Values used by `make update-rbac-manifests` to generate deployments/rbac/tenant-role.yaml and
+# deployments/rbac/platform-tenant-reader.yaml, and by the helm unit test that checks those files.
+# Names match deployments/common/ns-and-sa.yaml: namespace and ServiceAccount nginx-ingress,
+# IngressClass nginx. "watched-namespace" is a placeholder for each other namespace a tenant watches.
+platform:
+  tenantNamespace: nginx-ingress
+controller:
+  serviceAccount:
+    name: nginx-ingress
+  ingressClass:
+    name: nginx
+  watchNamespace: watched-namespace

@@ -47,6 +47,9 @@ func createEndpointSliceHandlers(lbc *LoadBalancerController) cache.ResourceEven
 // addEndpointSliceHandler adds the handler for EndpointSlices to the controller
 func (nsi *namespacedInformer) addEndpointSliceHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Discovery().V1().EndpointSlices().Informer()
+	if err := nsi.setWatchErrorHandler(informer, discovery_v1.Resource("endpointslices")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add EndpointSlice event handler: %w", err)
 	}

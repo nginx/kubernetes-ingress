@@ -1,0 +1,9 @@
+installMode: tenant
+controller:
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a
+  # Entries are trimmed; empty entries and duplicates, including the release namespace, are dropped.
+  watchNamespace: "team-a-apps, team-a,,team-b, team-a-apps, "
+  watchSecretNamespace: " team-a ,team-b,"

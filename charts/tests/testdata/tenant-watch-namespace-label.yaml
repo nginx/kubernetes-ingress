@@ -1,0 +1,5 @@
+installMode: tenant
+controller:
+  serviceAccount:
+    name: nic
+  watchNamespaceLabel: team=a

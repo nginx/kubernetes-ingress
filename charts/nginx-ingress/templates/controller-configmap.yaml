@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if not .Values.controller.customConfigMap -}}
 apiVersion: v1
 kind: ConfigMap
@@ -77,6 +78,7 @@ data:
 {{- end }}
 {{- if hasKey .Values.controller.mgmt.resolver "valid" }}
   resolver-valid: {{ quote .Values.controller.mgmt.resolver.valid }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

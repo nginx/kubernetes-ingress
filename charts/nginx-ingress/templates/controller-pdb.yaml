@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if .Values.controller.podDisruptionBudget.enabled -}}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -19,5 +20,6 @@ spec:
 {{- end }}
 {{- if .Values.controller.podDisruptionBudget.maxUnavailable }}
   maxUnavailable: {{ .Values.controller.podDisruptionBudget.maxUnavailable }}
+{{- end }}
 {{- end }}
 {{- end }}

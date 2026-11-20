@@ -1,3 +1,4 @@
+{{- if not (include "nginx-ingress.isTenant" .) }}
 {{ if .Values.controller.ingressClass.create }}
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
@@ -12,3 +13,4 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 {{ end }}
+{{- end }}

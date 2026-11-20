@@ -1,0 +1,26 @@
+{{- if and (include "nginx-ingress.isPlatform" .) .Values.platform.tenantReader.create }}
+{{- include "nginx-ingress.validateInstallMode" . }}
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "nginx-ingress.fullname" . }}-tenant-reader
+  labels:
+    {{- include "nginx-ingress.labels" . | nindent 4 }}
+rules:
+{{- include "nginx-ingress.rbac.tenantReaderRules" . | nindent 0 }}
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "nginx-ingress.fullname" . }}-tenant-reader
+  labels:
+    {{- include "nginx-ingress.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "nginx-ingress.fullname" . }}-tenant-reader
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.controller.serviceAccount.name }}
+  namespace: {{ .Values.platform.tenantNamespace }}
+{{- end }}

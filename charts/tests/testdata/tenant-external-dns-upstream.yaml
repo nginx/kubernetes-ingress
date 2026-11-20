@@ -1,0 +1,10 @@
+installMode: tenant
+controller:
+  enableCustomResources: true
+  enableExternalDNS: true
+  externalDNSGroupVersion: "externaldns.k8s.io/v1alpha1"
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a
+  watchNamespace: team-a-apps

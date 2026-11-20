@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if eq .Values.controller.kind "statefulset" }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -231,4 +232,5 @@ spec:
       resources:
         requests:
           storage: {{ .Values.controller.statefulset.nginxCachePVC.size | quote }}
+{{- end }}
 {{- end }}

@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if eq .Values.controller.kind "deployment" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -210,5 +211,6 @@ spec:
 {{- end }}
 {{- if .Values.controller.minReadySeconds }}
   minReadySeconds: {{ .Values.controller.minReadySeconds }}
+{{- end }}
 {{- end }}
 {{- end }}

@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -25,23 +26,30 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	"github.com/nginx/kubernetes-ingress/internal/metadata"
 	"github.com/nginx/kubernetes-ingress/internal/metrics"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
+	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	cr_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
+	dos_v1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	conf_scheme "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/scheme"
 	"github.com/nginx/nginx-plus-go-client/v3/client"
 	nginxCollector "github.com/nginx/nginx-prometheus-exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	api_v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	pkg_runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	util_version "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -105,7 +113,7 @@ func main() {
 	if err := validateKubernetesVersionInfo(ctx, kubeClient); err != nil {
 		nl.Fatal(l, err)
 	}
-	pod, err := kubeClient.CoreV1().Pods(controllerNamespace).Get(context.TODO(), podName, meta_v1.GetOptions{})
+	pod, err := getControllerPod(ctx, kubeClient, controllerNamespace, podName)
 	if err != nil {
 		nl.Fatalf(l, "Failed to get pod: %v", err)
 	}
@@ -122,7 +130,10 @@ func main() {
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme,
 		api_v1.EventSource{Component: k8s.EventReporterName})
 	defer eventBroadcaster.Shutdown()
-	mustValidateIngressClass(ctx, kubeClient)
+
+	if err := validateIngressClass(ctx, kubeClient, *ingressClass, *ingressClassValidation); err != nil {
+		nl.Fatal(l, err)
+	}
 	mustValidateExternalDNSCRD(ctx, kubeClient)
 
 	checkNamespaces(ctx, kubeClient)
@@ -166,6 +177,8 @@ func main() {
 			setupPLMStorage(ctx, kubeClient, eventRecorder, pod)
 		}
 	}
+
+	checkCRDs(ctx, kubeClient.Discovery(), requiredCRDs(crdFeaturesFromFlags()))
 
 	var agentVersion string
 	if *agent {
@@ -480,6 +493,7 @@ func getControllerZone(ctx context.Context, kubeClient kubernetes.Interface, nod
 		FieldSelector: fields.OneTermEqualSelector("metadata.name", nodeName).String(),
 	})
 	if err != nil {
+		err = forbiddenError(err, "list", api_v1.Resource("nodes"), "", "", "grant it to the NIC ServiceAccount in a ClusterRole")
 		nl.Warnf(l, "Failed to list node %s for zone detection: %v; same-zone routing using EndpointSlice hints is unavailable", nodeName, err)
 		return ""
 	}
@@ -522,18 +536,28 @@ func validateKubernetesVersionInfo(ctx context.Context, kubeClient kubernetes.In
 	return nil
 }
 
-// mustValidateIngressClass calls internally os.Exit
-// and terminates the program if the ingress class is not valid.
-func mustValidateIngressClass(ctx context.Context, kubeClient kubernetes.Interface) {
+// validateIngressClass checks the IngressClass named className according to mode.
+// In strict mode, it returns an error if the IngressClass can't be read
+// or its Spec.Controller isn't the NGINX Ingress Controller.
+// In skip mode, it makes no API call and logs a warning.
+func validateIngressClass(ctx context.Context, kubeClient kubernetes.Interface, className string, mode string) error {
 	l := nl.LoggerFromContext(ctx)
-	ingressClassRes, err := kubeClient.NetworkingV1().IngressClasses().Get(context.TODO(), *ingressClass, meta_v1.GetOptions{})
+	if mode == ingressClassValidationSkip {
+		nl.Warnf(l, "IngressClass validation is disabled (-ingress-class-validation=%s); not checking that IngressClass %v exists or is owned by %v", ingressClassValidationSkip, className, k8s.IngressControllerName)
+		return nil
+	}
+
+	ingressClassRes, err := kubeClient.NetworkingV1().IngressClasses().Get(ctx, className, meta_v1.GetOptions{})
 	if err != nil {
-		nl.Fatalf(l, "Error when getting IngressClass %v: %v", *ingressClass, err)
+		err = forbiddenError(err, "get", networking.Resource("ingressclasses"), "", className,
+			fmt.Sprintf("grant it to the NIC ServiceAccount in a ClusterRole, or set -ingress-class-validation=%s", ingressClassValidationSkip))
+		return fmt.Errorf("error when getting IngressClass %v: %w", className, err)
 	}
 
 	if ingressClassRes.Spec.Controller != k8s.IngressControllerName {
-		nl.Fatalf(l, "IngressClass with name %v has an invalid Spec.Controller %v; expected %v", ingressClassRes.Name, ingressClassRes.Spec.Controller, k8s.IngressControllerName)
+		return fmt.Errorf("IngressClass with name %v has an invalid Spec.Controller %v; expected %v", ingressClassRes.Name, ingressClassRes.Spec.Controller, k8s.IngressControllerName)
 	}
+	return nil
 }
 
 // mustValidateExternalDNSCRD calls internally os.Exit and terminates the
@@ -940,6 +964,7 @@ func getAndValidateSecret(kubeClient kubernetes.Interface, secretNsName string, 
 	}
 	secret, err = kubeClient.CoreV1().Secrets(ns).Get(context.TODO(), name, meta_v1.GetOptions{})
 	if err != nil {
+		err = forbiddenError(err, "get", api_v1.Resource("secrets"), ns, name, "")
 		return nil, fmt.Errorf("could not find %v: %w", secretNsName, err)
 	}
 	err = secrets.ValidateSecretForRole(secret, role)
@@ -1150,14 +1175,14 @@ func mustProcessGlobalConfiguration(ctx context.Context) {
 	}
 }
 
-func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.ConfigParams, nginxManager nginx.Manager, templateExecutor *version1.TemplateExecutor, eventLog record.EventRecorder) *configs.ConfigParams {
+func processConfigMaps(kubeClient kubernetes.Interface, cfgParams *configs.ConfigParams, nginxManager nginx.Manager, templateExecutor *version1.TemplateExecutor, eventLog record.EventRecorder) *configs.ConfigParams {
 	l := nl.LoggerFromContext(cfgParams.Context)
 	if *nginxConfigMaps != "" {
 		ns, name, err := k8s.ParseNamespaceName(*nginxConfigMaps)
 		if err != nil {
 			nl.Fatalf(l, "Error parsing the nginx-configmaps argument: %v", err)
 		}
-		cfm, err := kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), name, meta_v1.GetOptions{})
+		cfm, err := getStartupConfigMap(cfgParams.Context, kubeClient, ns, name)
 		if err != nil {
 			nl.Fatalf(l, "Error when getting %v: %v", *nginxConfigMaps, err)
 		}
@@ -1186,7 +1211,7 @@ func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.Conf
 	return cfgParams
 }
 
-func processMGMTConfigMap(kubeClient *kubernetes.Clientset, mgmtCfgParams *configs.MGMTConfigParams, eventLog record.EventRecorder, pod *api_v1.Pod) *configs.MGMTConfigParams {
+func processMGMTConfigMap(kubeClient kubernetes.Interface, mgmtCfgParams *configs.MGMTConfigParams, eventLog record.EventRecorder, pod *api_v1.Pod) *configs.MGMTConfigParams {
 	ctx := mgmtCfgParams.Context
 	var fatalErr error
 
@@ -1194,7 +1219,7 @@ func processMGMTConfigMap(kubeClient *kubernetes.Clientset, mgmtCfgParams *confi
 	if err != nil {
 		logEventAndExit(ctx, eventLog, pod, configMapErrorReason, fmt.Errorf("error parsing the mgmt-configmap argument: %w", err))
 	}
-	cfm, err := kubeClient.CoreV1().ConfigMaps(ns).Get(context.TODO(), name, meta_v1.GetOptions{})
+	cfm, err := getStartupConfigMap(ctx, kubeClient, ns, name)
 	if err != nil {
 		logEventAndExit(ctx, eventLog, cfm, configMapErrorReason, fmt.Errorf("error when getting mgmt-configmap [%v]: %w", *mgmtConfigMap, err))
 	}
@@ -1279,7 +1304,7 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 		return fmt.Errorf("wrong syntax for ConfigMap: %q", configMapNamespacedName)
 	}
 
-	configMapObj, err := kubeClient.CoreV1().ConfigMaps(configMapName[0]).Get(context.Background(), configMapName[1], meta_v1.GetOptions{})
+	configMapObj, err := getStartupConfigMap(context.Background(), kubeClient, configMapName[0], configMapName[1])
 	if err != nil {
 		nl.Infof(l, "error getting ConfigMap %s/%s: %v", configMapName[0], configMapName[1], err)
 		return err
@@ -1409,4 +1434,187 @@ func initLogger(logFormat string, level slog.Level, out io.Writer) context.Conte
 	programLevel.Set(level)
 
 	return nl.ContextWithLogger(c, l)
+}
+
+// defaultPermissionHint tells the operator where a missing permission is granted.
+const defaultPermissionHint = "grant it to the NIC ServiceAccount in a Role or ClusterRole"
+
+// forbiddenError names the missing permission when err is a Kubernetes "forbidden" error,
+// so a startup read that fails because of RBAC says what to grant and where.
+// The original error is wrapped, so k8serrors.IsForbidden still holds.
+// Other errors, and nil, are returned unchanged.
+//
+// An empty namespace means a cluster-scoped resource. An empty name means a collection request, such as list.
+func forbiddenError(err error, verb string, resource schema.GroupResource, namespace, name, hint string) error {
+	if err == nil || !k8serrors.IsForbidden(err) {
+		return err
+	}
+
+	target := resource.String()
+	if name != "" {
+		target = fmt.Sprintf("%s %q", target, name)
+	}
+
+	scope := "(cluster-scoped)"
+	if namespace != "" {
+		scope = "in namespace " + namespace
+	}
+
+	if hint == "" {
+		hint = defaultPermissionHint
+	}
+
+	return fmt.Errorf("missing permission: %s %s %s; %s: %w", verb, target, scope, hint, err)
+}
+
+// getControllerPod gets the Pod NIC runs in.
+func getControllerPod(ctx context.Context, kubeClient kubernetes.Interface, namespace, name string) (*api_v1.Pod, error) {
+	pod, err := kubeClient.CoreV1().Pods(namespace).Get(ctx, name, meta_v1.GetOptions{})
+	return pod, forbiddenError(err, "get", api_v1.Resource("pods"), namespace, name, "")
+}
+
+// getStartupConfigMap gets a ConfigMap that NIC reads at startup.
+func getStartupConfigMap(ctx context.Context, kubeClient kubernetes.Interface, namespace, name string) (*api_v1.ConfigMap, error) {
+	cfm, err := kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, name, meta_v1.GetOptions{})
+	return cfm, forbiddenError(err, "get", api_v1.Resource("configmaps"), namespace, name, "")
+}
+
+// Sources of the CRDs NIC watches, named in the error logged when one is missing.
+const (
+	crdSourceNIC         = "the platform admin must apply deploy/crds.yaml"
+	crdSourceNAPWAF      = "the platform admin must apply deploy/crds-nap-waf.yaml"
+	crdSourceNAPDoS      = "the platform admin must apply deploy/crds-nap-dos.yaml"
+	crdSourcePLM         = "it is installed by the F5 WAF Policy Controller chart"
+	crdSourceCertManager = "it is installed by cert-manager"
+	crdSourceCIS         = "it is installed by F5 BIG-IP Container Ingress Services"
+)
+
+// requiredCRD is a custom resource that an enabled feature watches, and where its CRD comes from.
+type requiredCRD struct {
+	gvr    schema.GroupVersionResource
+	source string
+}
+
+// crdFeatures are the startup settings that decide which CRDs NIC watches.
+//
+// DNSEndpoint is intentionally not one of these: its CRD lives in whichever
+// API group -external-dns-group-version selects, and is validated against
+// that group by mustValidateExternalDNSCRD, not by checkCRDs.
+type crdFeatures struct {
+	customResources     bool
+	globalConfiguration bool
+	appProtect          bool
+	plm                 bool
+	appProtectDos       bool
+	certManager         bool
+	ingressLink         bool
+}
+
+// crdFeaturesFromFlags returns the CRD-relevant settings from the command-line flags.
+func crdFeaturesFromFlags() crdFeatures {
+	return crdFeatures{
+		customResources:     *enableCustomResources,
+		globalConfiguration: *globalConfiguration != "",
+		appProtect:          *appProtect,
+		plm:                 *plmStorageURL != "",
+		appProtectDos:       *appProtectDos,
+		certManager:         *enableCertManager,
+		ingressLink:         *ingressLink != "",
+	}
+}
+
+// requiredCRDs returns the custom resources that the informers for the enabled features watch.
+func requiredCRDs(f crdFeatures) []requiredCRD {
+	var reqs []requiredCRD
+	add := func(gvr schema.GroupVersionResource, source string) {
+		reqs = append(reqs, requiredCRD{gvr: gvr, source: source})
+	}
+
+	if f.customResources {
+		for _, resource := range []string{"virtualservers", "virtualserverroutes", "transportservers", "policies"} {
+			add(conf_v1.SchemeGroupVersion.WithResource(resource), crdSourceNIC)
+		}
+		if f.globalConfiguration {
+			add(conf_v1.SchemeGroupVersion.WithResource("globalconfigurations"), crdSourceNIC)
+		}
+		if f.certManager {
+			add(cmapi.SchemeGroupVersion.WithResource("certificates"), crdSourceCertManager)
+		}
+	}
+
+	if f.appProtect {
+		// Same version selection as selectAppProtectAPIVersion in main.go: v1 with PLM, v1beta1 otherwise.
+		version := string(appprotect.SelectAPIVersion(f.plm))
+		withVersion := func(gvr schema.GroupVersionResource) schema.GroupVersionResource {
+			gvr.Version = version
+			return gvr
+		}
+		source := crdSourceNAPWAF
+		if f.plm {
+			source = crdSourcePLM
+		}
+		add(withVersion(appprotect.PolicyGVR), source)
+		add(withVersion(appprotect.LogConfGVR), source)
+		if !f.plm {
+			// With PLM, NIC doesn't watch APUserSigs (see addAppProtectHandlers in internal/k8s).
+			add(withVersion(appprotect.UserSigGVR), source)
+		}
+	}
+
+	if f.appProtectDos {
+		add(appprotectdos.DosPolicyGVR, crdSourceNAPDoS)
+		add(appprotectdos.DosLogConfGVR, crdSourceNAPDoS)
+		add(dos_v1beta1.SchemeGroupVersion.WithResource("dosprotectedresources"), crdSourceNAPDoS)
+	}
+
+	if f.ingressLink {
+		add(k8s.IngressLinkGVR, crdSourceCIS)
+	}
+
+	return reqs
+}
+
+// checkCRDs uses API discovery to check that the CRD of each required resource is installed,
+// and logs an error that names each missing CRD and where it comes from.
+// It only logs: a missing CRD doesn't stop NIC from starting.
+func checkCRDs(ctx context.Context, client discovery.DiscoveryInterface, reqs []requiredCRD) {
+	l := nl.LoggerFromContext(ctx)
+
+	// Group the resources by group and version, so each group version needs one discovery call.
+	var groupVersions []schema.GroupVersion
+	byGroupVersion := make(map[schema.GroupVersion][]requiredCRD)
+	for _, req := range reqs {
+		gv := req.gvr.GroupVersion()
+		if _, ok := byGroupVersion[gv]; !ok {
+			groupVersions = append(groupVersions, gv)
+		}
+		byGroupVersion[gv] = append(byGroupVersion[gv], req)
+	}
+
+	for _, gv := range groupVersions {
+		served := make(map[string]bool)
+		resources, err := client.ServerResourcesForGroupVersion(gv.String())
+		switch {
+		case err == nil:
+			for _, r := range resources.APIResources {
+				served[r.Name] = true
+			}
+		case k8serrors.IsNotFound(err):
+			// The API server doesn't serve this group version, so none of its CRDs are installed.
+		default:
+			nl.Warnf(l, "Could not check whether the CRDs in %s are installed: %v", gv.String(), err)
+			continue
+		}
+
+		for _, req := range byGroupVersion[gv] {
+			if !served[req.gvr.Resource] {
+				logMissingCRD(l, req)
+			}
+		}
+	}
+}
+
+func logMissingCRD(l *slog.Logger, req requiredCRD) {
+	nl.Errorf(l, "CRD %s is not installed (version %s is required); %s",
+		req.gvr.GroupResource().String(), req.gvr.Version, req.source)
 }

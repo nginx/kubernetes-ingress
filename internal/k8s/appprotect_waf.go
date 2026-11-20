@@ -117,6 +117,9 @@ func createAppProtectUserSigHandlers(lbc *LoadBalancerController) cache.Resource
 // addAppProtectPolicyHandler creates dynamic informers for custom appprotect policy resource
 func (nsi *namespacedInformer) addAppProtectPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotect.PolicyGVR).Informer()
+	if err := nsi.setWatchErrorHandler(informer, appprotect.PolicyGVR.GroupResource()); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add AppProtectPolicy event handler: %w", err)
 	}
@@ -129,6 +132,9 @@ func (nsi *namespacedInformer) addAppProtectPolicyHandler(handlers cache.Resourc
 // addAppProtectLogConfHandler creates dynamic informer for custom appprotect logging config resource
 func (nsi *namespacedInformer) addAppProtectLogConfHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotect.LogConfGVR).Informer()
+	if err := nsi.setWatchErrorHandler(informer, appprotect.LogConfGVR.GroupResource()); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add AppProtectLogConf event handler: %w", err)
 	}
@@ -141,6 +147,9 @@ func (nsi *namespacedInformer) addAppProtectLogConfHandler(handlers cache.Resour
 // addAppProtectUserSigHandler creates dynamic informer for custom appprotect user defined signature resource
 func (nsi *namespacedInformer) addAppProtectUserSigHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotect.UserSigGVR).Informer()
+	if err := nsi.setWatchErrorHandler(informer, appprotect.UserSigGVR.GroupResource()); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add AppProtectUserSig event handler: %w", err)
 	}
