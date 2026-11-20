@@ -38,13 +38,14 @@ template_chart=$(perl -0ne 'print $1 if /\n\s*ref:\n\s*tag:\s*"?([^"\s]+)/' "${A
 echo "Creating ${version} (chart ${chart_version}) from ${template} (chart ${template_chart})"
 cp -R "${APP_DIR}/${template}" "${target}"
 
+# Replace whole version tokens only, so that 5.7.1 is not matched inside 5.7.10 or 15.7.1.
 # shellcheck disable=SC2016 # $ENV{...} is expanded by perl, not the shell
-find "${target}" -type f -exec env FROM="${template}" TO="${version}" perl -pi -e 's/\Q$ENV{FROM}\E/$ENV{TO}/g' {} +
+find "${target}" -type f -exec env FROM="${template}" TO="${version}" \
+    perl -pi -e 's/(?<![\d.])\Q$ENV{FROM}\E(?!\.?\d)/$ENV{TO}/g' {} +
 FROM="${template_chart}" TO="${chart_version}" perl -0pi -e 's/(\n\s*ref:\n\s*tag:\s*"?)\Q$ENV{FROM}\E/$1$ENV{TO}/' "${target}/${helmrelease}"
 
 # The chart tag is not tied to the NIC version, so a missed replacement would still deploy
 # the new image, with the previous chart, and pass the e2e tests.
-grep -rqF "${template}" "${target}" && die "${template} is still referenced in ${target}"
 CHART="${chart_version}" perl -0ne 'exit(/\n\s*ref:\n\s*tag:\s*"?\Q$ENV{CHART}\E"?\n/ ? 0 : 1)' "${target}/${helmrelease}" ||
     die "chart tag in ${target}/${helmrelease} is not ${chart_version}"
 grep -qF "tag: \"${version}\"" "${target}/helmrelease/cm.yaml" || die "image tag in ${target}/helmrelease/cm.yaml is not ${version}"
