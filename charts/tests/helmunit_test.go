@@ -116,6 +116,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "ingress-class",
 			namespace:   "default",
 		},
+		"ingressClassValidationSkip": {
+			valuesFile:  "testdata/ingress-class-validation-skip.yaml",
+			releaseName: "ingress-class-validation-skip",
+			namespace:   "default",
+		},
 		"globalConfig": {
 			valuesFile:  "testdata/global-configuration.yaml",
 			releaseName: "global-configuration",
@@ -353,6 +358,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "startupstatus-invalid",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"missing properties 'port', 'path'"},
+		},
+		"ingressClassValidationInvalid": {
+			valuesFile:        "testdata/ingress-class-validation-invalid.yaml",
+			releaseName:       "ingress-class-validation-invalid",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"/controller/ingressClass/validation", "value must be one of 'strict', 'skip'"},
 		},
 		"globalConfigInvalidFormat": {
 			valuesFile:        "testdata/global-config-invalid-format.yaml",

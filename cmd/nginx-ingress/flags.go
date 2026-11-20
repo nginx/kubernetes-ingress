@@ -32,6 +32,9 @@ const (
 	appProtectEnforcerAddrDefault = "127.0.0.1:50000"
 	logLevelDefault               = "info"
 	logFormatDefault              = "glog"
+
+	ingressClassValidationStrict = "strict"
+	ingressClassValidationSkip   = "skip"
 )
 
 var (
@@ -117,10 +120,17 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	ingressClass = flag.String("ingress-class", "nginx",
 		`A class of the Ingress Controller.
 
-	An IngressClass resource with the name equal to the class must be deployed. Otherwise, the Ingress Controller will fail to start.
+	When -ingress-class-validation is "strict" (the default), an IngressClass resource with the name equal to the class must be deployed. Otherwise, the Ingress Controller will fail to start.
 	The Ingress Controller only processes resources that belong to its class - i.e. have the "ingressClassName" field resource equal to the class.
 
 	The Ingress Controller processes all the VirtualServer/VirtualServerRoute/TransportServer resources that do not have the "ingressClassName" field for all versions of kubernetes.`)
+
+	ingressClassValidation = flag.String("ingress-class-validation", ingressClassValidationStrict,
+		`Controls the startup check of the IngressClass resource named by -ingress-class. Allowed values: "strict", "skip".
+
+	"strict" (default): the Ingress Controller reads the IngressClass at startup and fails to start if it can't be read, doesn't exist, or its spec.controller isn't "nginx.org/ingress-controller".
+	"skip": the Ingress Controller doesn't read the IngressClass and starts without checking it. Use this when the Ingress Controller has no permission to read IngressClass resources.
+	Resource selection by class is the same in both modes.`)
 
 	defaultServerSecret = flag.String("default-server-tls-secret", "",
 		`A Secret with a TLS certificate and key for TLS termination of the default server. Format: <namespace>/<name>.
@@ -417,6 +427,10 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatalf(l, "Invalid value for app-protect-enforcer-address: %v", err)
 	}
 
+	if err := validateIngressClassValidation(*ingressClassValidation); err != nil {
+		nl.Fatalf(l, "Invalid value for ingress-class-validation: %v", err)
+	}
+
 	statusLockNameValidationError := validateResourceName(*leaderElectionLockName)
 	if statusLockNameValidationError != nil {
 		nl.Fatalf(l, "Invalid value for leader-election-lock-name: %v", statusLockNameValidationError)
@@ -559,6 +573,15 @@ func validateResourceName(name string) error {
 		return fmt.Errorf("invalid resource name %v: %v", name, allErrs)
 	}
 	return nil
+}
+
+// validateIngressClassValidation makes sure a given ingress-class-validation mode is one of the allowed values
+func validateIngressClassValidation(mode string) error {
+	switch mode {
+	case ingressClassValidationStrict, ingressClassValidationSkip:
+		return nil
+	}
+	return fmt.Errorf("invalid mode %q: allowed values are %q and %q", mode, ingressClassValidationStrict, ingressClassValidationSkip)
 }
 
 // validateLogLevel makes sure a given logLevel is one of the allowed values
