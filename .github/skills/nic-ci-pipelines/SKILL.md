@@ -126,6 +126,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `create-release-branch.yml` | public | Manual dispatch | Creates a new `release-X.Y` branch and bumps versions |
 | `release-pr.yml` | public | Manual dispatch | Automates creation of release PRs for version updates and changelogs |
 | `version-bump.yml` | public | Manual dispatch | Bumps `IC_VERSION` and `HELM_CHART_VERSION` across the repository |
+| `nkp-catalog-pr.yml` | public | Manual dispatch | After a release is published: generates the NKP Partner Catalog bundle, validates it and runs the catalog e2e tests, then opens a PR in `nutanix-cloud-native/nkp-partner-catalog` from the `nginx-bot` fork with a GitHub-signed commit (uses the `nginx-bot-pat` vault secret) |
 
 ### Reusable Build Workflows (called via `workflow_call`)
 
