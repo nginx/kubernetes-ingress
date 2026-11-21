@@ -110,6 +110,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Generate secrets for tests
+        run: make secrets
+
       - name: Run Tests
         run: make cover
 
