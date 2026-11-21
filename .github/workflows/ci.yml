@@ -422,7 +422,7 @@ jobs:
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow == 'false') && github.head_ref || github.ref }}
+      branch: ${{ github.ref }}
       tag: ${{ needs.checks.outputs.build_tag }}
       docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
