@@ -4,7 +4,8 @@ run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}NKP catalog PR for NIC ${{ 
 # Adds a released NIC version to the Nutanix Kubernetes Platform (NKP) Partner Catalog:
 # generates the bundle from the latest version in the catalog, validates it, runs the
 # catalog's e2e tests, then opens a pull request from the nginx-bot fork with a signed
-# commit.
+# commit. release-publish.yml dispatches it after publishing the GitHub release; run it
+# manually to retry.
 
 on:
   workflow_dispatch:
@@ -147,6 +148,8 @@ jobs:
 
       - name: Run catalog e2e tests
         working-directory: nkp-partner-catalog/apptests
+        env:
+          SKIP_CLUSTER_TEARDOWN: "true"
         run: |
           # The catalog harness upgrades from and to the last two versions in byte order,
           # whatever version it is given.

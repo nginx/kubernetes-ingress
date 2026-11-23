@@ -462,3 +462,30 @@ jobs:
         env:
           RELEASE_ID: ${{ steps.release-id.outputs.release_id }}
         if: ${{ ! inputs.dry_run }}
+
+  # github-release publishes with GITHUB_TOKEN, and GitHub does not start workflows from
+  # events made with that token, so a `release: published` trigger would never fire.
+  # workflow_dispatch is the exception. The NKP run is separate, so a failure there does not
+  # fail the release, and it can be re-run on its own.
+  nkp-catalog:
+    # Without !cancelled(), every job in `needs` must have succeeded, so this only runs once
+    # github-release has published the release.
+    if: github.repository == 'nginx/kubernetes-ingress' && (! inputs.dry_run && ! contains(inputs.skip_step, 'nkp-catalog'))
+    name: Trigger NKP Catalog PR
+    runs-on: ubuntu-26.04
+    needs: [variables, github-release]
+    permissions:
+      contents: read
+      actions: write # to dispatch nkp-catalog-pr.yml
+    steps:
+      - name: Dispatch NKP Catalog PR workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIC_VERSION: ${{ inputs.nic_version }}
+          CHART_VERSION: ${{ needs.variables.outputs.chart_version }}
+        run: |
+          gh workflow run nkp-catalog-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF_NAME}" \
+            -f nic_version="${NIC_VERSION}" -f chart_version="${CHART_VERSION}"
+          runs="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/nkp-catalog-pr.yml"
+          echo "Dispatched NKP Catalog PR for NIC ${NIC_VERSION}, chart ${CHART_VERSION}: ${runs}"
+          echo "### NKP Catalog PR dispatched for NIC ${NIC_VERSION}: ${runs}" >> "$GITHUB_STEP_SUMMARY"
