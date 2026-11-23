@@ -80,8 +80,20 @@ permissions:
   contents: read
 
 jobs:
+  setup-blob-prefix:
+    name: Set blob prefix
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      prefix: ${{ steps.set-prefix.outputs.prefix }}
+    steps:
+      - name: Set blob prefix
+        id: set-prefix
+        run: echo "prefix=nic/$(date +%Y-%m-%d)-${{ github.run_id }}" >> $GITHUB_OUTPUT
+
   binaries:
     name: Build Binaries
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
     runs-on: ${{ inputs.runner }}
     concurrency:
       group: binary-cache-${{ github.ref }}-${{ inputs.go-md5 }}
@@ -124,7 +136,7 @@ jobs:
       - name: Build binaries
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
-          version: v2.20.0 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
+          version: v2.20.2 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
           args: build --snapshot --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -231,7 +243,8 @@ jobs:
 
   build-docker:
     name: Build Docker OSS
-    needs: [binaries]
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    needs: [binaries, setup-blob-prefix]
     concurrency:
       group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
       cancel-in-progress: false
@@ -255,17 +268,18 @@ jobs:
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
       pkg-src-oss: ${{ inputs.pkg-src-oss }}
+      blob-upload-prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
     permissions:
       contents: read
       actions: read
       id-token: write
       packages: write
-      pull-requests: write # for scout report
     secrets: inherit
 
   build-docker-plus:
     name: Build Docker Plus
-    needs: [binaries]
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    needs: [binaries, setup-blob-prefix]
     concurrency:
       group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
       cancel-in-progress: false
@@ -292,15 +306,16 @@ jobs:
       pkg-src-plus: ${{ inputs.pkg-src-plus }}
       pkg-src-waf: ${{ inputs.pkg-src-waf }}
       pkg-src-dos: ${{ inputs.pkg-src-dos }}
+      blob-upload-prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
     permissions:
       contents: read
       id-token: write
-      pull-requests: write # for scout report
     secrets: inherit
 
   build-docker-nap:
     name: Build Docker NAP
-    needs: [binaries]
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    needs: [binaries, setup-blob-prefix]
     concurrency:
       group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
       cancel-in-progress: false
@@ -328,8 +343,8 @@ jobs:
       pkg-src-plus: ${{ inputs.pkg-src-plus }}
       pkg-src-waf: ${{ inputs.pkg-src-waf }}
       pkg-src-dos: ${{ inputs.pkg-src-dos }}
+      blob-upload-prefix: ${{ needs.setup-blob-prefix.outputs.prefix }}
     permissions:
       contents: read
       id-token: write # gcr login
-      pull-requests: write # for scout report
     secrets: inherit

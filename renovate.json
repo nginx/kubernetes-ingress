@@ -39,6 +39,23 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Direct deps in requirements.in are unpinned, so Renovate only sees a locked version from the lock file. 'update-lockfile' makes it bump that lock entry (via --upgrade-package) instead of looking for a range to rewrite.",
+      "matchManagers": [
+        "pip-compile"
+      ],
+      "rangeStrategy": "update-lockfile"
+    },
+    {
+      "description": "pip-compile leaves transitive (indirect) deps disabled by default; enable them so lock files keep updating on every run. They are re-resolved with uv/pip-compile, so hashes are always regenerated in full.",
+      "matchManagers": [
+        "pip-compile"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "enabled": true
+    },
+    {
       "addLabels": [
         "javascript"
       ],
@@ -328,9 +345,10 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows (e.g. the scout-cache action inputs in ci.yml)",
+      "description": "Update version + sha pairs pinned with a `# renovate-digest:` comment in Github Actions workflows and composite actions (e.g. the scout-cache action inputs in ci.yml and security-scan)",
       "managerFilePatterns": [
-        "/.github/workflows/.+\\.ya?ml$/"
+        "/.github/workflows/.+\\.ya?ml$/",
+        "/.github/actions/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "version: (?<currentValue>\\S+)\\s+sha: (?<currentDigest>[a-f0-9]{40}) # renovate-digest: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>\\S+)"
@@ -401,6 +419,17 @@
         "\\s+(?:[[:word:]]-)?version: (?<currentValue>.+?) # renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>.+?))?\\s",
         "\\s*[[:word:]]+?_VERSION=(?<currentValue>.+?) # renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>.+?))?\\s"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Update the UBI packages image digest in the Makefile. The build/Dockerfile ARG copy is updated by the dockerfile manager.",
+      "managerFilePatterns": [
+        "/(^|/)Makefile$/"
+      ],
+      "matchStrings": [
+        "UBI10_PACKAGES_IMAGE\\s*\\?=\\s*(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
@@ -506,6 +535,14 @@
     "yarnDedupeHighest",
     "npmDedupe"
   ],
+  "pip-compile": {
+    "managerFilePatterns": [
+      "/(^|/)requirements\\.txt$/"
+    ]
+  },
+  "pip_requirements": {
+    "enabled": false
+  },
   "pre-commit": {
     "enabled": true
   },

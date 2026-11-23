@@ -103,7 +103,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -148,7 +148,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup NIC secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
@@ -280,7 +280,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.checks.outputs.branch }}
+          # LTS entries test a released image, so use the tests, manifests and CRDs from that tag, not main
+          ref: ${{ matrix.images.lts == true && matrix.images.lts_tag || needs.checks.outputs.branch }}
 
       - name: Set image variables
         id: image_details
@@ -347,7 +348,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.16.1 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.16.2 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
 
       - name: Generate secrets for tests
@@ -367,6 +368,9 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ env.PLUS_JWT }}
+          plm-helm-repo: ${{ vars.PLM_HELM_REPO }}
+          # pyproject.toml has -x; override it so one failure does not hide the rest of the nightly
+          pytest-args: --maxfail=100
 
       - name: Upload Test Results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

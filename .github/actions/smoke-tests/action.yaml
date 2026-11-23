@@ -34,6 +34,12 @@ inputs:
   plus-jwt:
     description: JWT for NGINX Plus
     required: false
+  plm-helm-repo:
+    description: Helm repository URL or oci:// registry path of the F5 WAF Policy Controller (PLM) chart
+    required: false
+  pytest-args:
+    description: Extra pytest arguments, e.g. --maxfail=100 to keep running after the first failure
+    required: false
 
 outputs:
   test-results-name:
@@ -112,6 +118,8 @@ runs:
         -rfE \
         --show-ic-logs=yes \
         --plus-jwt=${{ inputs.plus-jwt }} \
+        ${{ inputs.plm-helm-repo != '' && format('--plm-helm-repo={0}', inputs.plm-helm-repo) || '' }} \
+        ${{ inputs.pytest-args }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}
       working-directory: ./tests
       shell: bash
