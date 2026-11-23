@@ -83,6 +83,15 @@ repos:
         pass_filenames: false
         require_serial: true
 
+      - id: test-nkp-catalog-new-version
+        name: test NKP catalog new-version script
+        description: Runs unit tests for the script that generates NKP Partner Catalog bundles.
+        entry: .github/scripts/nkp-catalog-new-version_test.sh
+        language: script
+        files: ^\.github/scripts/nkp-catalog-new-version(_test)?\.sh$
+        pass_filenames: false
+        require_serial: true
+
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.22.0
     hooks:
