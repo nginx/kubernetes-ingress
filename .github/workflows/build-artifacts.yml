@@ -217,7 +217,7 @@ jobs:
 
   build-docker:
     name: Build Docker OSS
-    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (fromJSON(inputs.image-matrix-oss).include[0] != null)
     needs: [binaries, setup-blob-prefix]
     concurrency:
       group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
@@ -251,7 +251,7 @@ jobs:
 
   build-docker-plus:
     name: Build Docker Plus
-    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (fromJSON(inputs.image-matrix-plus).include[0] != null)
     needs: [binaries, setup-blob-prefix]
     concurrency:
       group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}
@@ -285,7 +285,7 @@ jobs:
 
   build-docker-nap:
     name: Build Docker NAP
-    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal') && (fromJSON(inputs.image-matrix-nap).include[0] != null)
     needs: [binaries, setup-blob-prefix]
     concurrency:
       group: buildkit-cache-${{ github.ref }}-${{ matrix.build_os }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
