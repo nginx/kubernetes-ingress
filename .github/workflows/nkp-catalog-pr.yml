@@ -147,6 +147,8 @@ jobs:
 
       - name: Run catalog e2e tests
         working-directory: nkp-partner-catalog/apptests
+        env:
+          SKIP_CLUSTER_TEARDOWN: "true"
         run: |
           # The catalog harness upgrades from and to the last two versions in byte order,
           # whatever version it is given.
