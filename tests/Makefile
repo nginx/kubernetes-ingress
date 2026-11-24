@@ -23,11 +23,6 @@ K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind
 # renovate: datasource=docker depName=kindest/node
 K8S_CLUSTER_VERSION         ?= v1.37.0
 K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
-NUM_CLUSTERS                ?= 3 ## Number of concurrent Kind clusters for parallel-shard targets
-PARALLEL_PREFIX             ?= test ## Cluster-name prefix for parallel-shard targets (produces <prefix>-1..N)
-SHARD_CONFIG                ?= $(ROOT_DIR)/.github/data/matrix-smoke-oss.json ## Path to a smoke matrix JSON file
-SHARD_LABELS                ?= ## Comma-separated shard labels to run; empty means all in SHARD_CONFIG
-PARALLEL_RESULTS_DIR        ?= $(ROOT_DIR)/tests/parallel-results ## Directory for per-shard result artefacts
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
 ifeq (${REGISTRY},)
