@@ -77,6 +77,8 @@ Minions inherent the following annotations from the master, unless they override
 - nginx.org/limit-req-log-level
 - nginx.org/limit-req-reject-code
 - nginx.org/limit-req-scale
+- nginx.org/policies
+- nginx.com/policies
 
 Note: Ingress Resources with more than one host cannot be used.
 
