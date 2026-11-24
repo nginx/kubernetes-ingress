@@ -31,6 +31,7 @@ Consequences:
      binaries (SBOM, Cosign)                            certify-openshift-images (Pyxis)
      azure-upload      --> Azure blob                   operator (dispatch nginx-ingress-helm-operator/sync-chart.yml)
                                                         release-gate -> tag -> release-assets -> github-release
+                                                        nkp-catalog (dispatch nkp-catalog-pr.yml)
 ```
 
 ## Workflow Architecture
@@ -73,6 +74,7 @@ release-publish.yml (dispatchable Stage 2: Publish)    [PUBLIC repo only -- no b
   -> tag -> creates and pushes the vX.Y.Z git tag
   -> release-assets -> downloads tarballs from Azure and uploads to GitHub release draft
   -> github-release -> closes milestone and publishes the GitHub release draft
+  -> nkp-catalog -> dispatches nkp-catalog-pr.yml to raise the NKP Partner Catalog PR
 ```
 
 ### Two-Stage Release Architecture
@@ -92,7 +94,7 @@ Release pipelines are split into two independently dispatchable stages that run 
    - Creates and pushes the release git tag (`vX.Y.Z` or `<lts_version>`)
    - Downloads signed binaries from Azure blob storage and attaches them to the GitHub release draft
    - Closes the release milestone and publishes the GitHub release
-
+   - `release-publish.yml` only: dispatches `nkp-catalog-pr.yml` to raise the NKP Partner Catalog PR (skipped on `dry_run` or `skip_step: nkp-catalog`)
 Because the stages are decoupled and live in separate repos, a transient failure in publishing or external registry sync can be retried directly via `release-publish.yml` without rebuilding any images or binaries.
 
 ---
@@ -116,7 +118,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | Workflow | Repo | Trigger | Purpose |
 | --- | --- | --- | --- |
 | `release-prep.yml` | internal | Manual dispatch | Stage 1: build artifacts, stage images and Helm chart in test registry (`docker-mgmt-test.nginx.com`), sign binaries, upload tarballs to Azure blob storage |
-| `release-publish.yml` | public | Manual dispatch | Stage 2: copy staged images to public registries, publish Helm chart, certify UBI images, dispatch operator sync PR, create git tag, upload release assets, close milestone, publish GitHub release |
+| `release-publish.yml` | public | Manual dispatch | Stage 2: copy staged images to public registries, publish Helm chart, certify UBI images, dispatch operator sync PR, create git tag, upload release assets, close milestone, publish GitHub release, dispatch NKP catalog PR |
 | `release-prep-lts.yml` | internal | Manual dispatch | LTS Stage 1: build LTS Plus images & binaries, stage in test registry, sign binaries, upload tarballs to Azure blob storage |
 | `release-publish-lts.yml` | public | Manual dispatch | LTS Stage 2: copy staged LTS Plus images to public registries, publish LTS Helm chart (`nginx-ingress-lts`), create git tag, attach release assets, close milestone, publish GitHub release |
 | `oss-release.yml` | public | Manual dispatch, workflow_call | Copies OSS images from staging registry to public registries via skopeo (called by `release-publish.yml`) |
@@ -126,6 +128,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `create-release-branch.yml` | public | Manual dispatch | Creates a new `release-X.Y` branch and bumps versions |
 | `release-pr.yml` | public | Manual dispatch | Automates creation of release PRs for version updates and changelogs |
 | `version-bump.yml` | public | Manual dispatch | Bumps `IC_VERSION` and `HELM_CHART_VERSION` across the repository |
+| `nkp-catalog-pr.yml` | public | Dispatched by `release-publish.yml`, manual dispatch | After a release is published: generates the NKP Partner Catalog bundle, validates it and runs the catalog e2e tests, then opens a PR in `nutanix-cloud-native/nkp-partner-catalog` from the `nginx-bot` fork with a GitHub-signed commit (uses the `nginx-bot-pat` vault secret) |
 
 ### Reusable Build Workflows (called via `workflow_call`)
 
@@ -244,6 +247,7 @@ Gaps to be aware of: `make update-crds` also rewrites `deploy/crds*.yaml` and `d
 - Every job in a non-`mirror-*` workflow must be gated as `github.repository == 'nginx/kubernetes-ingress'` (or `nginx/kubernetes-ingress-internal` for internal-only jobs like prep) optionally followed by `&& ( ... )` with **all** extra conditions inside one balanced group. `&&` binds tighter than `||`, so an ungrouped chain like `gate && (a) || (b)` parses as `(gate && (a)) || (b)` and would run on a fork. Enforced by `.github/scripts/validate-workflow-gating.sh` (pre-commit + `lint-format.yml`); run it locally after editing any job's `if`
 - Adding a job to a shared workflow means picking the right gate string. An internal-repo gate in `release-publish.yml` (or vice versa) silently skips the job forever -- there is no error, just a permanently grey box
 - The `operator` job skips silently when `operator_version` is empty. If a release ships without an operator PR, check that input before assuming the dispatch failed
+- Events made with `GITHUB_TOKEN` (pushes, tags, publishing a release) never start other workflows; only `workflow_dispatch` and `repository_dispatch` do. That's why `nkp-catalog` dispatches `nkp-catalog-pr.yml` instead of the latter listening for `release: published`
 - A job whose `if` contains `always()`, `!cancelled()` or `failure()` runs **even when a `needs` dependency failed**. Such jobs must assert every dependency explicitly (`needs.<job>.result == 'success'`), which is why the release jobs list results one by one
 - Asserting a *downstream* job is not enough -- a dependency that failed leaves its dependants `skipped`, and `result == 'skipped'` is usually an accepted arm. Assert the job that actually does the work (e.g. `tag` asserts `release-gate`, `release-assets` asserts `variables`)
 - `contains()` is a **substring** match, not a token match. Never gate on a value that is a prefix of another job name: `contains(skip_step, 'prep')` also matches `push-prep-images`, and `contains(skip_step, 'publish')` also matches `publish-helm-chart`

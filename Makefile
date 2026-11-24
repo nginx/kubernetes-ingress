@@ -24,7 +24,7 @@ F5_EPEL_REPO                  ?= rpm-epel-remote ## The Artifactory repository m
 F5_FEDORA_REPO                ?= fedoraproject-rpm-remote ## The Artifactory repository mirroring dl.fedoraproject.org/pub/epel (epel-release download).
 
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.9
+NGINX_OSS_VERSION             ?= 1.31.10
 NGINX_PLUS_VERSION            ?= R37.3
 
 NAP_WAF_VERSION               ?= 37.3+5.777
@@ -89,7 +89,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.15.0 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.52.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.53.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.12.0 ## The version of gofumpt to use
 

@@ -178,6 +178,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     indirect=True,
     ids=["http_without_config_safety", "http_with_config_safety"],
 )
+@pytest.mark.usefixtures("restore_configmap")
 class TestOIDCHttp:
     @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
     @pytest.mark.parametrize("oidcYaml", ["standard", "pkce"])
@@ -265,6 +266,7 @@ class TestOIDCHttp:
     indirect=True,
     ids=["https_without_config_safety", "https_with_config_safety"],
 )
+@pytest.mark.usefixtures("restore_configmap")
 class TestOIDCHttps:
     @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
     @pytest.mark.parametrize("oidcYaml", ["standard", "pkce"])
@@ -342,12 +344,6 @@ def run_test(
     with sync_playwright() as playwright:
         run_oidc(playwright.chromium, ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port_ssl)
 
-    replace_configmap_from_yaml(
-        kube_apis.v1,
-        ingress_controller_prerequisites.config_map["metadata"]["name"],
-        ingress_controller_prerequisites.namespace,
-        cm_src,
-    )
     delete_secret(kube_apis.v1, secret_name, test_namespace)
     delete_policy(kube_apis.custom_objects, pol, test_namespace)
     patch_virtual_server_from_yaml(kube_apis.custom_objects, virtual_server_setup.vs_name, orig_vs_src, test_namespace)
