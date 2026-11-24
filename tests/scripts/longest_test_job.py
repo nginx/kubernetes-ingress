@@ -164,7 +164,7 @@ def run_jobs_mode(runs, threshold):
 # timestamp prefix, e.g.:
 #   "  120.45s call     tests/suite/test_x.py::TestC::test_m[param]"
 #   "2026-07-17T10:15:23.4567890Z 120.45s call tests/suite/test_x.py::test_thing"
-DURATION_LINE = re.compile(r"(?P<seconds>\d+\.\d+)s\s+(?P<phase>call|setup|teardown)\s+(?P<test>\S+)")
+DURATION_LINE = re.compile(r"(?P<seconds>\d+\.\d+)s\s+(?P<phase>call|setup|teardown)\s+(?P<test>\S.*?)\s*$")
 # Matches both --durations=N ("slowest N durations") and --durations=0
 # ("slowest durations").
 DURATION_HEADER = re.compile(r"slowest(?:\s+\d+)?\s+durations", re.IGNORECASE)
