@@ -582,14 +582,14 @@ durable; without it, the same conversation recurs.
 
 Proves the runtime model works; does **not** cut CI wall time.
 
-Delivered:
+Planned deliverables (not yet included in this repository):
 
-- [tests/scripts/run-parallel-shards.sh](../../tests/scripts/run-parallel-shards.sh)
+- `tests/scripts/run-parallel-shards.sh`
   — round-robin fan-out driver.
-- [tests/ci-files/parallel-kind-config.yaml](../../tests/ci-files/parallel-kind-config.yaml)
+- `tests/ci-files/parallel-kind-config.yaml`
   — kind config without `extraPortMappings` (host-port collisions
   otherwise).
-- [tests/Makefile](../../tests/Makefile) targets:
+- New [tests/Makefile](../../tests/Makefile) targets:
   `create-parallel-kind-clusters`, `delete-parallel-kind-clusters`,
   `parallel-image-load`, `run-parallel-shards`, `parallel-smoke`,
   `ensure-test-runner-image`.
