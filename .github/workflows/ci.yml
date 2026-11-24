@@ -6,6 +6,10 @@ on:
     branches:
       - main
       - release-*
+      - embargo/security-fixes*
+      - embargo/security-fixes-work/**
+    paths-ignore:
+      - .github/permissions-tracking.md
   merge_group:
   workflow_dispatch:
     inputs:
@@ -34,7 +38,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
-    if: github.repository == 'nginx/kubernetes-ingress'
+    if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')
     runs-on: ${{ vars.RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
