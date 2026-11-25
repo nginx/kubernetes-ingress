@@ -1,0 +1,59 @@
+name: Selective CI flags
+description: >-
+  Decide which ci.yml stages run. Pull requests are matched against .github/ci-paths.json;
+  every other event, the ci:run-all label, or a changed file that matches no rule runs every stage.
+
+# Checkout: needs the repository with at least two commits of history (`fetch-depth: 2` or 0),
+# because pull_request checkouts are merge commits and the changed files are `HEAD^1..HEAD`.
+#
+# Labels: ci:run-all, ci:run-<stage> and ci:skip-<stage>, where <stage> is a value of the
+# "stages" map in .github/ci-paths.json. Labels are read from the triggering event, so adding
+# one only takes effect on the next run (push, re-run, or a `labeled` pull_request trigger).
+#
+# Preview the result locally with `make ci-preview`.
+#
+# Usage:
+#   - uses: actions/checkout@...
+#     with:
+#       fetch-depth: 2
+#   - id: ci-flags
+#     uses: ./.github/actions/ci-flags
+
+outputs:
+  run_codegen:
+    description: Run verify-codegen
+    value: ${{ steps.flags.outputs.run_codegen }}
+  run_unit_tests:
+    description: Run unit-tests
+    value: ${{ steps.flags.outputs.run_unit_tests }}
+  run_staticcheck:
+    description: Run staticcheck
+    value: ${{ steps.flags.outputs.run_staticcheck }}
+  run_govulncheck:
+    description: Run govulncheck
+    value: ${{ steps.flags.outputs.run_govulncheck }}
+  run_build_images:
+    description: Run build-artifacts
+    value: ${{ steps.flags.outputs.run_build_images }}
+  run_package_tests:
+    description: Run package-tests
+    value: ${{ steps.flags.outputs.run_package_tests }}
+  run_helm_tests:
+    description: Run helm-tests
+    value: ${{ steps.flags.outputs.run_helm_tests }}
+  run_smoke_tests:
+    description: Run setup-matrix and smoke-tests-*
+    value: ${{ steps.flags.outputs.run_smoke_tests }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compute Selective CI flags
+      id: flags
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+      run: |
+        python3 "${GITHUB_ACTION_PATH}/../../scripts/selective_ci.py" flags \
+          --event "${EVENT_NAME}" --labels "${PR_LABELS}" | tee -a "${GITHUB_OUTPUT}"

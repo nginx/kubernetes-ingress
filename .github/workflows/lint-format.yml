@@ -89,6 +89,9 @@ jobs:
         # --noconftest: these tests mock the Kubernetes API and must not load the cluster fixtures
         run: PYTHONPATH=tests python -m pytest --noconftest -m utils tests/suite/utils
 
+      - name: Run CI script unit tests
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py' -v
+
   actionlint:
     name: Actionlint
     if: (github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')

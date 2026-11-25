@@ -1,0 +1,189 @@
+{
+  "description": "Selective CI: maps changed paths to ci.yml stages. Read by .github/scripts/selective_ci.py. A changed file turns on the flags of every rule it matches; a file that matches no rule turns on every flag. Globs: '**/' is zero or more directories, '*' and '?' never cross '/', patterns are anchored at the repository root.",
+  "stages": {
+    "run_codegen": "codegen",
+    "run_unit_tests": "unit",
+    "run_staticcheck": "staticcheck",
+    "run_govulncheck": "govulncheck",
+    "run_build_images": "build",
+    "run_package_tests": "package",
+    "run_helm_tests": "helm",
+    "run_smoke_tests": "smoke"
+  },
+  "implies": {
+    "run_build_images": [
+      "run_unit_tests"
+    ],
+    "run_package_tests": [
+      "run_build_images"
+    ],
+    "run_helm_tests": [
+      "run_build_images"
+    ],
+    "run_smoke_tests": [
+      "run_build_images"
+    ]
+  },
+  "rules": [
+    {
+      "name": "no-ci",
+      "paths": [
+        "**/*.md",
+        "docs/**",
+        "examples/**",
+        "grafana/**",
+        "perf-tests/**",
+        "LICENSE",
+        "CODEOWNERS",
+        ".agents/**",
+        ".claude/**",
+        ".github/ISSUE_TEMPLATE/**",
+        ".github/prompts/**",
+        ".github/skills/**",
+        ".github/labeler.yml",
+        ".github/release.yml",
+        ".markdownlint-cli2.yaml",
+        ".github/actionlint.yaml",
+        ".github/data/matrix-regression.json",
+        ".github/data/patch-images*.json",
+        ".codecov.yml",
+        ".fossa.yml",
+        ".gitignore",
+        ".golangci.yml",
+        ".pre-commit-config.yaml",
+        ".yamllint.yaml",
+        "renovate.json"
+      ],
+      "flags": []
+    },
+    {
+      "name": "ci-infra",
+      "paths": [
+        ".github/ci-paths.json",
+        ".github/workflows/**",
+        ".github/actions/**",
+        ".github/scripts/**",
+        ".github/config/**",
+        ".github/data/version.txt",
+        "Makefile",
+        "common-secrets/**"
+      ],
+      "flags": [
+        "run_codegen",
+        "run_unit_tests",
+        "run_staticcheck",
+        "run_govulncheck",
+        "run_build_images",
+        "run_package_tests",
+        "run_helm_tests",
+        "run_smoke_tests"
+      ]
+    },
+    {
+      "name": "go",
+      "paths": [
+        "**/*.go",
+        "go.mod",
+        "go.sum",
+        "pkg/client/staticcheck.conf"
+      ],
+      "flags": [
+        "run_codegen",
+        "run_unit_tests",
+        "run_staticcheck",
+        "run_govulncheck",
+        "run_build_images",
+        "run_package_tests",
+        "run_helm_tests",
+        "run_smoke_tests"
+      ]
+    },
+    {
+      "name": "internal-assets",
+      "paths": [
+        "internal/**"
+      ],
+      "flags": [
+        "run_unit_tests",
+        "run_build_images",
+        "run_package_tests",
+        "run_helm_tests",
+        "run_smoke_tests"
+      ]
+    },
+    {
+      "name": "crds",
+      "paths": [
+        "config/crd/**"
+      ],
+      "flags": [
+        "run_codegen",
+        "run_unit_tests",
+        "run_helm_tests",
+        "run_smoke_tests"
+      ]
+    },
+    {
+      "name": "charts",
+      "paths": [
+        "charts/**"
+      ],
+      "flags": [
+        "run_codegen",
+        "run_unit_tests",
+        "run_helm_tests",
+        "run_smoke_tests"
+      ]
+    },
+    {
+      "name": "codegen",
+      "paths": [
+        "hack/**",
+        "deploy/**",
+        "internal/telemetry/**",
+        "docs/crd/**",
+        "tests/Makefile"
+      ],
+      "flags": [
+        "run_codegen"
+      ]
+    },
+    {
+      "name": "image",
+      "paths": [
+        "build/**",
+        ".goreleaser.yml",
+        ".dockerignore",
+        ".github/data/matrix-images-*.json"
+      ],
+      "flags": [
+        "run_build_images",
+        "run_package_tests",
+        "run_helm_tests",
+        "run_smoke_tests"
+      ]
+    },
+    {
+      "name": "package-tests",
+      "paths": [
+        "tests/scripts/check_container_packages.py",
+        "tests/requirements.txt"
+      ],
+      "flags": [
+        "run_package_tests"
+      ]
+    },
+    {
+      "name": "smoke-tests",
+      "paths": [
+        "tests/**",
+        "deployments/**",
+        "pyproject.toml",
+        ".github/data/matrix-smoke-*.json"
+      ],
+      "flags": [
+        "run_smoke_tests"
+      ]
+    }
+  ]
+}
