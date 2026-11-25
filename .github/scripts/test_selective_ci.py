@@ -114,6 +114,49 @@ class LabelTest(unittest.TestCase):
         self.assertIn("run_build_images", on(["internal/k8s/controller.go"], ["ci:skip-build"]))
 
 
+class ResultsTest(unittest.TestCase):
+    FLAGS = {"run_unit_tests": "true", "run_smoke_tests": "false", "build_tag": "t-1"}
+
+    def status(self, job, result, flags=FLAGS):
+        ok, rows = selective_ci.evaluate_results(CONFIG, {job: {"result": result}}, flags)
+        return ok, rows[0][3]
+
+    def test_success(self):
+        self.assertEqual(self.status("unit-tests", "success"), (True, "passed"))
+
+    def test_skipped_on_purpose(self):
+        self.assertEqual(self.status("smoke-tests-oss", "skipped"), (True, "skipped (not needed)"))
+
+    def test_required_but_skipped(self):
+        self.assertEqual(self.status("unit-tests", "skipped"), (False, "required but skipped"))
+
+    def test_missing_flag_is_required(self):
+        self.assertEqual(self.status("smoke-tests-oss", "skipped", {}), (False, "required but skipped"))
+
+    def test_unmapped_job_may_skip(self):
+        self.assertEqual(self.status("tag-stable", "skipped"), (True, "skipped"))
+
+    def test_failure_and_cancelled(self):
+        for result in ("failure", "cancelled"):
+            with self.subTest(result=result):
+                self.assertEqual(self.status("smoke-tests-oss", result), (False, result))
+
+    def test_every_mapped_job_exists_in_ci_yml(self):
+        ci = (Path(__file__).resolve().parents[1] / "workflows" / "ci.yml").read_text()
+        for job in CONFIG["jobs"]:
+            with self.subTest(job=job):
+                self.assertRegex(ci, rf"(?m)^  {job}:$")
+
+    def test_cli_exit_code_and_summary(self):
+        cmd = [sys.executable, selective_ci.__file__, "results", "--flags", json.dumps(self.FLAGS), "--needs"]
+        good = subprocess.run(cmd + ['{"unit-tests": {"result": "success"}}'], capture_output=True, text=True)
+        bad = subprocess.run(cmd + ['{"unit-tests": {"result": "failure"}}'], capture_output=True, text=True)
+        self.assertEqual(good.returncode, 0)
+        self.assertIn("| unit-tests | run_unit_tests | success | passed |", good.stdout)
+        self.assertEqual(bad.returncode, 1)
+        self.assertIn("failed", bad.stdout)
+
+
 class MainTest(unittest.TestCase):
     def test_push_prints_every_flag_true(self):
         result = subprocess.run(

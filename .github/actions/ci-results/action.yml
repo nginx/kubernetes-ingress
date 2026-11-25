@@ -1,0 +1,42 @@
+name: Selective CI results
+description: >-
+  Fail unless every upstream job succeeded or was skipped on purpose by Selective CI,
+  and write a summary table to the job summary.
+
+# A job passes on success. A skipped job passes only if its run_* flag (the "jobs" map in
+# .github/ci-paths.json) is 'false', or if it has no flag there. Failed, cancelled and
+# required-but-skipped jobs fail. A missing flag counts as required, so a failed `checks`
+# job cannot turn into a pass.
+#
+# Checkout: needs .github/scripts/selective_ci.py and .github/ci-paths.json, e.g.
+#   sparse-checkout: |
+#     .github/actions/ci-results
+#     .github/scripts/selective_ci.py
+#     .github/ci-paths.json
+#
+# Usage (the calling job needs `if: ${{ !cancelled() }}` so it runs after failures):
+#   - uses: ./.github/actions/ci-results
+#     with:
+#       needs: ${{ toJSON(needs) }}
+#       flags: ${{ toJSON(needs.checks.outputs) }}
+
+inputs:
+  needs:
+    description: JSON map of upstream job results, pass toJSON(needs)
+    required: true
+  flags:
+    description: JSON object holding the run_* outputs of ci-flags, e.g. toJSON(needs.checks.outputs)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check job results
+      shell: bash
+      env:
+        NEEDS_JSON: ${{ inputs.needs }}
+        FLAGS_JSON: ${{ inputs.flags }}
+      run: |
+        set -o pipefail
+        python3 "${GITHUB_ACTION_PATH}/../../scripts/selective_ci.py" results \
+          --needs "${NEEDS_JSON}" --flags "${FLAGS_JSON}" | tee -a "${GITHUB_STEP_SUMMARY}"

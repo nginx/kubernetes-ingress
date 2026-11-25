@@ -24,6 +24,19 @@
       "run_build_images"
     ]
   },
+  "jobs": {
+    "verify-codegen": "run_codegen",
+    "unit-tests": "run_unit_tests",
+    "staticcheck": "run_staticcheck",
+    "govulncheck": "run_govulncheck",
+    "build-artifacts": "run_build_images",
+    "package-tests": "run_package_tests",
+    "helm-tests": "run_helm_tests",
+    "setup-matrix": "run_smoke_tests",
+    "smoke-tests-oss": "run_smoke_tests",
+    "smoke-tests-plus": "run_smoke_tests",
+    "smoke-tests-nap": "run_smoke_tests"
+  },
   "rules": [
     {
       "name": "no-ci",

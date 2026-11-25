@@ -13,7 +13,7 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "ci-paths.json"
+DEFAULT_CONFIG = str(Path(__file__).resolve().parent.parent / "ci-paths.json")
 RUN_ALL_LABEL = "ci:run-all"
 
 
@@ -29,6 +29,9 @@ def load_config(path=DEFAULT_CONFIG):
         unknown = ({flag} | set(needed)) - flags
         if unknown:
             raise ValueError(f"implies uses unknown flags {sorted(unknown)}")
+    unknown = set(config.get("jobs", {}).values()) - flags
+    if unknown:
+        raise ValueError(f"jobs uses unknown flags {sorted(unknown)}")
     return config
 
 
@@ -88,6 +91,39 @@ def compute_flags(config, files, labels=(), run_all=False):
     return {flag: flag in on for flag in all_flags}
 
 
+def evaluate_results(config, needs, flags):
+    """Return (ok, rows) for a `toJSON(needs)` map and the ci-flags outputs.
+
+    A job passes on success. A skipped job passes only when its flag is 'false', or when it
+    has no flag (gated by something else, e.g. tag-stable). Anything else fails.
+    """
+    ok, rows = True, []
+    for job, data in sorted(needs.items()):
+        result = data.get("result", "unknown")
+        flag = config.get("jobs", {}).get(job)
+        wanted = flags.get(flag) != "false" if flag else None
+        if result == "success":
+            status = "passed"
+        elif result == "skipped" and wanted is not True:
+            status = "skipped (not needed)" if wanted is False else "skipped"
+        else:
+            status = "required but skipped" if result == "skipped" else result
+            ok = False
+        rows.append((job, flag or "", result, status))
+    return ok, rows
+
+
+def results_markdown(ok, rows):
+    lines = [
+        f"## Final CI Results: {'passed' if ok else 'failed'}",
+        "",
+        "| Job | Flag | Result | Status |",
+        "| --- | --- | --- | --- |",
+    ]
+    lines += [f"| {job} | {flag} | {result} | {status} |" for job, flag, result, status in rows]
+    return "\n".join(lines) + "\n"
+
+
 def changed_files(*diff_args):
     """Files changed by `git diff --name-only <diff_args>`, or None if git fails."""
     try:
@@ -107,9 +143,17 @@ def main(argv=None):
     flags = sub.add_parser("flags", help="print run_*=true|false lines for $GITHUB_OUTPUT")
     flags.add_argument("--event", required=True, help="github.event_name")
     flags.add_argument("--labels", default="[]", help="JSON list of PR label names")
+    results = sub.add_parser("results", help="check job results, print a Markdown summary, exit 1 on failure")
+    results.add_argument("--needs", required=True, help="toJSON(needs)")
+    results.add_argument("--flags", required=True, help="JSON object of the ci-flags outputs")
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
+    if args.command == "results":
+        ok, rows = evaluate_results(config, json.loads(args.needs), json.loads(args.flags or "{}") or {})
+        print(results_markdown(ok, rows))
+        return 0 if ok else 1
+
     labels = json.loads(args.labels) or []
     # PR checkouts are merge commits, so HEAD^1..HEAD is exactly what the PR changes
     files = changed_files("HEAD^1", "HEAD") if args.event == "pull_request" else None
