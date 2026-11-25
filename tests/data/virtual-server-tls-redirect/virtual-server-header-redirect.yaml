@@ -7,7 +7,7 @@ spec:
   tls:
     secret: tls-secret
     redirect:
-      enable: True
+      enable: true
       code: 308
       basedOn: x-forwarded-proto
   upstreams:

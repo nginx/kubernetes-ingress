@@ -28,7 +28,7 @@ spec:
   selector:
     app: tcp-service
   ports:
-  - name: tcp-server
-    targetPort: 3333
-    port: 3333
-    protocol: TCP
+    - name: tcp-server
+      targetPort: 3333
+      port: 3333
+      protocol: TCP

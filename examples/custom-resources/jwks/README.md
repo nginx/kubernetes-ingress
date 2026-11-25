@@ -1,5 +1,7 @@
 # JWKS
 
+> **NGINX Plus only.**
+
 In this example we deploy a web application, configure load balancing with a VirtualServer, and apply a JWT policy.
 Instead of using a local secret to verify the client request such as in the
 [jwt](https://github.com/nginx/kubernetes-ingress/tree/main/examples/custom-resources/jwt) example, we will define an
@@ -106,6 +108,9 @@ as we are sending the client token in an HTTP header.
       jwksURI: http://keycloak.default.svc.cluster.local:8080/realms/<your_realm>/protocol/openid-connect/certs
       keyCache: 1h
   ```
+
+The policy also validates claims of the token with `spec.jwt.authorization`, see
+[Step 10](#step-10---validate-token-claims).
 
 Deploy the policy:
 
@@ -225,3 +230,46 @@ Date: 13/Dec/2022:14:50:33 +0000
 URI: /
 Request ID: f1241390ac51318afa4fcc39d2341359
 ```
+
+## Step 10 - Validate Token Claims
+
+Claims are checked after the token signature and expiry have been validated. Authentication failures return `401`.
+Claim validation failures return `403`, or the status set in `authorization.errorCode` (`401` or `403`).
+
+Tokens issued by an IdP usually carry array and space-delimited claims. The `Contains` match handles both: it splits
+the claim value on spaces and commas, and passes when one of the `values` is a member. The `jwt-policy` from Step 5
+(`jwks.yaml`) accepts a token only when **all** of the following hold:
+
+- `aud` (a string or an array) contains `account`.
+- `scope` (space-delimited) contains `openid` or `profile`. The claim value is also forwarded to the upstream in the
+  `X-Token-Scope` header.
+- `realm_access.roles` (a nested claim, with `.` as the separator) does **not** contain `blocked`. A negated value
+  check also fails when the claim is missing.
+
+By default a Keycloak access token for this realm carries `aud: account`, `scope: openid email profile` and a
+`realm_access.roles` array with the default roles of the realm, so the token from Step 8 passes and the request from
+Step 9 succeeds.
+
+To see a claim failure, create a realm role named `blocked` in Keycloak (`Realm roles` > `Create role`), assign it to
+`jwks-user` (`Users` > `jwks-user` > `Role mapping`), and request a new token with the command from Step 8. The
+token is still valid, but the claim check now fails:
+
+```console
+curl -i -H 'Accept: application/json' -H "token: ${TOKEN}" webapp.example.com
+```
+
+```text
+HTTP/1.1 403 Forbidden
+...
+```
+
+| Token | Result | Why |
+| ----- | ------ | --- |
+| `aud` contains `account`, `scope` contains `openid`, no `blocked` role | `200` | All claim checks pass |
+| `aud` does not contain `account` | `403` | `aud` check fails |
+| `scope` contains neither `openid` nor `profile` | `403` | `scope` check fails |
+| `realm_access.roles` contains `blocked` | `403` | Negated `Contains` matched |
+| no `realm_access` claim | `403` | A missing claim fails a value check (fail-closed) |
+| missing, expired or badly signed token | `401` | Authentication fails before claims are evaluated |
+
+For `Exact`, `Regex` and `Present` matches and `require: Any`, see the [jwt](../jwt#claim-validation) example.

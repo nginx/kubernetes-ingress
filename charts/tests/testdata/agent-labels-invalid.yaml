@@ -1,0 +1,11 @@
+controller:
+  nginxplus: true
+nginxAgent:
+  enable: true
+  dataplaneKeySecretName: "dataplane-key"
+  labels:
+    "bad,key": valid
+    comma: "a,b"
+    equals: "a=b"
+    empty: ""
+    number: 5

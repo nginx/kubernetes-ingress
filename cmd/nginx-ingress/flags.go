@@ -280,8 +280,6 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 	Ingress resources without a host across namespaces without conflict, use mergeable Ingress. To configure
 	TLS, use -default-server-tls-secret. To configure listener ports, use -default-http-listener-port or
 	-default-https-listener-port. Default is false.`)
-
-	startupCheckFn func() error
 )
 
 // plmSecretRefs holds the parsed PLM secret refs after mustValidateFlags
@@ -358,14 +356,6 @@ func initValidate(ctx context.Context) {
 
 func mustValidateInitialChecks(ctx context.Context) {
 	l := nl.LoggerFromContext(ctx)
-
-	if startupCheckFn != nil {
-		err := startupCheckFn()
-		if err != nil {
-			nl.Fatalf(l, "Failed startup check: %v", err)
-		}
-		l.Info("AWS startup check passed")
-	}
 
 	l.Info(fmt.Sprintf("Starting with flags: %+q", os.Args[1:]))
 

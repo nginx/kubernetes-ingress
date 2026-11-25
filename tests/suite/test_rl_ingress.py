@@ -108,6 +108,25 @@ def annotations_setup(
     )
 
 
+@pytest.fixture
+def zone_sync_configmap(kube_apis, ingress_controller_prerequisites):
+    """Enable zone sync for one test and always restore the default ConfigMap.
+
+    The ConfigMap is shared by the whole session, so a test that fails before its own
+    cleanup would leave zone sync on and break later rate-limit tests (e.g. test_rl_policies).
+    """
+    ns = ingress_controller_prerequisites.namespace
+    print("Apply minimal zone_sync nginx-config map")
+    try:
+        replace_configmap_from_yaml(
+            kube_apis.v1, "nginx-config", ns, f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml"
+        )
+        yield
+    finally:
+        print("Restore default nginx-config map")
+        replace_configmap_from_yaml(kube_apis.v1, "nginx-config", ns, f"{TEST_DATA}/zone-sync/default-configmap.yaml")
+
+
 @pytest.mark.annotations
 @pytest.mark.parametrize("annotations_setup", ["standard", "mergeable"], indirect=True)
 class TestRateLimitIngress:
@@ -147,6 +166,7 @@ class TestRateLimitIngressZoneSync:
         ingress_controller_endpoint,
         ingress_controller_prerequisites,
         test_namespace,
+        zone_sync_configmap,
     ):
         """
         Test pods are scaled to 3, ZoneSync is enabled & annotated ratelimit zone is synced
@@ -154,21 +174,12 @@ class TestRateLimitIngressZoneSync:
         src = f"{TEST_DATA}/rate-limit/ingress/standard/annotations-rl-ingress.yaml"
         NGINX_API_VERSION = 9
         replica_count = 3
-        configmap_name = "nginx-config"
 
-        print("Step 1: apply minimal zone_sync nginx-config map")
-        replace_configmap_from_yaml(
-            kube_apis.v1,
-            configmap_name,
-            ingress_controller_prerequisites.namespace,
-            f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
-        )
-
-        print("Step 2: apply Ingress")
+        print("Step 1: apply Ingress")
         ingress_name = get_name_from_yaml(src)
         create_items_from_yaml(kube_apis, src, test_namespace)
 
-        print(f"Step 3: scale deployments to {replica_count}")
+        print(f"Step 2: scale deployments to {replica_count}")
         scale_deployment(
             kube_apis.v1,
             kube_apis.apps_v1_api,
@@ -179,10 +190,10 @@ class TestRateLimitIngressZoneSync:
 
         wait_before_test()
 
-        print("Step 4: check if pods are ready")
+        print("Step 3: check if pods are ready")
         wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
-        print("Step 5: check plus api for zone sync")
+        print("Step 4: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
 
         stream_url = f"{api_url}/api/{NGINX_API_VERSION}/stream"
@@ -191,7 +202,7 @@ class TestRateLimitIngressZoneSync:
         zone_sync_url = f"{stream_url}/zone_sync"
         assert wait_for_zone_sync_nodes_online(zone_sync_url, replica_count)
 
-        print("Step 6: check plus api if zone is synced")
+        print("Step 5: check plus api if zone is synced")
         assert check_synced_zone_exists(zone_sync_url, ingress_name)
 
         # revert changes
@@ -203,12 +214,6 @@ class TestRateLimitIngressZoneSync:
             1,
         )
         delete_items_from_yaml(kube_apis, src, test_namespace)
-        replace_configmap_from_yaml(
-            kube_apis.v1,
-            configmap_name,
-            ingress_controller_prerequisites.namespace,
-            f"{TEST_DATA}/zone-sync/default-configmap.yaml",
-        )
 
 
 @pytest.mark.annotations
@@ -252,28 +257,19 @@ class TestRateLimitIngressScaled:
 @pytest.mark.parametrize("annotations_setup", ["standard-scaled", "mergeable-scaled"], indirect=True)
 class TestRateLimitIngressScaledWithZoneSync:
     def test_ingress_rate_limit_scaled_with_zone_sync(
-        self, kube_apis, annotations_setup, ingress_controller_prerequisites, test_namespace
+        self, kube_apis, annotations_setup, ingress_controller_prerequisites, test_namespace, zone_sync_configmap
     ):
         """
         Test if rate-limit scaling works with standard and mergeable ingresses
         """
-        print("Step 1: apply minimal zone_sync nginx-config map")
-        configmap_name = "nginx-config"
-        replace_configmap_from_yaml(
-            kube_apis.v1,
-            configmap_name,
-            ingress_controller_prerequisites.namespace,
-            f"{TEST_DATA}/zone-sync/configmap-with-zonesync-minimal.yaml",
-        )
-
-        print("Step 2: scale deployments to 2")
+        print("Step 1: scale deployments to 2")
         ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 2)
 
-        print("Step 3: check if pods are ready")
+        print("Step 2: check if pods are ready")
         wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
-        print("Step 4: check sync in config")
+        print("Step 3: check sync in config")
         ingress_name = annotations_setup.ingress_name
         if "mergeable-scaled" in annotations_setup.ingress_src_file:
             minions_info = get_minions_info_from_yaml(annotations_setup.ingress_src_file)
@@ -309,5 +305,5 @@ class TestRateLimitIngressScaledWithZoneSync:
 
             assert flag, f"Failed to find expected configuration line in pod {pod.metadata.name} after 5 retries"
 
-        print("Step 5: clean up")
+        print("Step 4: clean up")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)

@@ -1,0 +1,126 @@
+# Echo backend for the authResponseHeaders acceptance scenarios. It reports the
+# request header lines it receives, exactly as they arrive, so that a scenario
+# can tell whether NGINX Ingress Controller forwarded, replaced, or dropped a
+# header. Port 8080 is the application, and port 50051 a gRPC Greeter that
+# reports the call's metadata.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headers-echo-config
+data:
+  nginx.conf: |
+    load_module modules/ngx_http_js_module.so;
+
+    events {}
+
+    http {
+        js_import echo from /etc/nginx/njs/echo.js;
+
+        # Keep request header names that contain "_", so that a scenario can see
+        # whether such a header reached the backend.
+        underscores_in_headers on;
+
+        server {
+            listen 8080;
+
+            location / {
+                js_content echo.headers;
+            }
+        }
+
+        server {
+            listen 50051;
+            http2 on;
+
+            location / {
+                add_trailer grpc-status 0;
+                js_content echo.grpc;
+            }
+        }
+    }
+  echo.js: |
+    // Reports the request header lines exactly as they arrived: name, value, and
+    // order. NGINX variables such as $http_* merge repeated lines, so they cannot
+    // show what NGINX Ingress Controller sent.
+    function report(r) {
+        return JSON.stringify({ headers: r.rawHeadersIn });
+    }
+
+    function headers(r) {
+        r.headersOut['Content-Type'] = 'application/json';
+        r.return(200, report(r) + '\n');
+    }
+
+    // Answers helloworld.Greeter/SayHello with a HelloReply whose message is the
+    // report, so that tests can call it with the suite.grpc stubs.
+    function grpc(r) {
+        var message = Buffer.from(report(r));
+        var size = [];
+        var n = message.length;
+        while (n > 0x7f) {
+            size.push((n & 0x7f) | 0x80);
+            n = n >>> 7;
+        }
+        size.push(n);
+        // HelloReply field 1, a string: tag 0x0a, then its length as a varint.
+        var reply = Buffer.concat([Buffer.from([0x0a].concat(size)), message]);
+        var len = reply.length;
+        // gRPC message prefix: not compressed, then the length as 4 big-endian bytes.
+        var prefix = Buffer.from([0, (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff]);
+        r.headersOut['Content-Type'] = 'application/grpc';
+        r.return(200, Buffer.concat([prefix, reply]));
+    }
+
+    export default { headers, grpc };
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headers-echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headers-echo
+  template:
+    metadata:
+      labels:
+        app: headers-echo
+    spec:
+      containers:
+        - name: headers-echo
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+            - containerPort: 50051
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: config
+              mountPath: /etc/nginx/njs/echo.js
+              subPath: echo.js
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: headers-echo-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headers-echo-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+    - port: 50051
+      targetPort: 50051
+      protocol: TCP
+      name: grpc
+  selector:
+    app: headers-echo

@@ -18,4 +18,4 @@ spec:
       action:
         pass: webapp
       policies:
-      - name: wildcard-cors-policy
+        - name: wildcard-cors-policy

@@ -7,10 +7,10 @@ spec:
   policies:
     - name: api-key-policy
   routes:
-  - path: "/backends"
-    policies:
-      - name: rate-limit-variables-apikey-basic
-      - name: rate-limit-variables-apikey-premium
-    route: backends
-  - path: "/backend2"
-    route: backend2-namespace/backend2
+    - path: "/backends"
+      policies:
+        - name: rate-limit-variables-apikey-basic
+        - name: rate-limit-variables-apikey-premium
+      route: backends
+    - path: "/backend2"
+      route: backend2-namespace/backend2

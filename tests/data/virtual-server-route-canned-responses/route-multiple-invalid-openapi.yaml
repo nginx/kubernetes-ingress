@@ -10,5 +10,5 @@ spec:
       return:
         code: "301"
         type: 100
-        body: True
+        body: true
         headers: "String"

@@ -2,19 +2,24 @@ package nginx
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/metadata"
+	"go.yaml.in/yaml/v4"
 
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -42,7 +47,8 @@ const (
 	appProtectPluginStartCmd = "/usr/share/ts/bin/bd-socket-plugin"
 	appProtectLogLevelCmd    = "/opt/app_protect/bin/set_log_level"
 
-	agentPath = "/usr/bin/nginx-agent"
+	agentPath       = "/usr/bin/nginx-agent"
+	agentConfigPath = "/etc/nginx-agent/nginx-agent.conf"
 
 	// appPluginParams is the configuration of App-Protect plugin
 	appPluginParams = "tmm_count 4 proc_cpuinfo_cpu_mhz 2000000 total_xml_memory 471859200 total_umu_max_size 3129344 sys_max_account_id 1024 no_static_config"
@@ -692,19 +698,15 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 		if err != nil {
 			nl.Fatalf(lm.logger, "Failed to start NGINX Agent: %v", err)
 		}
-		labels := []string{
-			fmt.Sprintf("product-type=%s", metadataInfo.ProductType),
-			fmt.Sprintf("product-version=%s", metadataInfo.ProductVersion),
-			fmt.Sprintf("cluster-id=%s", metadataInfo.ClusterID),
-			fmt.Sprintf("installation-id=%s", metadataInfo.InstallationID),
-			fmt.Sprintf("installation-name=%s", metadataInfo.InstallationName),
-			fmt.Sprintf("installation-namespace=%s", metadataInfo.InstallationNamespace),
-			fmt.Sprintf("control-id=%s", metadataInfo.InstallationID),               // control-id is required but is the same as installation-id
-			fmt.Sprintf("control-name=%s", metadataInfo.InstallationName),           // control-name is required but is the same as installation-name
-			fmt.Sprintf("control-namespace=%s", metadataInfo.InstallationNamespace), // control-namespace is required but is the same as installation-namespace
+		configLabels, err := extractAgentConfigLabels(agentConfigPath)
+		if err != nil {
+			nl.Warnf(lm.logger, "Failed to read labels from %s: %v", agentConfigPath, err)
 		}
-		metadataLabels := "--labels=" + strings.Join(labels, ",")
-		args = append(args, metadataLabels)
+		labelsFlag, skipped := buildAgentLabels(metadataInfo, configLabels)
+		if len(skipped) > 0 {
+			nl.Warnf(lm.logger, "Ignoring reserved or invalid NGINX Agent labels: %v", skipped)
+		}
+		args = append(args, labelsFlag)
 	}
 	cmd := exec.Command(agentPath, args...) // #nosec G204
 
@@ -719,6 +721,78 @@ func (lm *LocalManager) AgentStart(agentDone chan error, instanceGroup string) {
 	go func() {
 		agentDone <- cmd.Wait()
 	}()
+}
+
+// agentLabelRegex mirrors NGINX Agent v3 label validation. It also keeps ',', '=' and '"'
+// out of the --labels flag, which pflag parses as a single CSV record.
+var agentLabelRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-_.]{0,254}[a-zA-Z0-9])?$`)
+
+// extractAgentConfigLabels reads the labels map from the NGINX Agent config file.
+// The agent ignores config-file labels when --labels is passed, so NIC merges them into the flag.
+// It parses with YAML 1.2 (go.yaml.in/yaml/v3) and stringifies values the way NGINX Agent 3 does
+// (viper + spf13/cast), so unquoted values such as yes, on or 0755 resolve to the same label text.
+func extractAgentConfigLabels(configPath string) (map[string]string, error) {
+	data, err := os.ReadFile(filepath.Clean(configPath))
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var cfg struct {
+		Labels map[string]any `yaml:"labels"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	if cfg.Labels == nil {
+		return nil, nil
+	}
+	labels := make(map[string]string, len(cfg.Labels))
+	for k, v := range cfg.Labels {
+		switch val := v.(type) {
+		case nil:
+			labels[k] = ""
+		case float64:
+			labels[k] = strconv.FormatFloat(val, 'f', -1, 64)
+		default:
+			labels[k] = fmt.Sprint(val)
+		}
+	}
+	return labels, nil
+}
+
+// buildAgentLabels returns the --labels flag: NIC metadata labels followed by valid, non-reserved
+// config labels sorted by key, plus the config label keys that were skipped.
+func buildAgentLabels(m *metadata.Labels, configLabels map[string]string) (string, []string) {
+	base := [][2]string{
+		{"product-type", m.ProductType},
+		{"product-version", m.ProductVersion},
+		{"cluster-id", m.ClusterID},
+		{"installation-id", m.InstallationID},
+		{"installation-name", m.InstallationName},
+		{"installation-namespace", m.InstallationNamespace},
+		// control-* labels are required but mirror the installation-* labels
+		{"control-id", m.InstallationID},
+		{"control-name", m.InstallationName},
+		{"control-namespace", m.InstallationNamespace},
+	}
+	labels := make([]string, 0, len(base)+len(configLabels))
+	reserved := make(map[string]bool, len(base))
+	for _, kv := range base {
+		labels = append(labels, kv[0]+"="+kv[1])
+		reserved[kv[0]] = true
+	}
+	var skipped []string
+	for _, k := range slices.Sorted(maps.Keys(configLabels)) {
+		v := configLabels[k]
+		if reserved[k] || !agentLabelRegex.MatchString(k) || !agentLabelRegex.MatchString(v) {
+			skipped = append(skipped, k)
+			continue
+		}
+		labels = append(labels, k+"="+v)
+	}
+	return "--labels=" + strings.Join(labels, ","), skipped
 }
 
 // AgentQuit gracefully ends AppProtect Agent.

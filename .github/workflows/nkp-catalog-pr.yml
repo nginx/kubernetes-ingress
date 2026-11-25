@@ -1,0 +1,308 @@
+name: NKP Catalog PR
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}NKP catalog PR for NIC ${{ inputs.nic_version }} by @${{ github.actor }}
+
+# Adds a released NIC version to the Nutanix Kubernetes Platform (NKP) Partner Catalog:
+# generates the bundle from the latest version in the catalog, validates it, runs the
+# catalog's e2e tests, then opens a pull request from the nginx-bot fork with a signed
+# commit. release-publish.yml dispatches it after publishing the GitHub release; run it
+# manually to retry.
+
+on:
+  workflow_dispatch:
+    inputs:
+      nic_version:
+        description: "Released NIC version to add (e.g. 5.8.0)"
+        required: true
+        type: string
+      chart_version:
+        description: "Helm chart version (defaults to the version in charts/nginx-ingress/Chart.yaml at tag v<nic_version>)"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry run: generate and validate the bundle, but don't open the pull request"
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: nkp-catalog-${{ inputs.nic_version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CATALOG_REPO: nutanix-cloud-native/nkp-partner-catalog
+  FORK_REPO: nginx-bot/nkp-partner-catalog
+  APP_PATH: applications/nginx-ingress-controller
+  NIC_VERSION: ${{ inputs.nic_version }}
+
+jobs:
+  validate:
+    name: Generate and validate bundle
+    if: github.repository == 'nginx/kubernetes-ingress'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      chart_version: ${{ steps.versions.outputs.chart_version }}
+      catalog_sha: ${{ steps.catalog.outputs.sha }}
+      template_version: ${{ steps.catalog.outputs.template_version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve versions
+        id: versions
+        env:
+          CHART_VERSION: ${{ inputs.chart_version }}
+        run: |
+          semver='^[0-9]+\.[0-9]+\.[0-9]+$'
+          [[ "${NIC_VERSION}" =~ ${semver} ]] || { echo "::error::Invalid nic_version '${NIC_VERSION}', expected X.Y.Z"; exit 1; }
+          if [[ -z "${CHART_VERSION}" ]]; then
+            git fetch --no-tags --depth=1 origin "refs/tags/v${NIC_VERSION}:refs/tags/v${NIC_VERSION}" ||
+              { echo "::error::Tag v${NIC_VERSION} not found. Publish the release first, or set chart_version."; exit 1; }
+            CHART_VERSION=$(git show "v${NIC_VERSION}:charts/nginx-ingress/Chart.yaml" | yq '.version')
+          fi
+          [[ "${CHART_VERSION}" =~ ${semver} ]] || { echo "::error::Invalid chart version '${CHART_VERSION}', expected X.Y.Z"; exit 1; }
+          echo "NIC ${NIC_VERSION}, Helm chart ${CHART_VERSION}"
+          echo "chart_version=${CHART_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout NKP Partner Catalog
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.CATALOG_REPO }}
+          path: nkp-partner-catalog
+          persist-credentials: false
+
+      - name: Check the version is not already proposed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          prs=$(gh pr list --repo "${CATALOG_REPO}" --state open --limit 100 --json url,headRepositoryOwner,files \
+            --jq "[.[] | select(any(.files[]; .path | startswith(\"${APP_PATH}/${NIC_VERSION}/\")))]")
+          others=$(jq -r '.[] | select(.headRepositoryOwner.login != "nginx-bot") | .url' <<<"${prs}")
+          bot=$(jq -r '.[] | select(.headRepositoryOwner.login == "nginx-bot") | .url' <<<"${prs}")
+          [[ -z "${bot}" ]] || echo "nginx-bot already has a pull request for ${NIC_VERSION}, it will be updated: ${bot}"
+          if [[ -n "${others}" ]]; then
+            message="NIC ${NIC_VERSION} is already proposed in ${others//$'\n'/, }. Close that pull request first."
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "::warning::${message}"
+            else
+              echo "::error::${message}"
+              exit 1
+            fi
+          fi
+
+      - name: Generate bundle
+        id: catalog
+        env:
+          CATALOG_DIR: nkp-partner-catalog
+          CHART_VERSION: ${{ steps.versions.outputs.chart_version }}
+        run: |
+          echo "sha=$(git -C "${CATALOG_DIR}" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          template=$(find "${CATALOG_DIR}/${APP_PATH}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -V | tail -1)
+          echo "template_version=${template}" >> "$GITHUB_OUTPUT"
+          .github/scripts/nkp-catalog-new-version.sh "${NIC_VERSION}" "${CHART_VERSION}"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+
+      - name: Check the chart and image are published
+        working-directory: nkp-partner-catalog/${{ env.APP_PATH }}/${{ env.NIC_VERSION }}/helmrelease
+        run: |
+          chart_url=$(yq 'select(.kind == "OCIRepository") | .spec.url' helmrelease.yaml)
+          chart_tag=$(yq 'select(.kind == "OCIRepository") | .spec.ref.tag' helmrelease.yaml)
+          app_version=$(helm show chart "${chart_url}" --version "${chart_tag}" | yq '.appVersion') ||
+            { echo "::error::Chart ${chart_url}:${chart_tag} not found"; exit 1; }
+          [[ "${app_version}" == "${NIC_VERSION}" ]] ||
+            { echo "::error::Chart ${chart_url}:${chart_tag} is for NIC ${app_version}, not ${NIC_VERSION}"; exit 1; }
+          echo "Chart ${chart_url}:${chart_tag} is published, appVersion ${app_version}"
+
+          image="$(yq '.data["values.yaml"] | from_yaml | .controller.image.repository' cm.yaml):$(yq '.data["values.yaml"] | from_yaml | .controller.image.tag' cm.yaml)"
+          docker manifest inspect "docker.io/${image}" > /dev/null ||
+            { echo "::error::Image ${image} not found"; exit 1; }
+          echo "Image ${image} is published"
+
+      - name: Validate catalog manifests
+        working-directory: nkp-partner-catalog
+        run: |
+          nkp_version=$(sed -n 's/^NKP_CLI_VERSION := "\([^"]*\)".*/\1/p' just/tools.just)
+          [[ -n "${nkp_version}" ]] || { echo "::error::NKP_CLI_VERSION not found in just/tools.just"; exit 1; }
+          mkdir -p .local/bin
+          curl -fsSL "https://downloads.d2iq.com/dkp/v${nkp_version}/nkp_v${nkp_version}_linux_amd64.tar.gz" | tar -xz -C .local/bin nkp
+          .local/bin/nkp validate catalog-repository -v=3 --repo-dir=. --apps "nginx-ingress-controller=${NIC_VERSION}"
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: nkp-partner-catalog/apptests/go.mod
+          cache-dependency-path: nkp-partner-catalog/apptests/go.sum
+
+      - name: Run catalog e2e tests
+        working-directory: nkp-partner-catalog/apptests
+        env:
+          SKIP_CLUSTER_TEARDOWN: "true"
+        run: |
+          # The catalog harness upgrades from and to the last two versions in byte order,
+          # whatever version it is given.
+          latest=$(find "../${APP_PATH}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | LC_ALL=C sort | tail -1)
+          if [[ "${latest}" != "${NIC_VERSION}" ]]; then
+            echo "::warning::The catalog upgrade test upgrades to ${latest}, not ${NIC_VERSION}. Only the install test covers ${NIC_VERSION}."
+          fi
+          go test ./suites/ -v -timeout=30m -count=1 --ginkgo.v \
+            --ginkgo.label-filter="nginx-ingress-controller" -app-version="${NIC_VERSION}"
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nkp-bundle-${{ env.NIC_VERSION }}
+          path: nkp-partner-catalog/${{ env.APP_PATH }}/${{ env.NIC_VERSION }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Summary
+        env:
+          CHART_VERSION: ${{ steps.versions.outputs.chart_version }}
+          TEMPLATE: ${{ steps.catalog.outputs.template_version }}
+        run: |
+          {
+            echo "### NKP catalog bundle for NIC ${NIC_VERSION}"
+            echo "- Helm chart: ${CHART_VERSION}"
+            echo "- Generated from: ${TEMPLATE}"
+            echo "- \`nkp validate catalog-repository\`: passed"
+            echo "- Catalog e2e tests (install and upgrade): passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  pull-request:
+    name: Open NKP catalog pull request
+    needs: [validate]
+    if: github.repository == 'nginx/kubernetes-ingress' && ( ! inputs.dry_run )
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-pat"
+          env-names: "NGINX_PAT"
+
+      - name: Download bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nkp-bundle-${{ env.NIC_VERSION }}
+          path: bundle
+
+      - name: Commit bundle to the nginx-bot fork
+        id: commit
+        env:
+          GH_TOKEN: ${{ env.NGINX_PAT }}
+          BASE_SHA: ${{ needs.validate.outputs.catalog_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          branch="feat/add-nginx-ingress-controller-${NIC_VERSION}"
+          staging="tmp/nkp-catalog-${NIC_VERSION}-${GITHUB_RUN_ID}"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+
+          # Makes sure the fork has the validated catalog commit.
+          gh api -X POST "repos/${FORK_REPO}/merge-upstream" -f branch=main --jq '.message'
+
+          # Commit on a staging branch, then move the pull request branch to the new commit,
+          # so an open pull request never points at a commit that is already in main.
+          gh api "repos/${FORK_REPO}/git/refs" -f ref="refs/heads/${staging}" -f sha="${BASE_SHA}" > /dev/null
+          trap 'gh api -X DELETE "repos/${FORK_REPO}/git/refs/heads/${staging}" > /dev/null || true' EXIT
+
+          additions=$(cd bundle && find . -type f | sort | while read -r file; do
+            jq -n --arg path "${APP_PATH}/${NIC_VERSION}/${file#./}" --arg contents "$(base64 -w0 "${file}")" \
+              '{path: $path, contents: $contents}'
+          done | jq -s '.')
+
+          # Commits created through the GraphQL API are signed by GitHub, as the catalog requires.
+          jq -n \
+            --arg repo "${FORK_REPO}" \
+            --arg branch "${staging}" \
+            --arg oid "${BASE_SHA}" \
+            --arg headline "feat: add NGINX Ingress Controller ${NIC_VERSION}" \
+            --arg body "Generated by ${RUN_URL}" \
+            --argjson additions "${additions}" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                expectedHeadOid: $oid,
+                message: {headline: $headline, body: $body},
+                fileChanges: {additions: $additions}
+              }}
+            }' > "${RUNNER_TEMP}/commit.json"
+          commit=$(gh api graphql --input "${RUNNER_TEMP}/commit.json" --jq '.data.createCommitOnBranch.commit.oid')
+
+          verification=$(gh api "repos/${FORK_REPO}/commits/${commit}" --jq '.commit.verification | "\(.verified) \(.reason)"')
+          [[ "${verification}" == "true "* ]] || { echo "::error::Commit ${commit} is not signed: ${verification}"; exit 1; }
+          echo "Created signed commit ${commit}"
+
+          if gh api "repos/${FORK_REPO}/git/refs/heads/${branch}" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/${FORK_REPO}/git/refs/heads/${branch}" -f sha="${commit}" -F force=true > /dev/null
+          else
+            gh api "repos/${FORK_REPO}/git/refs" -f ref="refs/heads/${branch}" -f sha="${commit}" > /dev/null
+          fi
+          echo "Pushed ${commit} to ${FORK_REPO}:${branch}"
+
+      - name: Open or update pull request
+        env:
+          GH_TOKEN: ${{ env.NGINX_PAT }}
+          BRANCH: ${{ steps.commit.outputs.branch }}
+          CHART_VERSION: ${{ needs.validate.outputs.chart_version }}
+          TEMPLATE: ${{ needs.validate.outputs.template_version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="feat: add NGINX Ingress Controller ${NIC_VERSION}"
+          # Follows the catalog's .github/pull_request_template.md.
+          cat > "${RUNNER_TEMP}/body.md" <<EOF
+          <!--
+           Copyright 2025 Nutanix. All rights reserved.
+           SPDX-License-Identifier: Apache-2.0
+           -->
+
+          **Which issue(s) does this PR fix?**:
+
+          None. Adds NGINX Ingress Controller ${NIC_VERSION} to the partner catalog, with Helm chart \`oci://ghcr.io/nginx/charts/nginx-ingress:${CHART_VERSION}\`.
+
+          The files are generated from version ${TEMPLATE}, with the NIC version and chart version updated.
+
+          Tests run in ${RUN_URL}:
+
+          - \`nkp validate catalog-repository --apps nginx-ingress-controller=${NIC_VERSION}\`: passed
+          - \`nginx-ingress-controller\` install and upgrade e2e tests on kind: passed
+          <!--
+          In addition, please:
+          - Describe the tests that you ran to verify your changes.
+          - Provide output from the tests and any manual steps needed to replicate the tests.
+          - Add any other special notes for reviewers.
+          -->
+          EOF
+
+          number=$(gh pr list --repo "${CATALOG_REPO}" --state open --head "${BRANCH}" --json number,headRepositoryOwner \
+            --jq '.[] | select(.headRepositoryOwner.login == "nginx-bot") | .number')
+          if [[ -n "${number}" ]]; then
+            url=$(gh api -X PATCH "repos/${CATALOG_REPO}/pulls/${number}" -f title="${title}" -F body=@"${RUNNER_TEMP}/body.md" --jq '.html_url')
+            echo "Updated ${url}"
+          else
+            url=$(gh api "repos/${CATALOG_REPO}/pulls" -f title="${title}" -f head="nginx-bot:${BRANCH}" -f base=main \
+              -F body=@"${RUNNER_TEMP}/body.md" --jq '.html_url')
+            echo "Opened ${url}"
+          fi
+          echo "### NKP catalog pull request: ${url}" >> "$GITHUB_STEP_SUMMARY"

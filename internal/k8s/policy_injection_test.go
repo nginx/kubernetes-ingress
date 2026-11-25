@@ -288,6 +288,10 @@ var policyStringFields = []policyField{
 	{"externalAuth.trustedCertSecret", func(s *conf_v1.PolicySpec, v string) {
 		s.ExternalAuth = &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc", SSLEnabled: true, SSLVerify: true, TrustedCertSecret: v}
 	}, "externalauth-ca-secret", nil},
+	// Scenario "No injection" of the ExternalAuth response headers design.
+	{"externalAuth.authResponseHeaders[0]", func(s *conf_v1.PolicySpec, v string) {
+		s.ExternalAuth = &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc", AuthResponseHeaders: []string{v}}
+	}, "X-User", nil},
 
 	{"oidc.authEndpoint", func(s *conf_v1.PolicySpec, v string) {
 		s.OIDC = baseOIDC()

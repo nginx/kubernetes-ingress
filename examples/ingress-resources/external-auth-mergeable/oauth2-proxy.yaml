@@ -15,6 +15,7 @@ data:
     whitelist_domains = ["cafe.example.com"]
     tls_cert_file = "/etc/tls/tls.crt"
     tls_key_file = "/etc/tls/tls.key"
+    set_xauthrequest = true
 ---
 apiVersion: apps/v1
 kind: Deployment

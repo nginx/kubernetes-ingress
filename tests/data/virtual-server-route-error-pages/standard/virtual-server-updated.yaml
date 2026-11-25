@@ -8,9 +8,9 @@ spec:
   - path: "/backends"
     route: backends
     errorPages:
-      - codes: [502]
-        return:
-          code: 402
-          body: Hello World!
+    - codes: [502]
+      return:
+        code: 402
+        body: Hello World!
   - path: "/backend2"
     route: backend2-namespace/backend2

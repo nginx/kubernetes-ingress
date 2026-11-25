@@ -20,33 +20,33 @@ spec:
   subroutes:
   - path: "/backends/backend1"
     matches:
-      - conditions:
-          - argument: arg1
-            value: v1
-        action:
-          pass: backend1-future
-      - conditions:
-          - argument: arg1
-            value: v2
-        action:
-          pass: backend3-deprecated
+    - conditions:
+      - argument: arg1
+        value: v1
+      action:
+        pass: backend1-future
+    - conditions:
+      - argument: arg1
+        value: v2
+      action:
+        pass: backend3-deprecated
     errorPages:
-      - codes: [502, 404]
-        redirect:
-          code: 307
-          url: ${scheme}://virtual-server-route.example.com/error.html
+    - codes: [502, 404]
+      redirect:
+        code: 307
+        url: ${scheme}://virtual-server-route.example.com/error.html
     action:
       pass: backend4-stable
   - path: "/backends/backend3"
     errorPages:
-      - codes: [502]
-        return:
-          code: 207
-          type: application/json
-          body: |
-            {\"status\": \"${upstream_status}\",\"message\":\"Forbidden\"}
-          headers:
-            - name: x-debug-original-status
-              value: ${upstream_status}
+    - codes: [502]
+      return:
+        code: 207
+        type: application/json
+        body: |
+          {\"status\": \"${upstream_status}\",\"message\":\"Forbidden\"}
+        headers:
+        - name: x-debug-original-status
+          value: ${upstream_status}
     action:
       pass: backend3-deprecated

@@ -14,22 +14,22 @@ spec:
   subroutes:
   - path: "/backends/backend1"
     errorPages:
-      - codes: [308]
-        redirect:
-          code: 101
-          url: /relative/path/url.html
+    - codes: [308]
+      redirect:
+        code: 101
+        url: /relative/path/url.html
     action:
       pass: backend1
   - path: "/backends/backend3"
     errorPages:
-      - codes: [502]
-        return:
-          code: 100
-          type: ±!@£$%^&*()
-          body: |
-            {\"status\": \"${status}\",\"message\":\"Forbidden\"}
-          headers:
-          - name: x-debug-original-status
-            value: ${schema}
+    - codes: [502]
+      return:
+        code: 100
+        type: ±!@£$%^&*()
+        body: |
+          {\"status\": \"${status}\",\"message\":\"Forbidden\"}
+        headers:
+        - name: x-debug-original-status
+          value: ${schema}
     action:
       pass: backend3

@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-header-sanitize
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      rules:
+      - claims:
+        - name: scope
+          match: Present
+          proxySetHeader: X-Token-Scope

@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -184,5 +185,135 @@ func TestCRDSchemaGate(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "command execution patterns") {
 		t.Errorf("want the cacheKey CEL rule message, got: %v", err)
+	}
+}
+
+// TestCRDSchemaGateJWTClaimValues covers the claim value rules that are mirrored in CEL as defense in depth
+// for the controller's own validation: the value limits and the character rules per match type.
+func TestCRDSchemaGateJWTClaimValues(t *testing.T) {
+	t.Parallel()
+
+	gate := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_policies.yaml")
+
+	policy := func(match conf_v1.JWTClaimMatchType, values ...string) *conf_v1.Policy {
+		return &conf_v1.Policy{Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{
+			Realm:  "realm",
+			Secret: "jwk",
+			Authorization: &conf_v1.JWTAuthorization{Rules: []conf_v1.JWTAuthorizationRule{
+				{Claims: []conf_v1.JWTClaim{{Name: "c", Match: &match, Values: values}}},
+			}},
+		}}}
+	}
+	many := func(n int) []string {
+		values := make([]string, n)
+		for i := range values {
+			values[i] = "v"
+		}
+		return values
+	}
+
+	tests := []struct {
+		name   string
+		policy *conf_v1.Policy
+		admit  bool
+	}{
+		{"exact plain", policy(conf_v1.JWTClaimMatchExact, "a b", `a"b`, `c\d`), true},
+		{"exact semicolon", policy(conf_v1.JWTClaimMatchExact, "a;b"), false},
+		{"exact brace", policy(conf_v1.JWTClaimMatchExact, "a{b"), false},
+		{"exact dollar", policy(conf_v1.JWTClaimMatchExact, "a$b"), false},
+		{"exact backtick", policy(conf_v1.JWTClaimMatchExact, "a`b"), false},
+		{"exact newline", policy(conf_v1.JWTClaimMatchExact, "a\nb"), false},
+		{"exact carriage return", policy(conf_v1.JWTClaimMatchExact, "a\rb"), false},
+		{"contains plain", policy(conf_v1.JWTClaimMatchContains, "orders:read"), true},
+		{"contains dollar", policy(conf_v1.JWTClaimMatchContains, "a$b"), false},
+		{"contains space", policy(conf_v1.JWTClaimMatchContains, "a b"), false},
+		{"regex anchors and braces", policy(conf_v1.JWTClaimMatchRegex, `^[a-z0-9]{3,12}$`, `^[^@]+@example\.com$`), true},
+		{"regex numbered capture", policy(conf_v1.JWTClaimMatchRegex, `^(a|b)$`, `^(?:a|b)$`), true},
+		{"regex lookbehind", policy(conf_v1.JWTClaimMatchRegex, `(?<=a+)b`), false},
+		{"regex negative lookbehind", policy(conf_v1.JWTClaimMatchRegex, `(?<!a)b`), false},
+		{"regex named capture angle", policy(conf_v1.JWTClaimMatchRegex, `^(?<host>.*)$`), false},
+		{"regex named capture P", policy(conf_v1.JWTClaimMatchRegex, `^(?P<host>.*)$`), false},
+		{"regex named capture quote", policy(conf_v1.JWTClaimMatchRegex, `^(?'host'.*)$`), false},
+		{"regex escaped named capture", policy(conf_v1.JWTClaimMatchRegex, `^\(?<n>x\)$`), false},
+		{"regex bracketed named capture", policy(conf_v1.JWTClaimMatchRegex, `^[(?<n>]x$`), false},
+		{"32 values", policy(conf_v1.JWTClaimMatchExact, many(32)...), true},
+		{"33 values", policy(conf_v1.JWTClaimMatchExact, many(33)...), false},
+		{"256 character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("a", 256)), true},
+		{"257 character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("a", 257)), false},
+		{"256 multibyte character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("é", 256)), true},
+		{"257 multibyte character value", policy(conf_v1.JWTClaimMatchExact, strings.Repeat("é", 257)), false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := gate.admits(tc.policy)
+			if tc.admit && err != nil {
+				t.Errorf("the CRD rejected a valid policy: %v", err)
+			}
+			if !tc.admit && err == nil {
+				t.Error("the CRD admitted a policy that must be rejected")
+			}
+		})
+	}
+}
+
+// TestCRDSchemaGateAuthResponseHeaders covers the scenario "Invalid lists are
+// rejected" of the ExternalAuth response headers design at the API server: the
+// shipped CRD admits valid lists, and rejects invalid ones naming the rule that
+// each breaks.
+func TestCRDSchemaGateAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	gate := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_policies.yaml")
+	longest := "X-" + strings.Repeat("a", 44)
+	distinct := func(count, length int) []string {
+		names := make([]string, count)
+		for i := range names {
+			prefix := fmt.Sprintf("X-%02d-", i)
+			names[i] = prefix + strings.Repeat("a", length-len(prefix))
+		}
+		return names
+	}
+
+	tests := []struct {
+		name    string
+		headers []string
+		// want is part of the expected error, or empty when the CRD admits the list.
+		want string
+	}{
+		{name: "names that other configuration also sets", headers: []string{"Tenant-UUID", "Authorization"}},
+		{name: "one 46-character name", headers: []string{longest}},
+		{name: "32 distinct 46-character names", headers: distinct(32, 46)},
+		{name: "Invalid lists are rejected: a name with _", headers: []string{"X_User"}, want: "should match"},
+		{name: "Invalid lists are rejected: an empty name", headers: []string{""}, want: "should match"},
+		{name: "Invalid lists are rejected: a 47-character name", headers: []string{longest + "a"}, want: "Too long"},
+		{name: "Invalid lists are rejected: 33 names", headers: distinct(33, 10), want: "Too many"},
+		{name: "Invalid lists are rejected: names that differ only in case", headers: []string{"X-User", "x-user"}, want: "must be unique, ignoring case"},
+		{name: "Invalid lists are rejected: reserved name host", headers: []string{"host"}, want: "managed by NGINX"},
+		{name: "Invalid lists are rejected: reserved name CONTENT-LENGTH", headers: []string{"CONTENT-LENGTH"}, want: "managed by NGINX"},
+		{name: "Invalid lists are rejected: reserved name X-Forwarded-For", headers: []string{"X-Forwarded-For"}, want: "managed by NGINX"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := &conf_v1.Policy{
+				Spec: conf_v1.PolicySpec{
+					ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc", AuthResponseHeaders: tc.headers},
+				},
+			}
+			err := gate.admits(policy)
+			if tc.want == "" {
+				if err != nil {
+					t.Errorf("the CRD rejected %q: %v", tc.headers, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("the CRD admitted %q, want an error containing %q", tc.headers, tc.want)
+			}
+			if !strings.Contains(err.Error(), "authResponseHeaders") || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("the CRD rejected %q with %q, want an error on authResponseHeaders containing %q", tc.headers, err, tc.want)
+			}
+		})
 	}
 }

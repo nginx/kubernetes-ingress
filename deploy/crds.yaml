@@ -681,6 +681,35 @@ spec:
                   be used for example with the oauth2-proxy or any custom authentication
                   server.
                 properties:
+                  authResponseHeaders:
+                    description: AuthResponseHeaders lists headers of the external
+                      authentication server's response that are passed to the backend
+                      after the server allows a request with a 2xx response. The server's
+                      value replaces a header of the same name from the client or
+                      from other configuration, and a listed header that the server
+                      does not return is removed. Names contain letters, digits, and
+                      hyphens, have at most 46 characters, and must be unique, ignoring
+                      case. At most 32 names are allowed. Host, Connection, Proxy-Connection,
+                      Content-Length, Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade,
+                      X-Real-IP, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port,
+                      and X-Forwarded-Proto are not allowed.
+                    items:
+                      maxLength: 46
+                      pattern: ^[A-Za-z0-9-]+$
+                      type: string
+                    maxItems: 32
+                    type: array
+                    x-kubernetes-validations:
+                    - message: header names must be unique, ignoring case
+                      rule: self.all(h, self.exists_one(x, x.lowerAscii() == h.lowerAscii()))
+                    - message: Host, Connection, Proxy-Connection, Content-Length,
+                        Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade, X-Real-IP,
+                        X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port, and X-Forwarded-Proto
+                        are managed by NGINX and cannot be taken from the auth response
+                      rule: self.all(h, !(h.lowerAscii() in ['host', 'connection',
+                        'proxy-connection', 'content-length', 'transfer-encoding',
+                        'te', 'keep-alive', 'expect', 'upgrade', 'x-real-ip', 'x-forwarded-for',
+                        'x-forwarded-host', 'x-forwarded-port', 'x-forwarded-proto']))
                   authServiceName:
                     description: AuthServiceName is the name of the Kubernetes service
                       to which the request will be sent for authentication.  It can
@@ -835,6 +864,128 @@ spec:
                 description: The JWT policy configures NGINX Plus to authenticate
                   client requests using JSON Web Tokens.
                 properties:
+                  authorization:
+                    description: Claim-based authorization rules, evaluated after
+                      the JWT signature and expiry have been validated. Requests that
+                      fail the rules are rejected with authorization.errorCode.
+                    properties:
+                      errorCode:
+                        default: 403
+                        description: The HTTP status code returned when claim validation
+                          fails. Authentication failures always return 401. The default
+                          is 403.
+                        enum:
+                        - 401
+                        - 403
+                        type: integer
+                      require:
+                        default: All
+                        description: Whether any rule or all rules must pass. The
+                          default is All.
+                        enum:
+                        - Any
+                        - All
+                        type: string
+                      rules:
+                        description: The authorization rules.
+                        items:
+                          description: JWTAuthorizationRule is a group of claim checks.
+                          properties:
+                            claims:
+                              description: The claim checks in the rule. The same
+                                claim name may appear more than once with a different
+                                match or negate.
+                              items:
+                                description: JWTClaim is a check on a single JWT claim.
+                                properties:
+                                  match:
+                                    default: Exact
+                                    description: How the claim is compared to values.
+                                      The default is Exact. Exact and Regex are case-sensitive.
+                                      Contains splits the claim on space and comma,
+                                      so it works on array claims and space-delimited
+                                      claims such as scope.
+                                    enum:
+                                    - Exact
+                                    - Contains
+                                    - Regex
+                                    - Present
+                                    type: string
+                                  name:
+                                    description: The claim name. Nested claims are
+                                      separated by ".", for example realm_access.roles.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*$
+                                    type: string
+                                  negate:
+                                    description: 'Inverts the check. A negated value
+                                      check still fails when the claim is missing.
+                                      match: Present with negate: true requires the
+                                      claim to be absent.'
+                                    type: boolean
+                                  proxySetHeader:
+                                    description: The name of a request header that
+                                      forwards the claim value to the upstream.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[-_A-Za-z0-9]+$
+                                    type: string
+                                  values:
+                                    description: 'The expected values. The check passes
+                                      if the claim matches any value. Required unless
+                                      match is Present. For match: Regex, values are
+                                      PCRE patterns; named captures and lookbehind
+                                      are not supported.'
+                                    items:
+                                      maxLength: 256
+                                      minLength: 1
+                                      type: string
+                                    maxItems: 32
+                                    type: array
+                                type: object
+                                x-kubernetes-validations:
+                                - message: values is required unless match is Present,
+                                    and forbidden when match is Present
+                                  rule: '(has(self.match) && self.match == ''Present'')
+                                    ? !has(self.values) : (has(self.values) && size(self.values)
+                                    > 0)'
+                                - message: proxySetHeader cannot be set when match
+                                    is Present and negate is true
+                                  rule: '!(has(self.match) && self.match == ''Present''
+                                    && has(self.negate) && self.negate) || !has(self.proxySetHeader)'
+                                - message: values must not contain a space or comma
+                                    when match is Contains
+                                  rule: '!(has(self.match) && self.match == ''Contains'')
+                                    || !has(self.values) || self.values.all(v, !v.matches(''[
+                                    ,]''))'
+                                - message: values must not use named captures or lookbehind
+                                    when match is Regex
+                                  rule: '!(has(self.match) && self.match == ''Regex'')
+                                    || !has(self.values) || self.values.all(v, !v.contains(''(?<'')
+                                    && !v.contains(''(?P<'') && !v.contains(''(?\x27''))'
+                                - message: values must not contain any of the characters
+                                    ; { } $ ` or line breaks when match is Exact or
+                                    Contains
+                                  rule: (has(self.match) && (self.match == 'Regex'
+                                    || self.match == 'Present')) || !has(self.values)
+                                    || self.values.all(v, !v.matches('[;{}$`\r\n]'))
+                              maxItems: 32
+                              minItems: 1
+                              type: array
+                            require:
+                              default: Any
+                              description: Whether any claim or all claims in the
+                                rule must pass. The default is Any.
+                              enum:
+                              - Any
+                              - All
+                              type: string
+                          type: object
+                        maxItems: 16
+                        minItems: 1
+                        type: array
+                    type: object
                   jwksURI:
                     description: The remote URI where the request will be sent to
                       retrieve JSON Web Key set

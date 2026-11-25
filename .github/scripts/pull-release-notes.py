@@ -49,7 +49,6 @@ golang_pr_strings = [
     "k8s.io/",
     "kubernetes packages",
     "kubernetes ecosystem",
-    "aws sdk",
     "opentelemetry-go",
     "preflight",
 ]

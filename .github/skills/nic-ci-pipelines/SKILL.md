@@ -20,6 +20,34 @@ Consequences:
 - `release-publish.yml` / `release-publish-lts.yml` are **public-repo only**. They never run `docker build`; `oss-release.yml` and `plus-release.yml` copy image manifests with `skopeo` from `source_registry` (default `docker-mgmt-test.nginx.com`) to the public targets.
 - The public repo still builds images **for PR/CI testing** (`ci.yml` -> `build-artifacts.yml`) and again on merge (`image-promotion.yml` calls `build-artifacts.yml` with `force: true` before tagging `edge`/`stable`). Both push to the GCR dev registry -- they are test artifacts, not release artifacts.
 - A publish failure is retryable on its own -- nothing needs rebuilding because the images already exist in the staging registry.
+- **PR CI runs in both repos from the same files.** `ci.yml` and `lint-format.yml` trigger on PRs into `embargo/security-fixes*` and `embargo/security-fixes-work/**` as well, and their jobs use the dual-repo gate. There are no `mirror-*.yml` copies: the embargo branches carry no CI-specific commits on top of `main`, `release-5.8` and `release-2026-lts`. The internal repo has no `push` trigger, so syncing a base branch into it starts no CI run.
+
+### Dual-repo Variables
+
+Workflows read repository variables instead of branching on `github.repository`, so one file runs correctly in both repos. Both repos define them; the in-file fallbacks are the public values.
+
+| Variable | Public | Internal | Used for |
+| --- | --- | --- | --- |
+| `vars.RUNNER` | `ubuntu-26.04` | `aw-ubuntu-24.04-amd64` | `runs-on` of every CI job |
+| `vars.RELEASE_RUNNER` | `ubuntu-24.04-amd64` | `aw-ubuntu-24.04-amd64` | `runs-on` of release-adjacent jobs (`pull-nap-images.yml`) |
+| `vars.TEST_RUNNER_REGISTRY` | `ghcr.io/nginx/kubernetes-ingress` | GCR dev registry | `test-runner` image registry (`build-test-image.yml`, `resolve-test-runner`) |
+| `vars.IS_PUBLIC` | `true` | `false` | SARIF upload target in `security-scan` (GitHub code scanning vs Azure blob). Compared against an explicit value, so unset uploads nowhere |
+| `vars.MIRROR_SYNC_BRANCHES`, `vars.MIRROR_SYNC_REQUEST_ISSUE_NUMBER` | -- | set | `cve-publish.yml` branch mappings and request issue |
+
+### Composite Actions (`.github/actions/`)
+
+| Action | Purpose |
+| --- | --- |
+| `vault-gcr-login` | Azure Key Vault -> Google OIDC -> `docker login gcr.io` |
+| `nginx-pkg-secrets` | Writes `nginx-repo.crt`/`.key` from vault; optionally exports the Plus JWT and Docker Hub credentials |
+| `github-app-token` | Mints a GitHub App installation token from a vault-stored app key |
+| `azure-blob` | Azure OIDC login + upload a directory to blob storage |
+| `security-scan` | Docker Scout scan to SARIF, uploaded per `vars.IS_PUBLIC` |
+| `scout-cache` | Seeds the `docker/scout-action` binary once per run as an artifact (`mode: seed`); `security-scan` restores it. Avoids the 60/hour unauthenticated GitHub API limit when a matrix fans out into parallel scans. Artifacts, not the Actions cache, so it does not evict build layers and is not visible to other runs |
+| `resolve-test-runner` | Resolves the `test-runner` image and runner label from `vars.TEST_RUNNER_REGISTRY`/`vars.RUNNER` |
+| `build-push-retry`, `smoke-tests`, `certify-openshift-image` | Build with retry, smoke tests, OpenShift certification |
+
+The file header of each action documents its contract (inputs, required `permissions`, sparse-checkout paths). Read it before calling the action.
 
 ```text
    internal repo                        public repo
@@ -31,6 +59,7 @@ Consequences:
      binaries (SBOM, Cosign)                            certify-openshift-images (Pyxis)
      azure-upload      --> Azure blob                   operator (dispatch nginx-ingress-helm-operator/sync-chart.yml)
                                                         release-gate -> tag -> release-assets -> github-release
+                                                        nkp-catalog (dispatch nkp-catalog-pr.yml)
 ```
 
 ## Workflow Architecture
@@ -38,7 +67,7 @@ Consequences:
 The CI system uses GitHub Actions with extensive **reusable workflow** composition.
 
 ```text
-ci.yml (main CI orchestrator)                          [public repo]
+ci.yml (main CI orchestrator)                          [both repos]
   -> checks (format, lint, codegen, CRDs, chart version)
   -> verify-codegen (go mod tidy, make update-crds, make update-codegen, make telemetry-schema -- all must produce no diff)
   -> unit-tests, staticcheck, govulncheck
@@ -73,6 +102,7 @@ release-publish.yml (dispatchable Stage 2: Publish)    [PUBLIC repo only -- no b
   -> tag -> creates and pushes the vX.Y.Z git tag
   -> release-assets -> downloads tarballs from Azure and uploads to GitHub release draft
   -> github-release -> closes milestone and publishes the GitHub release draft
+  -> nkp-catalog -> dispatches nkp-catalog-pr.yml to raise the NKP Partner Catalog PR
 ```
 
 ### Two-Stage Release Architecture
@@ -92,7 +122,7 @@ Release pipelines are split into two independently dispatchable stages that run 
    - Creates and pushes the release git tag (`vX.Y.Z` or `<lts_version>`)
    - Downloads signed binaries from Azure blob storage and attaches them to the GitHub release draft
    - Closes the release milestone and publishes the GitHub release
-
+   - `release-publish.yml` only: dispatches `nkp-catalog-pr.yml` to raise the NKP Partner Catalog PR (skipped on `dry_run` or `skip_step: nkp-catalog`)
 Because the stages are decoupled and live in separate repos, a transient failure in publishing or external registry sync can be retried directly via `release-publish.yml` without rebuilding any images or binaries.
 
 ---
@@ -103,8 +133,8 @@ Because the stages are decoupled and live in separate repos, a transient failure
 
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
-| `ci.yml` | PR to `main`/`release-*`, merge_group, workflow_dispatch | Main CI orchestrator: checks + build + test. Images built here are **test** images pushed to the GCR dev registry |
-| `lint-format.yml` | PR to `main`/`release-*`, merge_group | Format & lint checks (gofumpt, goimports, golangci-lint, actionlint, markdownlint, yamllint, workflow gating validation) |
+| `ci.yml` | PR to `main`/`release-*`/`embargo/security-fixes*`, merge_group, workflow_dispatch | Main CI orchestrator: checks + build + test. Images built here are **test** images pushed to the GCR dev registry. `Final CI Results` is the single required check in both repos |
+| `lint-format.yml` | PR to `main`/`embargo/security-fixes*`, merge_group | Format & lint checks (gofumpt, goimports, golangci-lint, actionlint, markdownlint, yamllint, workflow gating validation) |
 | `regression.yml` | Daily cron (03:00 UTC), manual dispatch | Multi-K8s-version regression matrix tests |
 | `single-image-regression.yml` | Manual dispatch | Runs Python e2e tests on a single image variant and K8s version |
 | `build-base-images.yml` | Weekday cron (04:30 UTC), manual, workflow_call | Rebuilds all base images (alpine, debian, ubi) |
@@ -116,7 +146,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | Workflow | Repo | Trigger | Purpose |
 | --- | --- | --- | --- |
 | `release-prep.yml` | internal | Manual dispatch | Stage 1: build artifacts, stage images and Helm chart in test registry (`docker-mgmt-test.nginx.com`), sign binaries, upload tarballs to Azure blob storage |
-| `release-publish.yml` | public | Manual dispatch | Stage 2: copy staged images to public registries, publish Helm chart, certify UBI images, dispatch operator sync PR, create git tag, upload release assets, close milestone, publish GitHub release |
+| `release-publish.yml` | public | Manual dispatch | Stage 2: copy staged images to public registries, publish Helm chart, certify UBI images, dispatch operator sync PR, create git tag, upload release assets, close milestone, publish GitHub release, dispatch NKP catalog PR |
 | `release-prep-lts.yml` | internal | Manual dispatch | LTS Stage 1: build LTS Plus images & binaries, stage in test registry, sign binaries, upload tarballs to Azure blob storage |
 | `release-publish-lts.yml` | public | Manual dispatch | LTS Stage 2: copy staged LTS Plus images to public registries, publish LTS Helm chart (`nginx-ingress-lts`), create git tag, attach release assets, close milestone, publish GitHub release |
 | `oss-release.yml` | public | Manual dispatch, workflow_call | Copies OSS images from staging registry to public registries via skopeo (called by `release-publish.yml`) |
@@ -126,6 +156,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `create-release-branch.yml` | public | Manual dispatch | Creates a new `release-X.Y` branch and bumps versions |
 | `release-pr.yml` | public | Manual dispatch | Automates creation of release PRs for version updates and changelogs |
 | `version-bump.yml` | public | Manual dispatch | Bumps `IC_VERSION` and `HELM_CHART_VERSION` across the repository |
+| `nkp-catalog-pr.yml` | public | Dispatched by `release-publish.yml`, manual dispatch | After a release is published: generates the NKP Partner Catalog bundle, validates it and runs the catalog e2e tests, then opens a PR in `nutanix-cloud-native/nkp-partner-catalog` from the `nginx-bot` fork with a GitHub-signed commit (uses the `nginx-bot-pat` vault secret) |
 
 ### Reusable Build Workflows (called via `workflow_call`)
 
@@ -145,6 +176,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | `codeql-analysis.yml` | Push, PR, merge_group | GitHub CodeQL security analysis |
+| `cve-publish.yml` | Issue comment (`/request-mirror-sync <target>`, `/approve-mirror-sync`) | **Internal repo only.** Syncs embargoed fixes to the public repo. `/request-mirror-sync` on the request issue opens a permission-track PR (metadata HMAC-signed with `mirror-sync-hmac-key` from the NIC vault, not the GitHub App key); `/approve-mirror-sync` on that PR by a writer applies the patches and opens the public PRs. `issue_comment` workflows run from the default branch (`embargo/security-fixes`) only |
 | `scorecards.yml` | Weekly cron (Sun 20:43 UTC), push to `main` | OpenSSF Scorecards security scanning |
 | `dependency-review.yml` | PR to `main`/`release-*`, merge_group | GitHub Dependency Review for PRs |
 | `certify-ubi-image.yml` | Manual dispatch, called | Red Hat UBI certification for OpenShift (Pyxis) |
@@ -241,9 +273,10 @@ Gaps to be aware of: `make update-crds` also rewrites `deploy/crds*.yaml` and `d
 - `image-promotion.yml` runs on merge to `main` and `release-*`, not on PR -- don't expect images from PRs
 - Release-only workflows and `.github/config/config-*` files must be listed in `.github/scripts/exclude_ci_files.txt`, otherwise they feed `get_actions_md5()` and invalidate `stable_tag`, forcing a full image rebuild
 - `.github/config/config-*` files are shared between `release-publish.yml`, `image-promotion.yml`, `regression.yml` and `update-docker-images.yml`. Never add a `SOURCE_*_IMAGE_PREFIX` override to one -- the other callers read from the dev registry and would break. Override `TARGET_*` only
-- Every job in a non-`mirror-*` workflow must be gated as `github.repository == 'nginx/kubernetes-ingress'` (or `nginx/kubernetes-ingress-internal` for internal-only jobs like prep) optionally followed by `&& ( ... )` with **all** extra conditions inside one balanced group. `&&` binds tighter than `||`, so an ungrouped chain like `gate && (a) || (b)` parses as `(gate && (a)) || (b)` and would run on a fork. Enforced by `.github/scripts/validate-workflow-gating.sh` (pre-commit + `lint-format.yml`); run it locally after editing any job's `if`
+- Every job in every workflow must be gated as `github.repository == 'nginx/kubernetes-ingress'`, `github.repository == 'nginx/kubernetes-ingress-internal'` (internal-only jobs like prep), or `(github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')` (CI jobs that run in both), optionally followed by `&& ( ... )` with **all** extra conditions inside one balanced group. `&&` binds tighter than `||`, so an ungrouped chain like `gate && (a) || (b)` parses as `(gate && (a)) || (b)` and would run on a fork. Enforced by `.github/scripts/validate-workflow-gating.sh` (pre-commit + `lint-format.yml`); run it locally after editing any job's `if`
 - Adding a job to a shared workflow means picking the right gate string. An internal-repo gate in `release-publish.yml` (or vice versa) silently skips the job forever -- there is no error, just a permanently grey box
 - The `operator` job skips silently when `operator_version` is empty. If a release ships without an operator PR, check that input before assuming the dispatch failed
+- Events made with `GITHUB_TOKEN` (pushes, tags, publishing a release) never start other workflows; only `workflow_dispatch` and `repository_dispatch` do. That's why `nkp-catalog` dispatches `nkp-catalog-pr.yml` instead of the latter listening for `release: published`
 - A job whose `if` contains `always()`, `!cancelled()` or `failure()` runs **even when a `needs` dependency failed**. Such jobs must assert every dependency explicitly (`needs.<job>.result == 'success'`), which is why the release jobs list results one by one
 - Asserting a *downstream* job is not enough -- a dependency that failed leaves its dependants `skipped`, and `result == 'skipped'` is usually an accepted arm. Assert the job that actually does the work (e.g. `tag` asserts `release-gate`, `release-assets` asserts `variables`)
 - `contains()` is a **substring** match, not a token match. Never gate on a value that is a prefix of another job name: `contains(skip_step, 'prep')` also matches `push-prep-images`, and `contains(skip_step, 'publish')` also matches `publish-helm-chart`

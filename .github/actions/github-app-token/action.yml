@@ -1,0 +1,73 @@
+name: GitHub App token
+description: >-
+  Fetch a GitHub App client ID and private key from Azure Key Vault and mint an installation token.
+  The calling job needs `permissions: id-token: write`.
+
+inputs:
+  azure-client-id:
+    description: Azure client ID for the vault (pass secrets.AZURE_COMMON_VAULT_CLIENT_ID)
+    required: true
+  azure-tenant-id:
+    description: Azure tenant ID for the vault (pass secrets.AZURE_COMMON_VAULT_TENANT_ID)
+    required: true
+  vault-name:
+    description: Key Vault name (pass secrets.COMMON_KEYVAULT_NAME)
+    required: true
+  app:
+    description: Vault secret prefix for the app, e.g. nginx-bot-nic-create-pr-app (reads <app>-client-id and <app>-private-key)
+    required: true
+  owner:
+    description: Owner of the repositories the token is for (default github.repository_owner)
+    required: false
+    default: ""
+  repositories:
+    description: Comma-separated repositories the token is for (default the current repository)
+    required: false
+    default: ""
+
+outputs:
+  token:
+    description: GitHub App installation token
+    value: ${{ steps.app_token.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get secrets from vault
+      uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+      with:
+        client-id: ${{ inputs.azure-client-id }}
+        tenant-id: ${{ inputs.azure-tenant-id }}
+        vault-name: ${{ inputs.vault-name }}
+        secret-names: "${{ inputs.app }}-client-id, ${{ inputs.app }}-private-key"
+        env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+    - name: Decode GitHub App private key
+      id: app_key
+      shell: bash
+      run: |
+        set +x
+        # Mask the raw base64 value
+        echo "::add-mask::$APP_PRIVATE_KEY_B64"
+        private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+        # Mask every line of the decoded PEM key individually
+        while IFS= read -r line; do
+          if [[ -n "$line" ]]; then
+            echo "::add-mask::$line"
+          fi
+        done <<< "$private_key"
+        delimiter="GHEOF_$(openssl rand -hex 12)"
+        {
+          echo "private_key<<$delimiter"
+          echo "$private_key"
+          echo "$delimiter"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Generate GitHub App token
+      id: app_token
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        client-id: ${{ env.APP_CLIENT_ID }}
+        private-key: ${{ steps.app_key.outputs.private_key }}
+        owner: ${{ inputs.owner || github.repository_owner }}
+        repositories: ${{ inputs.repositories || github.event.repository.name }}

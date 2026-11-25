@@ -1,0 +1,13 @@
+docker
+flaky
+grpcio
+kubernetes
+more-itertools
+playwright
+protobuf
+pyjwt
+pyopenssl
+pytest
+pytest-html
+pyyaml
+requests

@@ -5,15 +5,25 @@ import requests
 from kubernetes.client.rest import ApiException
 from settings import TEST_DATA
 from suite.utils.external_auth_utils import (
+    LONGEST_HEADER_NAME,
+    RETURNED_HEADERS,
+    apply_vs_and_wait,
     build_ext_auth_headers,
+    echo_from_pod,
     ext_auth_backend_src,
     ext_auth_pol_custom_port_src,
     ext_auth_pol_invalid_src,
     ext_auth_pol_invalid_svc_src,
+    ext_auth_pol_response_headers_src,
     ext_auth_pol_signin_src,
     ext_auth_pol_valid_multi_src,
     ext_auth_pol_valid_src,
+    grpc_auth_metadata,
+    grpc_tls_lines,
+    header_values,
     invalid_credentials,
+    lines_named,
+    request_lines,
     valid_auth_headers,
     valid_credentials,
 )
@@ -33,6 +43,7 @@ from suite.utils.resources_utils import (
 from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_valid_vs,
     apply_and_assert_warning_vs,
+    read_vs,
 )
 
 # VS spec file paths
@@ -42,6 +53,16 @@ ext_auth_vs_multi_1_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy
 ext_auth_vs_multi_2_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-multi-2.yaml"
 ext_auth_vs_signin_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-signin.yaml"
 ext_auth_vs_custom_port_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-custom-port.yaml"
+
+
+# authResponseHeaders scenario file paths
+ext_auth_vs_response_headers_src = f"{TEST_DATA}/external-auth/spec/virtual-server-policy-response-headers.yaml"
+ext_auth_vs_response_headers_route_src = (
+    f"{TEST_DATA}/external-auth/route-subroute/virtual-server-route-policy-response-headers.yaml"
+)
+ext_auth_vs_response_headers_grpc_src = (
+    f"{TEST_DATA}/external-auth/spec/virtual-server-policy-response-headers-grpc.yaml"
+)
 
 
 @pytest.mark.policies
@@ -579,3 +600,162 @@ class TestExternalAuthPolicies:
 
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
+
+    # authResponseHeaders acceptance scenarios (docs/developer/external-auth-response-headers-high-level-design.md)
+
+    @pytest.mark.parametrize(
+        "vs_src",
+        [
+            pytest.param(ext_auth_vs_response_headers_src, id="vs-spec"),
+            pytest.param(ext_auth_vs_response_headers_route_src, id="vs-route"),
+        ],
+    )
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_every_attachment_point_forwards(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+        vs_src,
+    ):
+        """The backend receives one line per listed header that the auth service returned, as P spells it."""
+        apply_vs_and_wait(kube_apis, virtual_server_setup, vs_src)
+        lines = request_lines(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
+        for name, value in RETURNED_HEADERS:
+            assert lines_named(lines, name) == [(name, value)]
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_repeated_lines_are_joined(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """Two X-Group lines in the auth response reach the backend as one line."""
+        apply_vs_and_wait(kube_apis, virtual_server_setup, ext_auth_vs_response_headers_src)
+        lines = request_lines(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
+        assert lines_named(lines, "X-Group") == [("X-Group", "a, b")]
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_client_values_are_replaced(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """A client-supplied Tenant-UUID is replaced, and the VirtualServer reports no warning."""
+        apply_vs_and_wait(kube_apis, virtual_server_setup, ext_auth_vs_response_headers_src)
+        lines = request_lines(
+            virtual_server_setup.backend_1_url, virtual_server_setup.vs_host, {"Tenant-UUID": "spoofed"}
+        )
+        assert header_values(lines, "Tenant-UUID") == ["tenant-123"]
+        vs = read_vs(kube_apis.custom_objects, virtual_server_setup.namespace, virtual_server_setup.vs_name)
+        assert vs["status"]["state"] == "Valid"
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_in_any_letter_case(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """Client copies spelled in other letter cases are replaced too."""
+        apply_vs_and_wait(kube_apis, virtual_server_setup, ext_auth_vs_response_headers_src)
+        for variant in ("tenant-uuid", "TENANT-UUID"):
+            lines = request_lines(
+                virtual_server_setup.backend_1_url, virtual_server_setup.vs_host, {variant: "spoofed"}
+            )
+            assert header_values(lines, "Tenant-UUID") == ["tenant-123"], variant
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_underscore_variants_are_dropped(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """Guard: a client header named Tenant_UUID never reaches the backend, which would report it."""
+        control = echo_from_pod(kube_apis, test_namespace, {"Tenant_UUID": "control"})
+        assert header_values(control, "Tenant_UUID") == ["control"], "the echo backend must report names with _"
+
+        apply_vs_and_wait(kube_apis, virtual_server_setup, ext_auth_vs_response_headers_src)
+        lines = request_lines(
+            virtual_server_setup.backend_1_url, virtual_server_setup.vs_host, {"Tenant_UUID": "spoofed"}
+        )
+        assert header_values(lines, "Tenant_UUID") == []
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_omitted_headers_are_removed(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """A listed header that the auth service does not return is removed from the client request."""
+        apply_vs_and_wait(kube_apis, virtual_server_setup, ext_auth_vs_response_headers_src)
+        lines = request_lines(
+            virtual_server_setup.backend_1_url, virtual_server_setup.vs_host, {"Permissions": "admin"}
+        )
+        assert header_values(lines, "Permissions") == []
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_grpc_backends(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        ext_auth_http2_config,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """A call with tenant-uuid: spoofed reaches the gRPC backend of a route with one tenant-uuid: tenant-123."""
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            ext_auth_vs_response_headers_grpc_src,
+        )
+        lines = grpc_tls_lines(
+            virtual_server_setup.public_endpoint,
+            virtual_server_setup.vs_host,
+            grpc_auth_metadata([("tenant-uuid", "spoofed")]),
+        )
+        assert lines_named(lines, "tenant-uuid") == [("tenant-uuid", "tenant-123")]
+
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_response_headers_src],)], indirect=True)
+    def test_the_longest_name_loads(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        ext_auth_http2_config,
+        virtual_server_setup,
+        ext_auth_setup,
+        headers_echo_backend,
+        ext_auth_restore_vs,
+    ):
+        """With a 46-character name in P, the VirtualServer is Valid, and an HTTP and a gRPC backend receive it."""
+        apply_vs_and_wait(kube_apis, virtual_server_setup, ext_auth_vs_response_headers_grpc_src)
+        lines = request_lines(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
+        assert header_values(lines, LONGEST_HEADER_NAME) == ["long"]
+        lines = grpc_tls_lines(virtual_server_setup.public_endpoint, virtual_server_setup.vs_host, grpc_auth_metadata())
+        assert header_values(lines, LONGEST_HEADER_NAME) == ["long"]

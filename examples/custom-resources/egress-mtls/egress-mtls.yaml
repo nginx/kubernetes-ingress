@@ -6,7 +6,7 @@ spec:
   egressMTLS:
     tlsSecret: egress-mtls-secret
     trustedCertSecret: egress-trusted-ca-secret
-    verifyServer: on
+    verifyServer: true
     verifyDepth: 2
-    serverName: on
+    serverName: true
     sslName: secure-app.example.com

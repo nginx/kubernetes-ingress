@@ -1005,14 +1005,33 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			}
 		}
 
-		// handle virtualservers
+		// handle resources that reference a scaled Policy
 		if lbc.areCustomResourcesEnabled {
+			// Skip Ingresses the loops above already regenerated, so each resource reloads once.
+			regenerated := make(map[string]bool, len(resources))
+			for _, r := range resources {
+				regenerated[r.GetKeyWithKind()] = true
+			}
 			// Call the configurator directly, as reload_invariant_test.go requires.
 			for _, r := range lbc.findResourcesUsingPolicyScaling() {
-				if vsConfig, ok := r.(*VirtualServerConfiguration); ok {
-					vsEx := lbc.createVirtualServerEx(vsConfig.VirtualServer, vsConfig.VirtualServerRoutes, vsConfig.VirtualServerRouteSelectors)
+				if regenerated[r.GetKeyWithKind()] {
+					continue
+				}
+				switch impl := r.(type) {
+				case *VirtualServerConfiguration:
+					vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 					warnings, err := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
-					lbc.updateVirtualServerStatusAndEvents(vsConfig, warnings, err)
+					lbc.updateVirtualServerStatusAndEvents(impl, warnings, err)
+				case *IngressConfiguration:
+					if impl.IsMaster {
+						mergeableIng := lbc.createMergeableIngresses(impl)
+						warnings, err := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
+						lbc.updateMergeableIngressStatusAndEvents(mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions), warnings, err)
+					} else {
+						ingEx := lbc.createIngressEx(impl.Ingress, impl.ValidHosts, nil)
+						warnings, err := lbc.configurator.AddOrUpdateIngress(ingEx)
+						lbc.updateRegularIngressStatusAndEvents(mergeIngressPolicyWarnings(impl, ingEx, nil), warnings, err)
+					}
 				}
 			}
 		}

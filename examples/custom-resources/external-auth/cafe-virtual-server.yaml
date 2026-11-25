@@ -11,16 +11,16 @@ spec:
     redirect:
       enable: true
   upstreams:
-  - name: tea
-    service: tea-svc
-    port: 80
-  - name: coffee
-    service: coffee-svc
-    port: 80
+    - name: tea
+      service: tea-svc
+      port: 80
+    - name: coffee
+      service: coffee-svc
+      port: 80
   routes:
-  - path: /tea
-    action:
-      pass: tea
-  - path: /coffee
-    action:
-      pass: coffee
+    - path: /tea
+      action:
+        pass: tea
+    - path: /coffee
+      action:
+        pass: coffee

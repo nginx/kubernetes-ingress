@@ -13,16 +13,16 @@ spec:
     labels:
       label1: value1
   upstreams:
-  - name: backend2
-    service: backend2-svc
-    port: 80
-  - name: backend1
-    service: backend1-svc
-    port: 80
+    - name: backend2
+      service: backend2-svc
+      port: 80
+    - name: backend1
+      service: backend1-svc
+      port: 80
   routes:
-  - path: "/backend1"
-    action:
-      pass: backend1
-  - path: "/backend2"
-    action:
-      pass: backend2
+    - path: "/backend1"
+      action:
+        pass: backend1
+    - path: "/backend2"
+      action:
+        pass: backend2

@@ -17,7 +17,7 @@ OS-specific base stages         <- One per variant (debian, alpine, ubi, *-plus,
 FROM ${BUILD_OS} AS common      <- Runs common.sh + patch-os.sh, sets permissions
   |
 TARGET stages (final image)     <- local, container, goreleaser, debug, debug-container,
-                                   download, aws, patched, and *-prebuilt variants
+                                   download, patched, and *-prebuilt variants
 ```
 
 Supporting images built outside this Dockerfile:
@@ -102,9 +102,8 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 | `debug` | Includes delve debugger |
 | `debug-container` | Delve build with the binary compiled inside Docker |
 | `download` | Extracts binary from a published Docker Hub image (`DOWNLOAD_TAG`, resolved by `hack/docker.sh`) |
-| `aws` | AWS marketplace variant |
 | `patched` | OS patches an existing image (`IMAGE_NAME`) |
-| `local-prebuilt`, `goreleaser-prebuilt`, `aws-prebuilt` | Same as their counterparts but layered onto `PREBUILT_BASE_IMG` instead of rebuilding the OS stage |
+| `local-prebuilt`, `goreleaser-prebuilt` | Same as their counterparts but layered onto `PREBUILT_BASE_IMG` instead of rebuilding the OS stage |
 
 ---
 

@@ -10,10 +10,14 @@ spec:
       return:
         code: 200
         type: text/plain
-        body: 'LONGEST PREFIX SUBROUTE MATCH (^~)\nPath Directive:      ^~/static/css/\nRequest URI:         ${request_uri}\nVirtualServerRoute:  longest-prefix-routes\nSubroutes under a ^~ parent must also use the ^~ modifier.\n'
+        body: 'LONGEST PREFIX SUBROUTE MATCH (^~)\nPath Directive:      ^~/static/css/\nRequest
+          URI:         ${request_uri}\nVirtualServerRoute:  longest-prefix-routes\nSubroutes
+          under a ^~ parent must also use the ^~ modifier.\n'
   - path: "^~/static/js/"
     action:
       return:
         code: 200
         type: text/plain
-        body: 'LONGEST PREFIX SUBROUTE MATCH (^~)\nPath Directive:      ^~/static/js/\nRequest URI:         ${request_uri}\nVirtualServerRoute:  longest-prefix-routes\nSubroutes under a ^~ parent must also use the ^~ modifier.\n'
+        body: 'LONGEST PREFIX SUBROUTE MATCH (^~)\nPath Directive:      ^~/static/js/\nRequest
+          URI:         ${request_uri}\nVirtualServerRoute:  longest-prefix-routes\nSubroutes
+          under a ^~ parent must also use the ^~ modifier.\n'

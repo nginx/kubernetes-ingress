@@ -142,6 +142,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     ],
     indirect=True,
 )
+@pytest.mark.usefixtures("restore_configmap")
 class TestOIDCFCLO:
     def test_oidc(
         self,

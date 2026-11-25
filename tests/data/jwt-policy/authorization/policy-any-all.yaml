@@ -1,0 +1,25 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: jwt-authz-any-all
+spec:
+  jwt:
+    realm: MyProductAPI
+    secret: jwk-secret-valid
+    token: $http_token
+    authorization:
+      require: Any
+      rules:
+      - require: All
+        claims:
+        - name: iss
+          values: ["https://login.example.com"]
+        - name: role
+          values: [admin]
+      - require: Any
+        claims:
+        - name: realm_access.roles
+          match: Contains
+          values: [staff]
+        - name: act
+          match: Present
