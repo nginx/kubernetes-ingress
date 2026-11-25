@@ -80,6 +80,18 @@ Minions inherent the following annotations from the master, unless they override
 
 Note: Ingress Resources with more than one host cannot be used.
 
+### Policies
+
+Masters and minions can both reference policies with the `nginx.org/policies` and `nginx.com/policies` annotations.
+Unlike the annotations listed above, these annotations are not copied from the master to minions. Instead, where a
+policy applies depends on which resource references it:
+
+- Policies referenced by the master apply to every path of the host.
+- Policies referenced by a minion apply only to the paths of that minion. For those paths, a minion policy takes
+  precedence over a master policy of the same type
+- IngressMTLS policies can only be referenced by the master, because NGINX verifies client certificates for the whole
+  host.
+
 ## Example
 
 In this example we deploy NGINX Ingress Controller, a simple web application and then configure load balancing for
