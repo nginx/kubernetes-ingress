@@ -17,6 +17,7 @@ import tempfile
 import time
 
 import pytest
+import requests
 import yaml
 from kubernetes.client.rest import ApiException
 from settings import CRDS, DEPLOYMENTS, HELM_CHARTS, TEST_DATA
@@ -29,6 +30,7 @@ from suite.utils.resources_utils import (
     generate_e2e_run_id,
     get_e2e_run_selector,
     retry_get_until_status_code,
+    wait_before_test,
     wait_until_all_pods_are_ready,
 )
 
@@ -242,6 +244,40 @@ def ingress_body(name, host, ingress_class) -> dict:
     }
 
 
+def assert_status_stays(req_url, host, expected_status, duration=5, interval=1) -> None:
+    """
+    GET req_url repeatedly for `duration` seconds and fail on the first response whose status code
+    is not expected_status.
+
+    Unlike retry_get_until_status_code, which returns on the first match, this observes the whole
+    window: a single matching response is not enough to show the host stays unserved, because a
+    namespaced informer's sync queue can take a moment to reach a just-created resource, and an
+    isolation check made right after creating that resource could otherwise pass on NGINX's
+    default-server response before either controller has reconciled it.
+
+    Tolerates ConnectionError, caused by NGINX reloads, the same way retry_get_until_status_code does.
+    """
+    deadline = time.monotonic() + duration
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            resp = requests.get(req_url, headers={"host": host})
+            assert resp.status_code == expected_status, (
+                f"expected {expected_status} from {host}, got {resp.status_code} on attempt {attempts} "
+                f"(observed for {duration}s to allow for a delayed reconciliation)"
+            )
+        except requests.exceptions.ConnectionError as e:
+            print(f"Attempt {attempts}: connection dropped during reload ({e})")
+        if time.monotonic() > deadline:
+            break
+        wait_before_test(interval)
+    if attempts <= 1:
+        pytest.fail(
+            f"only {attempts} request(s) were made to {host} in {duration}s; the observation window is too short"
+        )
+
+
 def cleanup_step(description, func, *args, **kwargs) -> None:
     """Run a teardown step, logging and continuing past any failure so one broken step can't
     leave the rest of the cleanup undone."""
@@ -290,17 +326,23 @@ def tenant_setup(request, kube_apis, cli_arguments) -> TenantSetup:
         print("------------------------- Tenant install teardown -----------------------------------")
         # Each step runs independently: a failure (e.g. a release or namespace already gone, or a
         # transient API error) must not stop the rest of the cleanup from running.
+        # Only uninstall releases in namespaces this fixture created: if setup failed because a
+        # namespace already existed (see the create_namespace_with_name_from_yaml loop below),
+        # created_namespaces is incomplete, and this must not uninstall someone else's release in
+        # a namespace this run never touched.
         for tenant in TENANTS:
-            cleanup_step(
-                f"uninstall tenant release in {TENANTS[tenant]['namespaces'][0]}",
-                uninstall,
-                cli_arguments,
-                TENANT_RELEASE,
-                TENANTS[tenant]["namespaces"][0],
-            )
-            cleanup_step(
-                f"uninstall platform-{tenant}", uninstall, cli_arguments, f"platform-{tenant}", PLATFORM_NAMESPACE
-            )
+            if TENANTS[tenant]["namespaces"][0] in created_namespaces:
+                cleanup_step(
+                    f"uninstall tenant release in {TENANTS[tenant]['namespaces'][0]}",
+                    uninstall,
+                    cli_arguments,
+                    TENANT_RELEASE,
+                    TENANTS[tenant]["namespaces"][0],
+                )
+            if PLATFORM_NAMESPACE in created_namespaces:
+                cleanup_step(
+                    f"uninstall platform-{tenant}", uninstall, cli_arguments, f"platform-{tenant}", PLATFORM_NAMESPACE
+                )
         for namespace in created_namespaces:
             cleanup_step(f"delete namespace {namespace}", delete_namespace, kube_apis.v1, namespace)
         if created_aggregate:
@@ -387,6 +429,14 @@ class TestTenantIsolation:
             create_example_app(kube_apis, "simple", namespace, e2e_run_id=e2e_run_id)
             create_ingress(kube_apis.networking_v1, namespace, ingress_body(name, host, ingress_class))
             wait_until_all_pods_are_ready(kube_apis.v1, namespace, get_e2e_run_selector(e2e_run_id))
+
+        # Wait until each tenant's own controller actually serves its own
+        # host before testing isolation.
+        for namespace, (_, host, _) in apps.items():
+            tenant = "a" if namespace.startswith("tenant-a") else "b"
+            resp = retry_get_until_status_code(self.url(tenant_setup, tenant), host, 200)
+            assert resp.status_code == 200, f"setup: tenant {tenant} never served its own host {host}"
+
         # An Ingress in tenant b's namespace that names tenant a's IngressClass. Tenant a doesn't watch
         # tenant-b, and tenant b ignores other classes, so nothing serves it.
         create_ingress(
@@ -394,6 +444,14 @@ class TestTenantIsolation:
             "tenant-b",
             ingress_body("b-claims-a-ingress", "b-claims-a.example.com", TENANTS["a"]["ingress_class"]),
         )
+        create_ingress(
+            kube_apis.networking_v1,
+            "tenant-b",
+            ingress_body("b-control-ingress", "b-control.example.com", TENANTS["b"]["ingress_class"]),
+        )
+        resp = retry_get_until_status_code(self.url(tenant_setup, "b"), "b-control.example.com", 200)
+        assert resp.status_code == 200, "setup: tenant b never served the control Ingress b-control-ingress"
+
         return tenant_setup
 
     def url(self, tenants, tenant) -> str:
@@ -405,14 +463,18 @@ class TestTenantIsolation:
             assert resp.status_code == 200, f"tenant {tenant} returned {resp.status_code} for its host {host}"
 
     def test_tenants_do_not_serve_each_other(self, tenants):
+        # The tenants fixture already waited for each tenant to serve its own host, so by now both
+        # controllers have reconciled; assert_status_stays checks the other tenant's host stays
+        # unserved over an observation window, rather than returning on the first 404.
         for tenant, host in [("a", "b.example.com"), ("b", "a.example.com"), ("b", "a-apps.example.com")]:
-            resp = retry_get_until_status_code(self.url(tenants, tenant), host, 404, retries=5)
-            assert resp.status_code == 404, f"tenant {tenant} returned {resp.status_code} for another tenant's host"
+            assert_status_stays(self.url(tenants, tenant), host, 404)
 
     def test_ingress_class_of_another_tenant_is_not_served(self, tenants):
+        # The tenants fixture already waited for tenant b's control Ingress to be served, which
+        # happened after the claimed-class Ingress in its sync queue; assert_status_stays then
+        # checks the claimed-class host stays unserved by both controllers.
         for tenant in ["a", "b"]:
-            resp = retry_get_until_status_code(self.url(tenants, tenant), "b-claims-a.example.com", 404, retries=5)
-            assert resp.status_code == 404, f"tenant {tenant} served an Ingress in tenant-b with IngressClass tenant-a"
+            assert_status_stays(self.url(tenants, tenant), "b-claims-a.example.com", 404)
 
 
 @pytest.mark.tenant_install
