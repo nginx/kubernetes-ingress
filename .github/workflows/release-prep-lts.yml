@@ -145,29 +145,12 @@ jobs:
         with:
           ref: ${{ inputs.release_branch }}
 
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+      - name: GCR login
+        uses: ./.github/actions/vault-gcr-login
         with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
-
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Get Id Token for Test Registry
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -296,24 +279,14 @@ jobs:
           secret-names: "azure-storage-account, azure-storage-bucket"
           env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
 
-      - name: Azure login for upload
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+      - name: Azure Upload Release Binaries
+        uses: ./.github/actions/azure-blob
         with:
           client-id: ${{ secrets.AZURE_UPLOAD_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Azure Upload Release Packages
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
-        with:
-          inlineScript: |
-            for i in $(find tarballs -type f); do
-              echo -n "Uploading ${i} to kubernetes-ingress/${{ inputs.lts_version }}/${i##*/} ... "
-              if ${{ ! inputs.dry_run}}; then
-                az storage blob upload --auth-mode=login -f "$i" -c ${{ env.AZURE_BUCKET_NAME }} \
-                  --account-name ${{ env.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/${{ inputs.lts_version }}/${i##*/}
-                echo "done"
-              else
-                echo "skipped, dry_run."
-              fi
-            done
+          storage-account: ${{ env.AZURE_STORAGE_ACCOUNT }}
+          container-name: ${{ env.AZURE_BUCKET_NAME }}
+          source-dir: tarballs
+          destination-path: kubernetes-ingress/${{ inputs.lts_version }}
+          dry-run: ${{ inputs.dry_run }}
