@@ -40,6 +40,10 @@ inputs:
   pytest-args:
     description: Extra pytest arguments, e.g. --maxfail=100 to keep running after the first failure
     required: false
+  durations:
+    description: Durations to run tests
+    default: 10
+    required: false
 
 outputs:
   test-results-name:
@@ -114,7 +118,7 @@ runs:
         --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
         --junitxml=${{ steps.k8s.outputs.test_junit_path }} \
-        --durations=10 \
+        --durations=${{ inputs.durations }} \
         -rfE \
         --show-ic-logs=yes \
         --plus-jwt=${{ inputs.plus-jwt }} \

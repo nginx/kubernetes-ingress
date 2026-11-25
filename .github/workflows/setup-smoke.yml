@@ -36,6 +36,10 @@ on:
       force:
         required: true
         type: boolean
+      durations:
+        required: false
+        type: string
+        default: "10"
 
 defaults:
   run:
@@ -221,6 +225,7 @@ jobs:
           test-image: "${{ steps.test-runner.outputs.test_runner_image }}"
           plus-jwt: ${{ env.PLUS_JWT }}
           plm-helm-repo: ${{ vars.PLM_HELM_REPO }}
+          durations: ${{ inputs.durations }}
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Upload Test Results
