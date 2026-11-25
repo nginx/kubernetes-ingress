@@ -168,6 +168,14 @@ cover: ## Generate coverage report
 cover-html: test ## Generate and show coverage report in HTML format
 	go tool cover -html coverage.txt
 
+.PHONY: ci-preview
+ci-preview: ## Show which CI stages would run for this branch (BASE=origin/main, LABELS=ci:skip-smoke,...)
+	@python3 .github/scripts/ci-preview.py --base "$(or $(BASE),origin/main)" --labels "$(LABELS)"
+
+.PHONY: ci-help
+ci-help: ## Explain Selective CI and its PR labels
+	@python3 .github/scripts/ci-preview.py --help-labels
+
 .PHONY: verify-codegen
 verify-codegen: ## Verify code generation
 	./hack/verify-codegen.sh
