@@ -449,7 +449,7 @@ Build the args for the service binary.
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
 {{- if .Values.nginxAgent.enable }}
 - -agent=true
-{{- if eq .Values.nginxAgent.dataplaneKeySecretName "" }}
+{{- if eq (include "nginx-ingress.agentTarget" .) "" }}
 - -agent-instance-group={{ default (include "nginx-ingress.controller.fullname" .) .Values.nginxAgent.instanceGroup }}
 {{- end }}
 {{- end }}
@@ -503,10 +503,10 @@ List of volumes for controller.
     name: {{ include "nginx-ingress.agentConfigName" . }}
 - name: agent-etc
   emptyDir: {}
-{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+{{- if ne (include "nginx-ingress.agentN1CDataplaneKeySecret" .) "" }}
 - name: dataplane-key
   secret:
-    secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
+    secretName: {{ include "nginx-ingress.agentN1CDataplaneKeySecret" . }}
 {{- end }}
 - name: agent-dynamic
   emptyDir: {}
@@ -574,7 +574,7 @@ volumeMounts:
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
-{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+{{- if ne (include "nginx-ingress.agentN1CDataplaneKeySecret" .) "" }}
 - name: dataplane-key
   mountPath: /etc/nginx-agent/secrets
 {{- end }}
@@ -650,8 +650,154 @@ volumeMounts:
 {{- end }}
 {{- end }}
 
+{{/*
+Returns "true" when NGINX Agent v3 should forward F5 WAF for NGINX security events to NGINX Instance Manager.
+*/}}
+{{- define "nginx-ingress.agentNimSecurityEventsEnabled" -}}
+{{- $target := include "nginx-ingress.agentTarget" . -}}
+{{- if and .Values.nginxAgent.enable (or (eq $target "nim") (eq $target "both")) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Resolves nginxAgent.target. Returns "n1c", "nim", "both" or "" (Agent v2 with NGINX Instance Manager).
+An empty nginxAgent.target keeps the behaviour of previous releases: "n1c" when dataplaneKeySecretName is set, otherwise "".
+*/}}
+{{- define "nginx-ingress.agentTarget" -}}
+{{- $target := .Values.nginxAgent.target | default "" -}}
+{{- $key := .Values.nginxAgent.dataplaneKeySecretName | default "" -}}
+{{- if eq $target "" -}}
+{{- if ne $key "" -}}n1c{{- end -}}
+{{- else if not (has $target (list "n1c" "nim" "both")) -}}
+{{- fail (printf "Error: 'nginxAgent.target' must be one of \"\", \"n1c\", \"nim\", \"both\"; got %q." $target) -}}
+{{- else -}}
+{{- if and (ne $target "nim") (eq $key "") -}}
+{{- fail (printf "Error: 'nginxAgent.target: %s' requires 'nginxAgent.dataplaneKeySecretName' to be set." $target) -}}
+{{- end -}}
+{{- $target -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Returns the dataplane key secret name when NGINX Agent v3 connects to NGINX One Console, otherwise "".
+*/}}
+{{- define "nginx-ingress.agentN1CDataplaneKeySecret" -}}
+{{- $target := include "nginx-ingress.agentTarget" . -}}
+{{- if or (eq $target "n1c") (eq $target "both") -}}
+{{- .Values.nginxAgent.dataplaneKeySecretName -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+NGINX Agent v3 collector entries that forward F5 WAF for NGINX security events to NGINX Instance Manager.
+Uses nginxAgent.instanceManager. Rendered under the "collector:" key.
+*/}}
+{{- define "nginx-ingress.agentNimCollector" -}}
+{{- $im := .Values.nginxAgent.instanceManager | default dict -}}
+{{- $tls := $im.tls | default dict -}}
+{{- $target := .Values.nginxAgent.target -}}
+{{- if not .Values.controller.nginxplus -}}
+{{- fail (printf "Error: 'nginxAgent.target: %s' requires NGINX Plus ('controller.nginxplus') to be true." $target) -}}
+{{- end -}}
+{{- if not (and .Values.controller.appprotect.enable .Values.controller.appprotect.v5) -}}
+{{- fail (printf "Error: 'nginxAgent.target: %s' requires F5 WAF for NGINX v5 ('controller.appprotect.enable' and 'controller.appprotect.v5') to be true." $target) -}}
+{{- end -}}
+{{- if $im.staticSyslogReceiver }}
+receivers:
+  tcplog:
+    nginx_app_protect:
+      listen_address: "{{ .Values.nginxAgent.syslog.host }}:{{ .Values.nginxAgent.syslog.port }}"
+      operators:
+        - type: regex_parser
+          fields:
+            regex: '^<(?P<priority>\d+)>'
+            parse_from: body
+            parse_to: attributes
+        - type: filter
+          fields:
+            expr: '''int(attributes.priority) % 8 > 4'''
+            drop_ratio: "1.0"
+        - type: add
+          fields:
+            field: body
+            value: '''EXPR(let timestamp = split(split(body, ">")[1], " ")[0]; let newTimestamp = date(timestamp).UTC().Format("Jan _2 15:04:05"); split(body, ">")[0] + ">" + newTimestamp + " " + split(body, " ", 2)[1])'''
+        - type: syslog_parser
+          fields:
+            protocol: rfc3164
+        - type: remove
+          fields:
+            field: attributes.message
+        - type: add
+          fields:
+            field: resource["instance.type"]
+            value: nginx-app-protect
+{{- end }}
+processors:
+  batch:
+    nim_logs: {}
+  securityviolationsfilter:
+    nim: {}
+exporters:
+  otlp:
+    nim:
+      server:
+        host: {{ required (printf "Error: 'nginxAgent.target: %s' requires 'nginxAgent.instanceManager.host' to be set." $target) $im.host | quote }}
+        port: {{ $im.otlpPort | default 4317 }}
+      authenticator: headers_setter
+{{- if ne (toString $tls.enable) "false" }}
+      tls:
+        skip_verify: {{ $tls.skipVerify | default false }}
+{{- if $tls.caSecret }}
+        ca: "/etc/ssl/nms/ca.crt"
+{{- end }}
+{{- if $im.sni }}
+        server_name: {{ $im.sni | quote }}
+{{- end }}
+{{- end }}
+extensions:
+  headers_setter:
+    headers:
+      - action: insert
+        key: authorization
+        file_path: /etc/nginx/secrets/license.jwt
+pipelines:
+  logs:
+    nim:
+      receivers: ["tcplog/nginx_app_protect"]
+      processors: ["securityviolationsfilter/nim", "batch/nim_logs"]
+      exporters: ["otlp_grpc/nim"]
+{{- end -}}
+
+
 {{- define "nginx-ingress.agentConfiguration" -}}
-{{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
+{{- $nimEnabled := eq (include "nginx-ingress.agentNimSecurityEventsEnabled" .) "true" -}}
+{{- if eq (include "nginx-ingress.agentTarget" .) "nim" }}
+log:
+  # set log level (error, info, debug; default "info")
+  level: {{ .Values.nginxAgent.logLevel }}
+  # set log path. if empty, don't log to file.
+  path: ""
+
+allowed_directories:
+  - /etc/nginx
+  - /usr/lib/nginx/modules
+  - /etc/app_protect
+
+features:
+  - metrics
+  - logs-nap
+
+## collector settings
+collector:
+  log:
+    path: "stdout"
+{{ include "nginx-ingress.agentNimCollector" . | trim | indent 2 }}
+{{- if .Values.nginxAgent.labels }}
+
+labels:
+{{ toYaml .Values.nginxAgent.labels | indent 2 }}
+{{- end }}
+
+{{- else if ne (include "nginx-ingress.agentN1CDataplaneKeySecret" .) "" }}
 log:
   # set log level (error, info, debug; default "info")
   level: {{ .Values.nginxAgent.logLevel }}
@@ -688,6 +834,9 @@ command:
 collector:
   log:
     path: "stdout"
+{{- if $nimEnabled }}
+{{ include "nginx-ingress.agentNimCollector" . | trim | indent 2 }}
+{{- end }}
 {{- if .Values.nginxAgent.labels }}
 
 labels:

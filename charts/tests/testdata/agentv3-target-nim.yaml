@@ -1,0 +1,18 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+    v5: true
+    volumes:
+      - name: app-protect-bd-config
+        emptyDir: {}
+      - name: app-protect-config
+        emptyDir: {}
+      - name: app-protect-bundles
+        emptyDir: {}
+nginxAgent:
+  enable: true
+  target: "nim"
+  dataplaneKeySecretName: "dataplane-key"
+  instanceManager:
+    host: "nim.example.com"

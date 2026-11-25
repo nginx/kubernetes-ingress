@@ -1,0 +1,7 @@
+controller:
+  nginxplus: true
+nginxAgent:
+  enable: true
+  target: "nim"
+  instanceManager:
+    host: "nim.example.com"

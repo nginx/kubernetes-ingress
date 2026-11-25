@@ -861,6 +861,16 @@ nginxAgent:
   logLevel: "info"
 
   # Agent V3 configuration
+  ## Selects where NGINX Agent v3 sends data. Options:
+  ##   ""     - default, unchanged behaviour: Agent v3 with NGINX One Console when dataplaneKeySecretName is set,
+  ##            otherwise Agent v2 with NGINX Instance Manager (instanceManager).
+  ##   "n1c"  - Agent v3 with NGINX One Console only. Requires dataplaneKeySecretName.
+  ##   "nim"  - Agent v3 sends F5 WAF for NGINX v5 security events to NGINX Instance Manager only.
+  ##            Requires instanceManager.host. dataplaneKeySecretName is ignored.
+  ##   "both" - Agent v3 with NGINX One Console and NGINX Instance Manager.
+  ## "nim" and "both" require controller.nginxplus, controller.appprotect.enable and controller.appprotect.v5,
+  ## and use the NGINX Plus license JWT (controller.mgmt.licenseTokenSecretName) as the bearer token.
+  target: ""
   # Dataplane key is required to authenticate NGINX Agent with NGINX One Console
   dataplaneKeySecretName: ""
   endpointHost: "agent.connect.nginx.com"
@@ -869,13 +879,22 @@ nginxAgent:
   ## Custom labels to associate with the NGINX instance in NGINX One Console (for example, display-name: my-instance).
   labels: {}
 
-  # Agent V2 configuration
-  ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used
+  # NGINX Instance Manager configuration
+  # Used by Agent v2 when target is "", and by Agent v3 when target is "nim" or "both".
+  ## If nginxAgent.instanceGroup is not set the value of nginx-ingress.controller.fullname will be used (Agent v2 only)
   instanceGroup: ""
   instanceManager:
     # FQDN or IP for connecting to NGINX Instance Manager, e.g. nim.example.com
     host: ""
+    ## gRPC port for Agent v2.
     grpcPort: 443
+    ## OTLP gRPC port for Agent v3 (target "nim" or "both").
+    otlpPort: 4317
+    ## Agent v3 only: statically declare the F5 WAF for NGINX syslog receiver instead of relying on
+    ## NGINX Agent auto-discovery. Only needed where Agent cannot discover the NGINX process (for example, emulated environments).
+    staticSyslogReceiver: false
+    ## TLS for the connection to NGINX Instance Manager. For Agent v3, disabling TLS (tls.enable: false)
+    ## sends the license JWT in plaintext. tls.secret (mTLS) applies to Agent v2 only.
     tls:
       enabled: true
       skipVerify: false

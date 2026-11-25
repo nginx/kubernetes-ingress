@@ -5,12 +5,15 @@ This example describes how to deploy NGINX Plus Ingress Controller with [F5 WAF 
 WAF policy bundles can be sourced in two ways:
 
 - **Filesystem bundles** (`apBundle`) — manually compile and copy `.tgz` bundles to the pod volume. See Steps 3–4 below.
-- **Remote bundle sources** (`apBundleSource`) — NIC automatically fetches bundles from NGINX One Console (N1C), NGINX Instance Manager (NIM), or any HTTPS endpoint. See [WAF with Management Plane Sources](../waf-management-plane/) or [WAF with HTTPS Bundle Sources](../waf-https-bundles/) for details, or use `waf-n1c.yaml` / `waf-nim.yaml` in Step 4 below.
+- **Remote bundle sources** (`apBundleSource`) — NIC automatically fetches bundles from NGINX One Console (N1C), NGINX Instance Manager (NIM), or any HTTPS endpoint. See [WAF with Management Plane Sources](../waf-management-plane/) or [WAF with HTTPS Bundle Sources](../waf-https-bundles/) for details, or use `waf-n1c.yaml`, `waf-nim.yaml` or `waf-nim-agent-v3.yaml` in Step 4 below.
 
-This example works with both:
+This example works with:
 
 - **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
 - **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
+- **NGINX Instance Manager** (Agent 3.*) - Set `nginxAgent.target: nim` (or `both` to also connect to NGINX One Console) and
+  `nginxAgent.instanceManager.host` in the Helm chart. NGINX Agent forwards security events to NGINX Instance Manager over
+  OTLP gRPC (`nginxAgent.instanceManager.otlpPort`, default `4317`) using the NGINX Plus license JWT.
 
 > **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent (3.*) and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent (2.*) for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
 >
@@ -33,7 +36,7 @@ This example works with both:
     The output will show either `2.x.x` or `3.x.x`. Use this to choose the correct WAF policy in step 4 below.
 
     - Agent 2.*: connects to NGINX Instance Manager
-    - Agent 3.*: connects to NGINX One Console
+    - Agent 3.*: connects to NGINX One Console, NGINX Instance Manager, or both (see `nginxAgent.target`)
 
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -57,7 +60,7 @@ kubectl apply -f cafe.yaml
 
 ## 3. Create and Deploy the WAF Policy and Log Bundles (filesystem bundles only)
 
-> **Skip this step** if using remote bundle sources (`waf-n1c.yaml`) — NIC fetches bundles automatically.
+> **Skip this step** if using remote bundle sources (`waf-n1c.yaml`, `waf-nim.yaml` or `waf-nim-agent-v3.yaml`) — NIC fetches bundles automatically.
 
 1. Compile your WAF policy and log configuration into bundles (`.tgz` files) using the `waf-compiler` image. See [Compile WAF Policy from JSON to Bundle](https://docs.nginx.com/nginx-ingress-controller/install/waf-helm/#compile-waf-policy-from-json-to-bundle) for compilation steps.
 
@@ -84,7 +87,7 @@ kubectl apply -f cafe.yaml
     kubectl apply -f syslog.yaml
     ```
 
-    If you are using Agent (3.*) (NGINX One Console), skip this step. NGINX Agent 3.* listens for security logs locally on `127.0.0.1:1514` using its embedded OpenTelemetry collector.
+    If you are using Agent (3.*) (NGINX One Console or NGINX Instance Manager), skip this step. NGINX Agent 3.* listens for security logs locally on `127.0.0.1:1514` using its embedded OpenTelemetry collector.
 
 1. Create the WAF policy referencing the compiled bundles. Choose the file that matches your setup:
 
@@ -123,6 +126,19 @@ kubectl apply -f cafe.yaml
     Edit `waf-n1c.yaml` and replace `<tenant>` and `<policy_name>` with your NGINX One Console values. The API token is generated from the [F5 Distributed Cloud Console](https://console.ves.volterra.io) under **Account Settings > Credentials > Add Credentials > API Token**. See [NGINX One Console API Authentication](https://docs.nginx.com/nginx-one-console/api/authentication/) for details.
 
     > When using `waf-n1c.yaml`, skip Step 3 (manual bundle compilation and copy) — NIC fetches bundles directly from NGINX One Console.
+
+    **Agent 3.* (NGINX Instance Manager) with remote bundle pulling** — bundles fetched from NIM via `apBundleSource`, logs sent to the local NGINX Agent listener, which forwards them to NIM:
+
+    ```console
+    kubectl create secret generic nim-credentials \
+      --from-literal=token=<Your NIM Token>
+    kubectl apply -f waf-nim-agent-v3.yaml
+    ```
+
+    Edit `waf-nim-agent-v3.yaml` and replace `<nim_host>` with your NGINX Instance Manager host. The example uses the NGINX Instance Manager built-in `NginxStrictPolicy` policy and `secops_dashboard_f5_ngf` log profile (NGINX Agent 3.*requires this log format; the `secops_dashboard` profile used by Agent 2.* is not compatible); the policy must have a compiled bundle for your F5 WAF for NGINX version. If NGINX Instance Manager uses a self-signed certificate, set `trustedCertSecret` (or `insecureSkipVerify: true` for testing only) on both bundle sources.
+    NIM also supports basic auth: create the secret with `--from-literal=username=<user> --from-literal=password=<password>` instead of `token`.
+
+    > When using `waf-nim-agent-v3.yaml`, skip Step 3 (manual bundle compilation and copy) — NIC fetches bundles directly from NGINX Instance Manager.
 
     Verify the policy status:
 

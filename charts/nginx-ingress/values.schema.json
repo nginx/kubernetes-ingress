@@ -2865,6 +2865,20 @@
             }
           ]
         },
+        "target": {
+          "type": "string",
+          "default": "",
+          "title": "Where NGINX Agent sends data: \"\" (default: NGINX One Console if dataplaneKeySecretName is set, otherwise Agent v2), \"n1c\", \"nim\" or \"both\"",
+          "enum": [
+            "",
+            "n1c",
+            "nim",
+            "both"
+          ],
+          "examples": [
+            "nim"
+          ]
+        },
         "instanceManager": {
           "type": "object",
           "default": {},
@@ -2888,6 +2902,21 @@
               "examples": [
                 443
               ]
+            },
+            "otlpPort": {
+              "type": "integer",
+              "title": "OTLP gRPC port of NGINX Instance Manager used by NGINX Agent v3 (target \"nim\" or \"both\")",
+              "default": 4317,
+              "minimum": 1,
+              "maximum": 65535,
+              "examples": [
+                4317
+              ]
+            },
+            "staticSyslogReceiver": {
+              "type": "boolean",
+              "title": "NGINX Agent v3 only: statically declare the F5 WAF for NGINX syslog receiver instead of relying on auto-discovery",
+              "default": false
             },
             "sni": {
               "type": "string",

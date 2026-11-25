@@ -201,6 +201,31 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "app-protect-waf-agentv3",
 			namespace:   "default",
 		},
+		"wafV5AgentV3NIM": {
+			valuesFile:  "testdata/wafv5-agentv3-nim.yaml",
+			releaseName: "wafv5-agentv3-nim",
+			namespace:   "default",
+		},
+		"wafV5AgentV3NIMPlaintext": {
+			valuesFile:  "testdata/wafv5-agentv3-nim-plaintext.yaml",
+			releaseName: "wafv5-agentv3-nim-plaintext",
+			namespace:   "default",
+		},
+		"agentV3TargetN1C": {
+			valuesFile:  "testdata/agentv3-target-n1c.yaml",
+			releaseName: "agentv3-target-n1c",
+			namespace:   "default",
+		},
+		"agentV3TargetNIM": {
+			valuesFile:  "testdata/agentv3-target-nim.yaml",
+			releaseName: "agentv3-target-nim",
+			namespace:   "default",
+		},
+		"agentV3TargetBoth": {
+			valuesFile:  "testdata/agentv3-target-both.yaml",
+			releaseName: "agentv3-target-both",
+			namespace:   "default",
+		},
 		"startupStatusValid": {
 			valuesFile:  "testdata/startupstatus-valid.yaml",
 			releaseName: "startupstatus",
@@ -437,6 +462,36 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 				"'/nginxAgent/labels/empty': '' does not match pattern",
 				"'/nginxAgent/labels/number': got number, want string",
 			},
+		},
+		"agentV3NIMWithoutHost": {
+			valuesFile:        "testdata/wafv5-agentv3-nim-no-host.yaml",
+			releaseName:       "agentv3-nim-no-host",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'nginxAgent.target: nim' requires 'nginxAgent.instanceManager.host' to be set"},
+		},
+		"agentV3NIMWithoutPlus": {
+			valuesFile:        "testdata/agentv3-nim-without-plus.yaml",
+			releaseName:       "agentv3-nim-without-plus",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'nginxAgent.target: nim' requires NGINX Plus ('controller.nginxplus') to be true"},
+		},
+		"agentV3NIMWithoutWAF": {
+			valuesFile:        "testdata/agentv3-nim-without-waf.yaml",
+			releaseName:       "agentv3-nim-without-waf",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"requires F5 WAF for NGINX v5"},
+		},
+		"agentV3TargetN1CWithoutKey": {
+			valuesFile:        "testdata/agentv3-target-n1c-no-key.yaml",
+			releaseName:       "agentv3-target-n1c-no-key",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'nginxAgent.target: n1c' requires 'nginxAgent.dataplaneKeySecretName' to be set"},
+		},
+		"agentV3TargetInvalid": {
+			valuesFile:        "testdata/agentv3-target-invalid.yaml",
+			releaseName:       "agentv3-target-invalid",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"value must be one of"},
 		},
 		"appProtectWAFPLMWithoutPlus": {
 			valuesFile:        "testdata/app-protect-waf-plm-without-plus.yaml",
