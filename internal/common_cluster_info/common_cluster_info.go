@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -11,10 +12,16 @@ import (
 
 // This file contains functions for data used in product telemetry, metadata and license reporting
 
+// clusterReadHint tells the operator where the cluster-scoped reads below are granted.
+const clusterReadHint = "grant it to the NIC ServiceAccount in a ClusterRole"
+
 // GetNodeCount returns the number of nodes in the cluster
 func GetNodeCount(ctx context.Context, client kubernetes.Interface) (int, error) {
 	nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
+		if apierrors.IsForbidden(err) {
+			return 0, fmt.Errorf("missing permission: list nodes (cluster-scoped); %s: %w", clusterReadHint, err)
+		}
 		return 0, err
 	}
 	return len(nodes.Items), nil
@@ -25,6 +32,9 @@ func GetNodeCount(ctx context.Context, client kubernetes.Interface) (int, error)
 func GetClusterID(ctx context.Context, client kubernetes.Interface) (string, error) {
 	cluster, err := client.CoreV1().Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
+		if apierrors.IsForbidden(err) {
+			return "", fmt.Errorf(`missing permission: get namespaces "kube-system" (cluster-scoped); %s: %w`, clusterReadHint, err)
+		}
 		return "", err
 	}
 	return string(cluster.UID), nil

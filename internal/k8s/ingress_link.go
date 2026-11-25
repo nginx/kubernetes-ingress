@@ -58,9 +58,12 @@ func (lbc *LoadBalancerController) addIngressLinkHandler(handlers cache.Resource
 		options.FieldSelector = fields.Set{"metadata.name": name}.String()
 	}
 
-	informer := dynamicinformer.NewFilteredDynamicInformer(lbc.dynClient, ingressLinkGVR, lbc.metadata.namespace, lbc.resync,
+	informer := dynamicinformer.NewFilteredDynamicInformer(lbc.dynClient, IngressLinkGVR, lbc.metadata.namespace, lbc.resync,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, optionsModifier)
 
+	if err := lbc.watchErrors.setWatchErrorHandler(informer.Informer(), IngressLinkGVR.GroupResource(), lbc.metadata.namespace); err != nil {
+		return fmt.Errorf("failed to set IngressLink watch error handler: %w", err)
+	}
 	if _, err := informer.Informer().AddEventHandlerWithResyncPeriod(handlers, lbc.resync); err != nil {
 		return fmt.Errorf("failed to add IngressLink event handler: %w", err)
 	}

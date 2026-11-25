@@ -92,6 +92,9 @@ func createAppProtectDosProtectedResourceHandlers(lbc *LoadBalancerController) c
 // addAppProtectDosPolicyHandler creates dynamic informers for custom appprotectdos policy resource
 func (nsi *namespacedInformer) addAppProtectDosPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotectdos.DosPolicyGVR).Informer()
+	if err := nsi.setWatchErrorHandler(informer, appprotectdos.DosPolicyGVR.GroupResource()); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add AppProtectDosPolicy event handler: %w", err)
 	}
@@ -104,6 +107,9 @@ func (nsi *namespacedInformer) addAppProtectDosPolicyHandler(handlers cache.Reso
 // addAppProtectDosLogConfHandler creates dynamic informer for custom appprotectdos logging config resource
 func (nsi *namespacedInformer) addAppProtectDosLogConfHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotectdos.DosLogConfGVR).Informer()
+	if err := nsi.setWatchErrorHandler(informer, appprotectdos.DosLogConfGVR.GroupResource()); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add AppProtectDosLogConf event handler: %w", err)
 	}
@@ -116,6 +122,9 @@ func (nsi *namespacedInformer) addAppProtectDosLogConfHandler(handlers cache.Res
 // addAppProtectDosProtectedResourceHandler creates dynamic informers for custom appprotectdos protected resource
 func (nsi *namespacedInformer) addAppProtectDosProtectedResourceHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.Appprotectdos().V1beta1().DosProtectedResources().Informer()
+	if err := nsi.setWatchErrorHandler(informer, v1beta1.Resource("dosprotectedresources")); err != nil {
+		return err
+	}
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add AppProtectDosProtectedResource event handler: %w", err)
 	}
