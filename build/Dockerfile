@@ -14,12 +14,15 @@ ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
 
+ARG GHCR_REGISTRY=ghcr.io
+ARG DOCKER_REGISTRY=docker.io
 
-############################################# Base images containing libs for FIPS #############################################
-FROM golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS golang-builder
 ############################################# External dependency images #############################################
+FROM ${DOCKER_REGISTRY}/library/golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS golang-builder
+FROM ${DOCKER_REGISTRY}/library/busybox:musl@sha256:80e38f9a1b39188b8bdb28879178edb322a4402b081a9aedda1924609decd6f6 AS busybox-musl
+FROM ${DOCKER_REGISTRY}/library/alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS alpine-base
 
-############################################# NGINX files #############################################
+############################################# NGINX repo keys, .repo files, and helper scripts #############################################
 FROM scratch AS nginx-files
 ARG IC_VERSION
 ARG BUILD_OS
@@ -46,8 +49,13 @@ ADD --link --chown=101:0 https://raw.githubusercontent.com/nginx/k8s-common/main
 ADD --link --chown=101:0 https://raw.githubusercontent.com/nginx/k8s-common/main/files/agent-debian-13.source debian-agent-13.sources
 ADD --link --chown=101:0 https://cs.nginx.com/static/files/nginx-agent.repo nginx-agent.repo
 
-RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ printf "%s\n" "Acquire::https::pkgs.nginx.com::User-Agent k8s-ic-$IC_VERSION${BUILD_OS##debian-plus}-apt;" >> 90pkgs-nginx \
-	&& if ! grep -q "${PACKAGE_REPO}" 90pkgs-nginx ; then cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${PACKAGE_REPO}/g" >> 90pkgs-nginx; fi \
+RUN --mount=from=busybox-musl,src=/bin/,dst=/bin/ \
+    printf "%s\n" "Acquire::https::pkgs.nginx.com::User-Agent k8s-ic-$IC_VERSION${BUILD_OS##debian-plus}-apt;" >> 90pkgs-nginx \
+    && for i in ${PLUS_PACKAGE_REPO} ${WAF_PACKAGE_REPO} ${DOS_PACKAGE_REPO}; do \
+            if ! grep -q "${i}" 90pkgs-nginx; then \
+              cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${i}/g" >> 90pkgs-nginx; \
+            fi; \
+       done \
 	&& printf "%s\n" "user_agent=k8s-ic-$IC_VERSION${BUILD_OS##ubi*plus}-dnf" | tee -a nginx-plus-*.repo \
 	&& mkdir dos \
 	&& mv app-protect-dos-9.repo nap-dos-13.sources dos/ \
@@ -65,6 +73,7 @@ ADD --link --chown=101:0 --chmod=0755 build/scripts/common.sh common.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/nap-waf.sh nap-waf.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/nap-dos.sh nap-dos.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/agent.sh agent.sh
+ADD --link --chown=101:0 --chmod=0755 build/scripts/f5-repo.sh f5-repo.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-setup.sh ubi-setup.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-clean.sh ubi-clean.sh
 
@@ -102,7 +111,12 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=debian-plus-13.sources,target=/tmp/nginx-plus.sources \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	apt-get update \
+	--mount=type=secret,id=f5-repo-user,env=F5_REPO_USER,required=false \
+	--mount=type=secret,id=f5-repo-token,env=F5_REPO_TOKEN,required=false \
+	--mount=type=bind,from=nginx-files,src=f5-repo.sh,target=/usr/local/bin/f5-repo.sh \
+	--mount=type=bind,from=alpine-base,src=/etc/ssl/certs/ca-certificates.crt,target=/tmp/ca.crt \
+	f5-repo.sh setup \
+	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y gpg ca-certificates libcap2-bin libcurl4 \
 	&& groupadd --system --gid 101 nginx \
 	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
@@ -114,11 +128,15 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& apt-get purge --auto-remove -y gpg \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& f5-repo.sh restore \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-plus.sources
 
 
 ############################################# Base image for Debian with NGINX Plus #############################################
 FROM debian-plus-only AS debian-plus
+ARG F5_REPO_HOST
+ARG F5_DEBIAN_REPO
+ARG F5_DEBIAN_SECURITY_REPO
 ARG NGINX_PLUS_VERSION
 ARG NGINX_AGENT_VERSION
 
@@ -130,11 +148,16 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=debian-agent-13.sources,target=/tmp/nginx-agent.sources \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apt-get update \
+	--mount=type=secret,id=f5-repo-user,env=F5_REPO_USER,required=false \
+	--mount=type=secret,id=f5-repo-token,env=F5_REPO_TOKEN,required=false \
+	--mount=type=bind,from=nginx-files,src=f5-repo.sh,target=/usr/local/bin/f5-repo.sh \
+	f5-repo.sh setup \
+	&& apt-get update \
 	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${NGINX_AGENT_VERSION}* \
 	&& agent.sh \
+	&& f5-repo.sh restore \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources
 
 
@@ -146,13 +169,21 @@ ARG IC_VERSION
 ARG NGINX_VERSION
 ARG TARGETPLATFORM
 ARG NAP_MODULES=none
+ARG F5_REPO_HOST
+ARG F5_DEBIAN_REPO
+ARG F5_DEBIAN_SECURITY_REPO
 
 ENV BUILD_OS=${BUILD_OS}
 
 RUN --mount=type=bind,target=/code \
 	--mount=type=bind,from=nginx-files,src=common.sh,target=/usr/local/bin/common.sh \
 	--mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/patch-os.sh \
-	patch-os.sh \
+	--mount=type=bind,from=nginx-files,src=f5-repo.sh,target=/usr/local/bin/f5-repo.sh \
+	--mount=type=secret,id=f5-repo-user,env=F5_REPO_USER,required=false \
+	--mount=type=secret,id=f5-repo-token,env=F5_REPO_TOKEN,required=false \
+	f5-repo.sh setup \
+	&& patch-os.sh \
+	&& f5-repo.sh restore \
 	&& common.sh
 
 EXPOSE 80 443
@@ -339,36 +370,8 @@ RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp
 USER 101
 
 
-############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
-# Builder image for aws-prebuilt
-FROM ${PREBUILT_BASE_IMG} AS aws-setcap-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# Create image with nginx-ingress built by GoReleaser for AWS Marketplace #############################################
-FROM ${PREBUILT_BASE_IMG} AS aws-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-ARG BUILD_OS
-
-LABEL org.nginx.kic.image.build.version="aws"
-
-COPY --link --chown=101:0 --from=aws-setcap-prebuilt /nginx-ingress /
-USER 0
-RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
-	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
-	&& chown -R 101:0 /*.tmpl \
-	&& chmod -R g=u /*.tmpl
-USER 101
-
-
-############################################# Create image with nginx-ingress extracted from image on Docker Hub #############################################
-FROM nginx/nginx-ingress:${DOWNLOAD_TAG} AS kic
+############################################# download — nginx-ingress binary from published image #############################################
+FROM ${DOCKER_REGISTRY}/nginx/nginx-ingress:${DOWNLOAD_TAG} AS kic
 
 FROM common AS download
 

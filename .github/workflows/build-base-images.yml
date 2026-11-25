@@ -2,7 +2,12 @@ name: Build Base Images
 
 on:
   workflow_dispatch:
-  workflow_call:
+    inputs:
+      push_images:
+        description: 'Whether to push images'
+        required: false
+        default: true
+        type: boolean
   schedule:
     - cron: "30 4 * * 1-5" # run Mon-Fri at 04:30 UTC
 
@@ -59,13 +64,59 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+
+      - name: Setup Docker Hub secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "docker-username, docker-password"
+          env-names: "DOCKER_USERNAME, DOCKER_PASSWORD"
+
+      - name: DockerHub Login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+        if: ${{ contains(vars.DOCKER_REGISTRY || 'docker.io', 'docker.io') }}
+
+      - name: Setup Artifactory secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+        if: ${{ vars.F5_REPO_HOST != '' }}
+
+      - name: F5 registry login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ${{ vars.F5_REGISTRY_HOST }}
+          username: ${{ env.ARTIFACTORY_USER }}
+          password: ${{ env.ARTIFACTORY_TOKEN }}
+        if: ${{ vars.F5_REGISTRY_HOST != '' && vars.F5_REPO_HOST != '' }}
+
       - name: Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: |
+            image=${{ vars.DOCKER_REGISTRY || 'docker.io' }}/moby/buildkit:buildx-stable-1
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
+          image: "${{ vars.DOCKER_REGISTRY || 'docker.io' }}/tonistiigi/binfmt:latest"
 
       - name: Login to GCR
         uses: ./.github/actions/vault-gcr-login
@@ -105,14 +156,34 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
           pull: true
-          push: true
+          push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_images }}
           build-args: |
+            DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
+            GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
+            F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
+            F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}
+            F5_DEBIAN_REPO=${{ vars.F5_DEBIAN_REPO }}
+            F5_DEBIAN_SECURITY_REPO=${{ vars.F5_DEBIAN_SECURITY_REPO }}
+            F5_UBI_REPO=${{ vars.F5_UBI_REPO }}
+            F5_EPEL_REPO=${{ vars.F5_EPEL_REPO }}
+            F5_FEDORA_REPO=${{ vars.F5_FEDORA_REPO }}
             OSS_PACKAGE_REPO=${{ vars.OSS_REPO }}
+          secret-envs: |
+            ${{ vars.F5_REPO_HOST != '' && 'f5-repo-user=ARTIFACTORY_USER' || '' }}
+            ${{ vars.F5_REPO_HOST != '' && 'f5-repo-token=ARTIFACTORY_TOKEN' || '' }}
           secret-files: |
             ${{ vars.OSS_REPO != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
             ${{ vars.OSS_REPO != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
+
+      - name: Check image for Artifactory references
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
+        env:
+          IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
+        if: ${{ vars.F5_REPO_HOST != '' && (github.event_name != 'workflow_dispatch' || inputs.push_images) }}
 
       - name: Clean up secrets
         run: |
@@ -135,6 +206,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+
       - name: Login to GCR
         uses: ./.github/actions/vault-gcr-login
         with:
@@ -148,14 +227,44 @@ jobs:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          fetch-docker: "true"
+
+      - name: DockerHub Login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+        if: ${{ contains(vars.DOCKER_REGISTRY || 'docker.io', 'docker.io') }}
+
+      - name: Setup Artifactory secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+        if: ${{ vars.F5_REPO_HOST != '' }}
+
+      - name: F5 registry login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ${{ vars.F5_REGISTRY_HOST }}
+          username: ${{ env.ARTIFACTORY_USER }}
+          password: ${{ env.ARTIFACTORY_TOKEN }}
+        if: ${{ vars.F5_REGISTRY_HOST != '' && vars.F5_REPO_HOST != '' }}
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: |
+            image=${{ vars.DOCKER_REGISTRY || 'docker.io' }}/moby/buildkit:buildx-stable-1
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
+          image: "${{ vars.DOCKER_REGISTRY || 'docker.io' }}/tonistiigi/binfmt:latest"
 
       - name: Docker meta
         id: meta
@@ -179,13 +288,34 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
           pull: true
-          push: true
+          push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_images }}
           build-args: |
+            DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
+            GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
+            F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
+            F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}
+            F5_DEBIAN_REPO=${{ vars.F5_DEBIAN_REPO }}
+            F5_DEBIAN_SECURITY_REPO=${{ vars.F5_DEBIAN_SECURITY_REPO }}
+            F5_UBI_REPO=${{ vars.F5_UBI_REPO }}
+            F5_EPEL_REPO=${{ vars.F5_EPEL_REPO }}
+            F5_FEDORA_REPO=${{ vars.F5_FEDORA_REPO }}
+            PLUS_PACKAGE_REPO=${{ vars.PLUS_REPO }}
+          secret-envs: |
+            ${{ vars.F5_REPO_HOST != '' && 'f5-repo-user=ARTIFACTORY_USER' || '' }}
+            ${{ vars.F5_REPO_HOST != '' && 'f5-repo-token=ARTIFACTORY_TOKEN' || '' }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
+
+      - name: Check image for Artifactory references
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
+        env:
+          IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
+        if: ${{ vars.F5_REPO_HOST != '' && (github.event_name != 'workflow_dispatch' || inputs.push_images) }}
 
       - name: Clean up secrets
         run: |
@@ -208,6 +338,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+
       - name: Login to GCR
         uses: ./.github/actions/vault-gcr-login
         with:
@@ -221,9 +359,38 @@ jobs:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          fetch-docker: "true"
+
+      - name: DockerHub Login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+        if: ${{ contains(vars.DOCKER_REGISTRY || 'docker.io', 'docker.io') }}
+
+      - name: Setup Artifactory secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+        if: ${{ vars.F5_REPO_HOST != '' }}
+
+      - name: F5 registry login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ${{ vars.F5_REGISTRY_HOST }}
+          username: ${{ env.ARTIFACTORY_USER }}
+          password: ${{ env.ARTIFACTORY_TOKEN }}
+        if: ${{ vars.F5_REGISTRY_HOST != '' && vars.F5_REPO_HOST != '' }}
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: |
+            image=${{ vars.DOCKER_REGISTRY || 'docker.io' }}/moby/buildkit:buildx-stable-1
 
       - name: NAP modules
         id: nap_modules
@@ -254,14 +421,37 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
           pull: true
-          push: true
+          push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_images }}
           build-args: |
+            DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
+            GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
+            F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
+            F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}
+            F5_DEBIAN_REPO=${{ vars.F5_DEBIAN_REPO }}
+            F5_DEBIAN_SECURITY_REPO=${{ vars.F5_DEBIAN_SECURITY_REPO }}
+            F5_UBI_REPO=${{ vars.F5_UBI_REPO }}
+            F5_EPEL_REPO=${{ vars.F5_EPEL_REPO }}
+            F5_FEDORA_REPO=${{ vars.F5_FEDORA_REPO }}
+            PLUS_PACKAGE_REPO=${{ vars.PLUS_REPO }}
+            WAF_PACKAGE_REPO=${{ vars.WAF_REPO }}
+            DOS_PACKAGE_REPO=${{ vars.DOS_REPO }}
             NAP_MODULES=${{ matrix.nap_modules }}
+          secret-envs: |
+            ${{ vars.F5_REPO_HOST != '' && 'f5-repo-user=ARTIFACTORY_USER' || '' }}
+            ${{ vars.F5_REPO_HOST != '' && 'f5-repo-token=ARTIFACTORY_TOKEN' || '' }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
+
+      - name: Check image for Artifactory references
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
+        env:
+          IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
+        if: ${{ vars.F5_REPO_HOST != '' && (github.event_name != 'workflow_dispatch' || inputs.push_images) }}
 
       - name: Clean up secrets
         run: |

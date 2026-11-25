@@ -214,6 +214,19 @@
     },
     {
       "customType": "regex",
+      "description": "Update the UBI packages image digest in the Makefile and the build/Dockerfile ARG. Both use a registry variable in the image reference, which the dockerfile manager skips, so depNameTemplate pins the lookup name.",
+      "managerFilePatterns": [
+        "/(^|/)Makefile$/",
+        "/^build\\/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "UBI10_PACKAGES_IMAGE\\s*\\??=\\s*[^\\r\\n]*?/nginx/dependencies/nginx-ubi:(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "depNameTemplate": "ghcr.io/nginx/dependencies/nginx-ubi",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "Update `Version:` in go files",
       "managerFilePatterns": [
         "/\\.go$/"
