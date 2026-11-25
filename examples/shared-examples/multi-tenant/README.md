@@ -138,6 +138,9 @@ team's IngressClass. An Ingress Controller only sees resources in the namespaces
   doesn't become ready until a cluster admin applies them.
 - To skip the read-only ClusterRole, set `platform.tenantReader.create: false` in the platform
   release and `controller.ingressClass.validation: skip` in the tenant release. Telemetry, license
-  reporting and topology-aware routing then run with less information.
+  reporting and topology-aware routing then run with less information. Don't skip it if the tenant
+  runs NGINX Agent v3 (`nginxAgent.enable` with an Agent v3 image): Agent v3 reads the `kube-system`
+  Namespace at startup, and the Ingress Controller exits without it, unless the platform grants
+  that read another way.
 - Upgrade in this order: the CRDs and the aggregate manifest, then the platform releases, then the
   tenant releases.

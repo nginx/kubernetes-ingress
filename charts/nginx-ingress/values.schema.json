@@ -53,6 +53,7 @@
               "type": "boolean",
               "default": true,
               "title": "Create the tenant reader ClusterRole and ClusterRoleBinding",
+              "description": "Required when the tenant release runs NGINX Agent v3 (nginxAgent.enable with an Agent v3 image): without this, or an equivalent platform-provided grant to get the kube-system Namespace, the Ingress Controller exits at startup instead of just reporting with less information.",
               "examples": [
                 true
               ]

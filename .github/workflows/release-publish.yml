@@ -62,6 +62,7 @@ jobs:
       short_tag: ${{ steps.vars.outputs.short_tag }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       date: ${{ steps.vars.outputs.date }}
+      tenant_chart: ${{ steps.vars.outputs.tenant_chart }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,6 +85,17 @@ jobs:
           fi
           date=$(date "+%Y%m%d")
           echo "date=${date}" >> $GITHUB_OUTPUT
+          # release_branch may predate installMode: the tenant chart packaging
+          # step (publish-helm.yml) requires "installMode: full" in
+          # values.yaml to flip to "tenant", so skip publishing the tenant
+          # chart for branches without it instead of failing after the main
+          # chart has already been published.
+          if grep -qx "installMode: full" charts/nginx-ingress/values.yaml; then
+            echo "tenant_chart=true" >> $GITHUB_OUTPUT
+          else
+            echo "tenant_chart=false" >> $GITHUB_OUTPUT
+            echo "::warning::${{ inputs.release_branch }} has no installMode in charts/nginx-ingress/values.yaml; skipping the tenant Helm chart"
+          fi
           cat $GITHUB_OUTPUT
 
   release-oss:
@@ -155,11 +167,14 @@ jobs:
 
   # The same chart, repackaged for tenant installs: no CRDs and installMode tenant.
   # Runs after publish-helm-chart so the two never push to the Helm Charts repository at the same time.
+  # Skipped for release branches without installMode (see variables.tenant_chart), so an
+  # older release branch keeps its existing release path instead of failing here.
   publish-tenant-helm-chart:
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
       ! cancelled() && ! inputs.dry_run &&
       needs.publish-helm-chart.result == 'success' &&
+      needs.variables.outputs.tenant_chart == 'true' &&
       ! contains(inputs.skip_step, 'publish-tenant-helm-chart')
       )
     name: Publish Tenant Helm Chart
@@ -282,6 +297,7 @@ jobs:
   # must tolerate 'skipped' because their own `if` excludes dry_run and honours
   # skip_step; publish-tenant-helm-chart also requires publish-helm-chart to
   # succeed, so skipping or failing the main chart skips the tenant chart too.
+  # It is also skipped for release branches without installMode (variables.tenant_chart).
   release-gate:
     name: All prerequisites met
     runs-on: ubuntu-26.04

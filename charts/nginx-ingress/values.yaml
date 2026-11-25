@@ -24,6 +24,9 @@ platform:
   tenantReader:
     ## Create a ClusterRole and ClusterRoleBinding that let the tenant's Ingress Controller get and list IngressClasses,
     ## get the kube-system Namespace (cluster ID) and list Nodes (topology-aware routing, license reporting, telemetry).
+    ## Required when the tenant release runs NGINX Agent v3 (nginxAgent.enable with an Agent v3 image):
+    ## without this, or an equivalent platform-provided grant to get the kube-system Namespace, the
+    ## Ingress Controller exits at startup instead of just reporting with less information.
     create: true
 
 controller:
