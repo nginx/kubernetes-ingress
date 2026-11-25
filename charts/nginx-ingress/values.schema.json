@@ -1215,6 +1215,18 @@
               "examples": [
                 false
               ]
+            },
+            "validation": {
+              "type": "string",
+              "default": "strict",
+              "title": "The IngressClass validation mode",
+              "enum": [
+                "strict",
+                "skip"
+              ],
+              "examples": [
+                "strict"
+              ]
             }
           }
         },
@@ -2507,7 +2519,8 @@
           "ingressClass": {
             "name": "nginx",
             "create": true,
-            "setAsDefaultIngress": false
+            "setAsDefaultIngress": false,
+            "validation": "strict"
           },
           "watchNamespace": "",
           "enableCustomResources": true,
@@ -3154,7 +3167,8 @@
         "ingressClass": {
           "name": "nginx",
           "create": true,
-          "setAsDefaultIngress": false
+          "setAsDefaultIngress": false,
+          "validation": "strict"
         },
         "watchNamespace": "",
         "enableCustomResources": true,

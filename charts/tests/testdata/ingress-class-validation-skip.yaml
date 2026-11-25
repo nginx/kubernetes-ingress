@@ -1,0 +1,5 @@
+controller:
+  ingressClass:
+    name: team-a
+    create: false
+    validation: skip

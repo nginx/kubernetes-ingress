@@ -122,7 +122,10 @@ func main() {
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme,
 		api_v1.EventSource{Component: k8s.EventReporterName})
 	defer eventBroadcaster.Shutdown()
-	mustValidateIngressClass(ctx, kubeClient)
+
+	if err := validateIngressClass(ctx, kubeClient, *ingressClass, *ingressClassValidation); err != nil {
+		nl.Fatal(l, err)
+	}
 	mustValidateExternalDNSCRD(ctx, kubeClient)
 
 	checkNamespaces(ctx, kubeClient)
@@ -522,18 +525,26 @@ func validateKubernetesVersionInfo(ctx context.Context, kubeClient kubernetes.In
 	return nil
 }
 
-// mustValidateIngressClass calls internally os.Exit
-// and terminates the program if the ingress class is not valid.
-func mustValidateIngressClass(ctx context.Context, kubeClient kubernetes.Interface) {
+// validateIngressClass checks the IngressClass named className according to mode.
+// In strict mode, it returns an error if the IngressClass can't be read
+// or its Spec.Controller isn't the NGINX Ingress Controller.
+// In skip mode, it makes no API call and logs a warning.
+func validateIngressClass(ctx context.Context, kubeClient kubernetes.Interface, className string, mode string) error {
 	l := nl.LoggerFromContext(ctx)
-	ingressClassRes, err := kubeClient.NetworkingV1().IngressClasses().Get(context.TODO(), *ingressClass, meta_v1.GetOptions{})
+	if mode == ingressClassValidationSkip {
+		nl.Warnf(l, "IngressClass validation is disabled (-ingress-class-validation=%s); not checking that IngressClass %v exists or is owned by %v", ingressClassValidationSkip, className, k8s.IngressControllerName)
+		return nil
+	}
+
+	ingressClassRes, err := kubeClient.NetworkingV1().IngressClasses().Get(ctx, className, meta_v1.GetOptions{})
 	if err != nil {
-		nl.Fatalf(l, "Error when getting IngressClass %v: %v", *ingressClass, err)
+		return fmt.Errorf("error when getting IngressClass %v: %w", className, err)
 	}
 
 	if ingressClassRes.Spec.Controller != k8s.IngressControllerName {
-		nl.Fatalf(l, "IngressClass with name %v has an invalid Spec.Controller %v; expected %v", ingressClassRes.Name, ingressClassRes.Spec.Controller, k8s.IngressControllerName)
+		return fmt.Errorf("IngressClass with name %v has an invalid Spec.Controller %v; expected %v", ingressClassRes.Name, ingressClassRes.Spec.Controller, k8s.IngressControllerName)
 	}
+	return nil
 }
 
 // mustValidateExternalDNSCRD calls internally os.Exit and terminates the

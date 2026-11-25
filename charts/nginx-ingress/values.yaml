@@ -461,7 +461,7 @@ controller:
     ## A class of the Ingress Controller.
 
     ## IngressClass resource with the name equal to the class must be deployed. Otherwise,
-    ## the Ingress Controller will fail to start.
+    ## the Ingress Controller will fail to start, unless "controller.ingressClass.validation" is "skip".
     ## The Ingress Controller only processes resources that belong to its class - i.e. have the "ingressClassName" field resource equal to the class.
 
     ## The Ingress Controller processes all the resources that do not have the "ingressClassName" field for all versions of kubernetes.
@@ -472,6 +472,12 @@ controller:
 
     ## New Ingresses without an ingressClassName field specified will be assigned the class specified in `controller.ingressClass`. Requires "controller.ingressClass.create".
     setAsDefaultIngress: false
+
+    ## Controls the startup check of the IngressClass named by "controller.ingressClass.name". Allowed values: "strict", "skip".
+    ## "strict": the Ingress Controller fails to start if the IngressClass can't be read, doesn't exist, or isn't owned by nginx.org/ingress-controller.
+    ## "skip": the Ingress Controller doesn't read the IngressClass at startup. Use this when the Ingress Controller can't read IngressClass resources.
+    ## Resource selection by class is the same in both modes.
+    validation: strict
 
   ## Comma separated list of namespaces to watch for Ingress resources. By default, the Ingress Controller watches all namespaces. Mutually exclusive with "controller.watchNamespaceLabel".
   watchNamespace: ""

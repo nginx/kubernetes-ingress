@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
@@ -17,12 +19,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	apps_v1 "k8s.io/api/apps/v1"
 	api_v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	pkgversion "k8s.io/apimachinery/pkg/version"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func TestLogFormats(t *testing.T) {
@@ -514,6 +519,113 @@ func TestGetAndValidateSecret(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), test.wantErr) {
 				t.Errorf("getAndValidateSecret() error = %q, want it to contain %q", err.Error(), test.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateIngressClass(t *testing.T) {
+	t.Parallel()
+
+	ingressClass := func(name, controller string) *networking.IngressClass {
+		return &networking.IngressClass{
+			ObjectMeta: meta_v1.ObjectMeta{Name: name},
+			Spec:       networking.IngressClassSpec{Controller: controller},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		mode      string
+		objects   []runtime.Object
+		forbidden bool
+		wantErr   string
+		wantCalls int
+		wantWarn  bool
+	}{
+		{
+			name:      "strict with a valid IngressClass",
+			mode:      ingressClassValidationStrict,
+			objects:   []runtime.Object{ingressClass("nginx", k8s.IngressControllerName)},
+			wantCalls: 1,
+		},
+		{
+			name:      "strict with a missing IngressClass",
+			mode:      ingressClassValidationStrict,
+			wantErr:   `error when getting IngressClass nginx: ingressclasses.networking.k8s.io "nginx" not found`,
+			wantCalls: 1,
+		},
+		{
+			name:      "strict with an IngressClass owned by another controller",
+			mode:      ingressClassValidationStrict,
+			objects:   []runtime.Object{ingressClass("nginx", "example.com/other-controller")},
+			wantErr:   "IngressClass with name nginx has an invalid Spec.Controller example.com/other-controller; expected nginx.org/ingress-controller",
+			wantCalls: 1,
+		},
+		{
+			name:      "strict with a forbidden read",
+			mode:      ingressClassValidationStrict,
+			objects:   []runtime.Object{ingressClass("nginx", k8s.IngressControllerName)},
+			forbidden: true,
+			wantErr:   `error when getting IngressClass nginx: ingressclasses.networking.k8s.io "nginx" is forbidden`,
+			wantCalls: 1,
+		},
+		{
+			name:      "skip with a missing IngressClass",
+			mode:      ingressClassValidationSkip,
+			wantCalls: 0,
+			wantWarn:  true,
+		},
+		{
+			name:      "skip with a forbidden read",
+			mode:      ingressClassValidationSkip,
+			forbidden: true,
+			wantCalls: 0,
+			wantWarn:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			clientset := fake.NewClientset(test.objects...)
+			if test.forbidden {
+				clientset.PrependReactor("get", "ingressclasses", func(action k8stesting.Action) (bool, runtime.Object, error) {
+					name := action.(k8stesting.GetAction).GetName()
+					return true, nil, k8serrors.NewForbidden(networking.Resource("ingressclasses"), name, errors.New("access denied"))
+				})
+			}
+
+			var buf bytes.Buffer
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(&buf, nil)))
+
+			err := validateIngressClass(ctx, clientset, "nginx", test.mode)
+
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("validateIngressClass() unexpected error: %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("validateIngressClass() expected an error containing %q, got none", test.wantErr)
+				}
+				if !strings.Contains(err.Error(), test.wantErr) {
+					t.Errorf("validateIngressClass() error = %q, want it to contain %q", err.Error(), test.wantErr)
+				}
+			}
+
+			if got := len(clientset.Actions()); got != test.wantCalls {
+				t.Errorf("validateIngressClass() made %d API calls, want %d: %v", got, test.wantCalls, clientset.Actions())
+			}
+
+			gotWarn := strings.Count(buf.String(), "level=WARN")
+			wantWarn := 0
+			if test.wantWarn {
+				wantWarn = 1
+			}
+			if gotWarn != wantWarn {
+				t.Errorf("validateIngressClass() logged %d warnings, want %d; log:\n%s", gotWarn, wantWarn, buf.String())
 			}
 		})
 	}
