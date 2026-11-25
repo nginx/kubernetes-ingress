@@ -45,7 +45,7 @@ jobs:
       id-token: write
       pull-requests: read # required by dorny/paths-filter
     outputs:
-      docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
+      non_code_only: ${{ github.event.pull_request && steps.docs.outputs.non_code_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -82,10 +82,10 @@ jobs:
             - 'hack/generate-helm-schema.sh'
         if: github.event_name == 'pull_request'
 
-      - name: Filter only docs changes
+      - name: Filter docs and repo-tooling-only changes
         id: docs
         run: |
-          ./.github/scripts/variables.sh docs_only >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh non_code_only >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         shell: bash --noprofile --norc -o pipefail {0}
 
@@ -146,11 +146,11 @@ jobs:
           docker_build="false"
           if [ "${{ inputs.force }}" = "true" ]; then
             docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.non_code_only }}" = "false" ]; then
             docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" != "true" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.non_code_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" != "true" ]; then
             docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" != "true" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.non_code_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" != "true" ]; then
             docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
@@ -161,7 +161,7 @@ jobs:
           run_tests="true"
           if [ "${{ inputs.run_tests }}" = "false" ]; then
             run_tests="false"
-          elif [ "${{ steps.docs.outputs.docs_only }}" = "true" ]; then
+          elif [ "${{ steps.docs.outputs.non_code_only }}" = "true" ]; then
             run_tests="false"
           elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "true" ]; then
             run_tests="false"
@@ -170,7 +170,7 @@ jobs:
 
       - name: Output variables
         run: |
-          echo docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
+          echo non_code_only: ${{ github.event.pull_request && steps.docs.outputs.non_code_only == 'true' }}
           echo k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
           echo go_path: ${{ steps.vars.outputs.go_path }}
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -469,7 +469,7 @@ jobs:
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.non_code_only == 'false' }}
 
       - name: Login to GCR
         uses: ./.github/actions/vault-gcr-login
@@ -477,27 +477,27 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.non_code_only == 'false' }}
 
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.15"
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.non_code_only == 'false' }}
 
       - name: Install Python dependencies
         run: |
           # no playwright/chromium here: check_container_packages.py only needs the docker client
           python3 -m venv tests/venv
           tests/venv/bin/pip install --require-hashes -r tests/requirements.txt --no-deps
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.non_code_only == 'false' }}
 
       - name: Run tests
         id: packages
         run: |
           source tests/venv/bin/activate
           python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --report package_report.md
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.non_code_only == 'false' }}
 
       - name: Add comment
         run: |
@@ -509,7 +509,7 @@ jobs:
           gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F package_report.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ !cancelled() && ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
+        if: ${{ !cancelled() && ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.non_code_only == 'false' ) && github.event.pull_request }}
 
   helm-tests:
     if: >-

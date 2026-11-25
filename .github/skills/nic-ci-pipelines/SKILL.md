@@ -223,7 +223,7 @@ The `matrix-images-*.json` rows use `build_os` / `image` / `tag_suffix` and are 
 
 ### Change Detection & Optimization
 
-- `docs_only` detection in `variables.sh` identifies PRs touching only docs (`*.md`, `docs/**`, `examples/**`) and skips expensive image builds and integration tests.
+- `non_code_only` detection in `variables.sh` identifies PRs touching only docs (`*.md`, `docs/**`, `examples/**`) or repo tooling (`.pre-commit-config.yaml`, `renovate.json`, `.github/ISSUE_TEMPLATE/**`) and skips expensive image builds and integration tests.
 
 ### Fork Awareness
 
