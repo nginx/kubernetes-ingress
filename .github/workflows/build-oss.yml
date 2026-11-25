@@ -87,6 +87,14 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+
       - name: NGINX package secrets
         uses: ./.github/actions/nginx-pkg-secrets
         with:
@@ -214,6 +222,7 @@ jobs:
             https_proxy=${{ env.HTTPS_PROXY }}
             no_proxy=${{ env.NO_PROXY }}
             DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
             GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
             F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}
@@ -271,7 +280,7 @@ jobs:
           load: false
           push: ${{ inputs.authenticated }}
           pull: true
-          sbom: ${{ inputs.authenticated }}
+          sbom: ${{ inputs.authenticated && format('generator={0}/docker/buildkit-syft-scanner:stable-1', vars.DOCKER_REGISTRY || 'docker.io') || 'false' }}
           provenance: false
           build-args: |
             HTTP_PROXY=${{ env.HTTP_PROXY }}
@@ -281,6 +290,7 @@ jobs:
             https_proxy=${{ env.HTTPS_PROXY }}
             no_proxy=${{ env.NO_PROXY }}
             DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
             GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
             F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}

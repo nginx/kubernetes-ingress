@@ -64,6 +64,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+
       - name: Setup Docker Hub secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
@@ -151,6 +159,7 @@ jobs:
           push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_images }}
           build-args: |
             DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
             GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
@@ -196,6 +205,14 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
 
       - name: Login to GCR
         uses: ./.github/actions/vault-gcr-login
@@ -274,6 +291,7 @@ jobs:
           push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_images }}
           build-args: |
             DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
             GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
@@ -319,6 +337,14 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
 
       - name: Login to GCR
         uses: ./.github/actions/vault-gcr-login
@@ -398,6 +424,7 @@ jobs:
           push: ${{ github.event_name != 'workflow_dispatch' || inputs.push_images }}
           build-args: |
             DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
             GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
             BUILD_OS=${{ matrix.build_os }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
