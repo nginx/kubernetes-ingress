@@ -173,7 +173,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | `codeql-analysis.yml` | Push, PR, merge_group | GitHub CodeQL security analysis |
-| `cve-publish.yml` | Issue comment (`/request-mirror-sync <target>`, `/approve-mirror-sync`) | **Internal repo only.** Syncs embargoed fixes to the public repo. `/request-mirror-sync` on the request issue opens a permission-track PR (HMAC-signed metadata); `/approve-mirror-sync` on that PR by a writer applies the patches and opens the public PRs. `issue_comment` workflows run from the default branch (`embargo/security-fixes`) only |
+| `cve-publish.yml` | Issue comment (`/request-mirror-sync <target>`, `/approve-mirror-sync`) | **Internal repo only.** Syncs embargoed fixes to the public repo. `/request-mirror-sync` on the request issue opens a permission-track PR (metadata HMAC-signed with `mirror-sync-hmac-key` from the NIC vault, not the GitHub App key); `/approve-mirror-sync` on that PR by a writer applies the patches and opens the public PRs. `issue_comment` workflows run from the default branch (`embargo/security-fixes`) only |
 | `scorecards.yml` | Weekly cron (Sun 20:43 UTC), push to `main` | OpenSSF Scorecards security scanning |
 | `dependency-review.yml` | PR to `main`/`release-*`, merge_group | GitHub Dependency Review for PRs |
 | `certify-ubi-image.yml` | Manual dispatch, called | Red Hat UBI certification for OpenShift (Pyxis) |
