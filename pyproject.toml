@@ -80,6 +80,7 @@ markers = [
     "skip_for_loadbalancer",
     "smoke",
     "startup",
+    "tenant_install",
     "ts",
     "ts_tcp",
     "ts_udp",
