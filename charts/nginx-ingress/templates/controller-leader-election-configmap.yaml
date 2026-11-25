@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.rendersNamespaced" . }}
 {{- if .Values.controller.reportIngressStatus.enableLeaderElection }}
 apiVersion: v1
 kind: ConfigMap
@@ -9,5 +10,6 @@ metadata:
 {{- if .Values.controller.reportIngressStatus.annotations }}
   annotations:
 {{ toYaml .Values.controller.reportIngressStatus.annotations | indent 4 }}
+{{- end }}
 {{- end }}
 {{- end }}

@@ -1,0 +1,20 @@
+installMode: tenant
+controller:
+  nginxplus: true
+  mgmt:
+    licenseTokenSecretName: license-token
+  appprotect:
+    enable: true
+  appprotectdos:
+    enable: true
+  enableCustomResources: true
+  enableCertManager: true
+  enableExternalDNS: true
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a
+    validation: skip
+  watchNamespace: team-a-apps
+  reportIngressStatus:
+    ingressLink: nic-ingresslink

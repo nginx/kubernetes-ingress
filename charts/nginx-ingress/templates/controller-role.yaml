@@ -1,3 +1,4 @@
+{{- if include "nginx-ingress.isFull" . }}
 {{- if .Values.rbac.create }}
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -53,4 +54,5 @@ rules:
   - leases
   verbs:
   - create
+{{- end }}
 {{- end }}

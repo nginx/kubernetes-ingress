@@ -1,0 +1,4 @@
+installMode: platform
+controller:
+  serviceAccount:
+    name: nic

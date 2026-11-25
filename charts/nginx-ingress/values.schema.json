@@ -17,6 +17,51 @@
       "description": "A resource's own extraLabels field takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
       "$ref": "#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
     },
+    "installMode": {
+      "type": "string",
+      "default": "full",
+      "title": "The install mode",
+      "description": "full: all resources. platform: only the IngressClass and tenant reader ClusterRole of one tenant. tenant: only namespaced resources, with a Role in each watched namespace.",
+      "enum": [
+        "full",
+        "platform",
+        "tenant"
+      ],
+      "examples": [
+        "full"
+      ]
+    },
+    "platform": {
+      "type": "object",
+      "default": {},
+      "title": "Settings for installMode platform",
+      "properties": {
+        "tenantNamespace": {
+          "type": "string",
+          "default": "",
+          "title": "The namespace of the tenant release",
+          "examples": [
+            "team-a"
+          ]
+        },
+        "tenantReader": {
+          "type": "object",
+          "default": {},
+          "title": "The tenant reader ClusterRole",
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "default": true,
+              "title": "Create the tenant reader ClusterRole and ClusterRoleBinding",
+              "description": "Required when the tenant release runs NGINX Agent v3 (nginxAgent.enable with an Agent v3 image): without this, or an equivalent platform-provided grant to get the kube-system Namespace, the Ingress Controller exits at startup instead of just reporting with less information.",
+              "examples": [
+                true
+              ]
+            }
+          }
+        }
+      }
+    },
     "controller": {
       "type": "object",
       "default": {},
@@ -1234,6 +1279,14 @@
           "type": "string",
           "default": "",
           "title": "The watchNamespace",
+          "examples": [
+            ""
+          ]
+        },
+        "watchNamespaceLabel": {
+          "type": "string",
+          "default": "",
+          "title": "The watchNamespaceLabel",
           "examples": [
             ""
           ]

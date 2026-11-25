@@ -1,0 +1,9 @@
+# Platform release for team-a, installed by a cluster admin in a namespace team-a can't modify.
+installMode: platform
+platform:
+  tenantNamespace: team-a
+controller:
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a

@@ -1,0 +1,10 @@
+installMode: tenant
+controller:
+  enableCustomResources: false
+  serviceAccount:
+    name: nic
+  ingressClass:
+    name: team-a
+  watchNamespace: team-a-apps
+  reportIngressStatus:
+    enable: false
