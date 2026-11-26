@@ -65,13 +65,14 @@ get_k8s_latest_version() {
   echo "$K8S_LATEST_VERSION"
 }
 
-# Outputs docs_only=true if all changed files match doc paths (*.md, docs/**, examples/**)
-get_docs_only() {
-  non_doc_files=$(git diff --name-only HEAD^ | grep -Ev '(\.md$|^docs/|^examples/)')
-  if [ -z "$non_doc_files" ]; then
-    echo "docs_only=true"
+# Outputs non_code_only=true if every changed file is docs or repo tooling that no image build or test reads
+get_non_code_only() {
+  code_files=$(git diff --name-only HEAD^ | grep -Ev '(\.md$|^docs/|^examples/)' |
+    grep -Ev '^(\.pre-commit-config\.yaml|renovate\.json|\.github/ISSUE_TEMPLATE/.*)$')
+  if [ -z "$code_files" ]; then
+    echo "non_code_only=true"
   else
-    echo "docs_only=false"
+    echo "non_code_only=false"
   fi
 }
 
@@ -104,8 +105,8 @@ case $INPUT in
     echo "k8s_latest=$(get_k8s_latest_version)"
     ;;
 
-  docs_only)
-    get_docs_only
+  non_code_only)
+    get_non_code_only
     ;;
 
   lts_tags)

@@ -2,13 +2,131 @@ package k8s
 
 import (
 	"context"
+	"slices"
 	"testing"
+	"time"
 
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	k8s_nginx_fake "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
+	api_v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
+
+// TestNewLoadBalancerControllerWatchesSecretNamespaces checks which Secrets the
+// controller sees for each way -watch-namespace and -watch-secret-namespace
+// combine.
+func TestNewLoadBalancerControllerWatchesSecretNamespaces(t *testing.T) {
+	t.Parallel()
+
+	allNamespaces := []string{"ns-a", "ns-b", "ns-c"}
+
+	tests := []struct {
+		name             string
+		namespaces       []string // -watch-namespace, where "" is every namespace
+		secretNamespaces []string // -watch-secret-namespace, which defaults to namespaces
+		wantWatched      []string
+	}{
+		{
+			name:             "all namespaces",
+			namespaces:       []string{""},
+			secretNamespaces: []string{""},
+			wantWatched:      allNamespaces,
+		},
+		{
+			name:             "all namespaces, secrets in listed namespaces",
+			namespaces:       []string{""},
+			secretNamespaces: []string{"ns-a", "ns-b"},
+			wantWatched:      []string{"ns-a", "ns-b"},
+		},
+		{
+			name:             "listed namespaces, secrets in listed namespaces",
+			namespaces:       []string{"ns-a", "ns-c"},
+			secretNamespaces: []string{"ns-a", "ns-b"},
+			wantWatched:      []string{"ns-a"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var objs []runtime.Object
+			for _, ns := range allNamespaces {
+				objs = append(objs, &api_v1.Secret{ObjectMeta: meta_v1.ObjectMeta{Name: "tls-secret", Namespace: ns}})
+			}
+			lbc := NewLoadBalancerController(NewLoadBalancerControllerInput{
+				KubeClient:      fake.NewClientset(objs...),
+				LoggerContext:   context.Background(),
+				Namespace:       tc.namespaces,
+				SecretNamespace: tc.secretNamespaces,
+			})
+			startNamespacedInformers(t, lbc)
+			lbc.preSyncSecrets()
+
+			store := lbc.secretStore.(*secrets.LocalSecretStore)
+			for _, ns := range allNamespaces {
+				key := ns + "/tls-secret"
+				want := slices.Contains(tc.wantWatched, ns)
+				if got := store.HoldsSecret(key); got != want {
+					t.Errorf("HoldsSecret(%q) after preSyncSecrets = %t, want %t", key, got, want)
+				}
+				if _, err := lbc.getSecret(key); (err == nil) != want {
+					t.Errorf("getSecret(%q) error = %v, want found = %t", key, err, want)
+				}
+			}
+		})
+	}
+}
+
+// startNamespacedInformers starts every informer group of lbc, as Run does, and
+// waits for their caches to sync. The groups are stopped when the test ends.
+func startNamespacedInformers(t *testing.T, lbc *LoadBalancerController) {
+	t.Helper()
+
+	var cacheSyncs []cache.InformerSynced
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
+		nsi.start()
+		t.Cleanup(nsi.stop)
+		cacheSyncs = append(cacheSyncs, nsi.cacheSyncs...)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if !cache.WaitForCacheSync(ctx.Done(), cacheSyncs...) {
+		t.Fatal("informer caches did not sync")
+	}
+}
+
+// TestSyncNamespaceUnwatchesNamespaceWithoutSecrets drives the label-removed
+// branch of syncNamespace for a namespace left out of -watch-secret-namespace,
+// so its informer group has no Secret lister. Cleaning it up used to dereference
+// that nil lister and crash the controller.
+func TestSyncNamespaceUnwatchesNamespaceWithoutSecrets(t *testing.T) {
+	t.Parallel()
+
+	lbc := newBatchTestLBC(t, newSecretReconciliationNginxManager())
+	lbc.client = fake.NewClientset(&api_v1.Namespace{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "app-ns"},
+		Status:     api_v1.NamespaceStatus{Phase: api_v1.NamespaceActive},
+	})
+	lbc.secretNamespaceList = []string{"secrets-ns"}
+	// Empty: "app-ns" still exists but lost the watch label.
+	lbc.namespaceLabeledLister = cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if _, err := lbc.newNamespacedInformer("app-ns"); err != nil {
+		t.Fatalf("newNamespacedInformer(\"app-ns\") returned error: %v", err)
+	}
+
+	lbc.syncNamespace(task{Key: "app-ns"})
+
+	if got := lbc.namespacedInformers.Get("app-ns"); got != nil {
+		t.Errorf("namespacedInformers.Get(\"app-ns\") after the watch label was removed = %v, want nil", got)
+	}
+}
 
 func TestAddCustomResourceHandlers_Disabled(t *testing.T) {
 	t.Parallel()
