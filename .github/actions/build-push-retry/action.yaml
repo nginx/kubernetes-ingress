@@ -29,6 +29,9 @@ inputs:
   secret-files:
     description: Secret files (newline-separated key=path pairs)
     required: false
+  secret-envs:
+    description: Secrets read from environment variables (newline-separated id=ENV_VAR pairs)
+    required: false
   cache-from:
     description: Cache sources
     required: false
@@ -88,6 +91,7 @@ runs:
         target: ${{ inputs.target }}
         build-args: ${{ inputs.build-args }}
         secret-files: ${{ inputs.secret-files }}
+        secret-envs: ${{ inputs.secret-envs }}
         cache-from: ${{ inputs.cache-from }}
         cache-to: ${{ inputs.cache-to }}
         push: ${{ inputs.push }}
@@ -121,6 +125,7 @@ runs:
         target: ${{ inputs.target }}
         build-args: ${{ inputs.build-args }}
         secret-files: ${{ inputs.secret-files }}
+        secret-envs: ${{ inputs.secret-envs }}
         cache-from: ${{ inputs.cache-from }}
         push: ${{ inputs.push }}
         load: ${{ inputs.load }}
@@ -153,6 +158,7 @@ runs:
         target: ${{ inputs.target }}
         build-args: ${{ inputs.build-args }}
         secret-files: ${{ inputs.secret-files }}
+        secret-envs: ${{ inputs.secret-envs }}
         cache-from: ${{ inputs.cache-from }}
         push: ${{ inputs.push }}
         load: ${{ inputs.load }}
