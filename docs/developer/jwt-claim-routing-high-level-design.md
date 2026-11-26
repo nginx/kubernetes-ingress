@@ -1,16 +1,21 @@
 # High-Level Design: JWT Claim Routing for VirtualServer and VirtualServerRoute
 
-> Status: Proposal (revision 3)
+> Status: Proposal (revision 4)
 >
-> Related work: [#11175](https://github.com/nginx/kubernetes-ingress/issues/11175) (parent [#6829](https://github.com/nginx/kubernetes-ingress/issues/6829), companion [#11174](https://github.com/nginx/kubernetes-ingress/issues/11174), plan [PR #11187](https://github.com/nginx/kubernetes-ingress/pull/11187))
+> Related work: [#11175](https://github.com/nginx/kubernetes-ingress/issues/11175) (parent [#6829](https://github.com/nginx/kubernetes-ingress/issues/6829), companion [#11174](https://github.com/nginx/kubernetes-ingress/issues/11174), merged: plan [`jwt-claim-validation-plan.md`](jwt-claim-validation-plan.md), PRs #11187, #11225, #11226, #11227)
 
-Revision 3 restructures the plan as a high-level design with numbered
-[acceptance scenarios](#acceptance-scenarios). It keeps revision 2's
-validate-then-route design, aligned with #11174 and the security requirements
-of #6829, and replaces the `$jwt_custom_<path>` variable with typed `jwtClaim`
-and `jwtHeader` condition fields. Revision 1 routed in the REWRITE phase, on
-claims that had not been validated yet. The R1 to R11 and V1 to V8 numbering
-is kept because #11174 refers to it.
+Revision 4 rebases the design on #11174 as merged on `main`: it reuses the
+shipped `validateJWTClaimPath`, `jwtClaimRegistry`, `jwtAuth` define,
+`JWTRequireReset` and `jwtVariableSafe` instead of planning them, and covers
+the ConnectionLimit policy and ExternalAuth response headers that landed since
+revision 3. It narrows R11 to the VirtualServer namer that JWT routes use; the
+rest of the dotted-name fix is a
+[follow-up](#cross-plan-and-cross-project-actions). Revision 3 restructured the plan as a high-level design with
+numbered [acceptance scenarios](#acceptance-scenarios), and replaced the
+`$jwt_custom_<path>` variable with typed `jwtClaim` and `jwtHeader` condition
+fields. Revision 1 routed in the REWRITE phase, on claims that had not been
+validated yet. The R1 to R11 and V1 to V8 numbering is kept because #11174's
+plan refers to it.
 
 ## Overview
 
@@ -134,8 +139,11 @@ validation would:
   missing claim.
 - **A variable name ends at `.`** (`ngx_http_script_compile`), so a VS named
   `cafe.v1` yields `$vs_default_cafe.v1_matches_0`, which fails the reload.
-  Today this already breaks every `matches` and `splits` route, and every
-  RateLimit JWT condition, on such a VS.
+  Today this already breaks every `matches` and `splits` route on such a VS
+  (fixed here, R11), and every conditional RateLimit, CORS wildcard origin and
+  API key policy whose parent, owner or Policy name contains `.` (a
+  [follow-up](#cross-plan-and-cross-project-actions)). Zone names may contain `.`,
+  so they are not affected.
 - **Array claims:** `auth_jwt_claim_set` documents comma-joined arrays, while the
   format of `$jwt_claim_<name>` for arrays is unverified (V8).
 
@@ -260,7 +268,8 @@ Authorization (#11174) is stricter. Both are documented side by side:
 | Purpose | Choose a target | Accept or reject the request |
 | Case | Case-insensitive (quoted `map` string, `generateValueForMatchesRouteMap`); use `~^value$` for case-sensitive | Case-sensitive |
 | Negation | `!value` | `negate: true` |
-| Array or space-delimited claim | No `Contains`; use `~(^\|[ ,])value([ ,]\|$)`, the pattern `Contains` generates | `Contains` |
+| Array or space-delimited claim | No `Contains`; use `~(^\|[ ,])value([ ,]\|$)`, the pattern `Contains` generates with `$` in place of `\z` | `Contains` |
+| End anchor | `$`, as written by the user (see the note below) | `\z` (`generateJWTClaimPatterns`) |
 | Missing or empty claim | Matches only `value: ""`; negated values and regexes never match (R9) | Value checks fail; `Present` with `negate: true` matches |
 | Regex | `~` (case-sensitive) or `~*` (case-insensitive) | `match: Regex` (case-sensitive) |
 
@@ -281,6 +290,12 @@ Notes:
   restrict an upstream to certain claims, give it its own route with its own
   `authorization`.
 - Anchor regexes: `~admin` also matches `superadmin`.
+- PCRE `$` also matches before a final newline, so `~^Premium$` matches a
+  claim value `Premium\n`. #11174 anchors with `\z` for that reason. For
+  routing, which is not an access boundary, `$` keeps the recipes readable;
+  write `'~^Premium\z'` (single-quoted in YAML, where `"\z"` is an invalid
+  escape) when the exact end matters. NIC passes the value to the `map` key
+  unchanged, and NGINX keeps `\z` inside a quoted string.
 - Don't route on claims that users can edit at the IdP, such as `email`, `name`
   or `preferred_username`.
 
@@ -300,8 +315,7 @@ Notes:
 ## Acceptance Scenarios
 
 Scenarios are written before the code. Each one is proven by at least one
-test, listed in [Verification](#verification). A scenario marked *depends on
-#11174* stays pending until that plan lands. Every scenario assumes NGINX Plus
+test, listed in [Verification](#verification). Every scenario assumes NGINX Plus
 and a route with an effective `JWTAuth` policy unless it says otherwise.
 
 ### Routing on validated claims
@@ -321,7 +335,7 @@ and a route with an effective `JWTAuth` policy unless it says otherwise.
 | ID | Scenario |
 |---|---|
 | S8 | **Given** a token that is missing, expired, or badly signed, including one whose claims would match, **when** the request arrives, **then** the entry location returns `401` and no upstream receives the request. |
-| S9 | **Given** a #11174 `authorization` rule the token fails, **when** the request arrives, **then** the entry location returns `errorCode` before routing. *Depends on #11174.* |
+| S9 | **Given** a #11174 `authorization` rule the token fails, **when** the request arrives, **then** the entry location returns `errorCode` before routing. |
 | S10 | **Given** a valid token in the configured source and a forged token with other claims in `Authorization`, **when** the request arrives, **then** routing and `auth_jwt_require` use the valid token (V1). |
 | S11 | **Given** a `jwksURI` policy whose endpoint is down and with no cached keys, **when** the request arrives, **then** the entry location returns `500`. |
 
@@ -333,7 +347,7 @@ and a route with an effective `JWTAuth` policy unless it says otherwise.
 | S13 | **Given** BasicAuth at both spec and route level, **when** the request arrives, **then** the entry location applies the route's BasicAuth, not the spec's. |
 | S14 | **Given** CORS on the route, **when** a preflight `OPTIONS` arrives without a token, **then** the response is `204`, and `401` or `403` responses from the entry location carry the CORS headers (V6). |
 | S15 | **Given** route `errorPages`, **when** the entry location returns `401`, `403`, `500` or the rate-limit code, **then** the error pages apply, and gRPC clients receive gRPC statuses (V7). |
-| S29 | **Given** a spec-level JWT policy with an `authorization` rule and a route-level JWT policy with none, **when** a request that the route's policy allows arrives at a JWT route, **then** the entry location applies only the route's policy: the inherited `auth_jwt_require` is reset. *Depends on #11174.* |
+| S29 | **Given** a spec-level JWT policy with an `authorization` rule and a route-level JWT policy with none, **when** a request that the route's policy allows arrives at a JWT route, **then** the entry location applies only the route's policy: the inherited `auth_jwt_require` is reset. |
 
 ### Fail closed
 
@@ -341,7 +355,7 @@ and a route with an effective `JWTAuth` policy unless it says otherwise.
 |---|---|
 | S16 | **Given** JWT conditions and no effective `JWTAuth` policy, **when** the request arrives, **then** it returns `500` and a Warning event names the route (R3). |
 | S17 | **Given** JWT conditions on a route that uses OIDC, **when** the request arrives, **then** it returns `500` and a Warning is emitted (R3). |
-| S18 | **Given** a routing claim and another claim on the same VirtualServer (authorization, rate limit, or another routing condition) that map to the same NGINX variable but are different claim paths (`a.b` and `a_b`, or `Role` and `role`), **when** configuration is generated, **then** the route with the routing condition returns `500` with a Warning, the other feature keeps using its own claim, and the rest of the host keeps serving (R10). |
+| S18 | **Given** a routing claim and another claim on the same VirtualServer (authorization, rate limit, or another routing condition) that map to the same NGINX variable but are different claim paths (`a.b` and `a_b`, or `Role` and `role`), whichever route comes first, **when** configuration is generated, **then** the route with the routing condition returns `500` with a Warning, the other feature keeps using its own claim and is not rejected, and the rest of the host keeps serving (R10). |
 
 ### Request handling
 
@@ -350,6 +364,7 @@ and a route with an effective `JWTAuth` policy unless it says otherwise.
 | S19 | **Given** a request with a query string, **when** it is routed to a plain, `rewritePath`, or gRPC target, **then** the upstream URI, `$args` and `${arg_*}` are the same as with `rewrite ... last` (R7, V3). |
 | S20 | **Given** a route-level claim-keyed rate limit and no spec-level limit, **when** a badly signed token is rejected in the entry location, **then** it is not counted by the limit (V4). |
 | S21 | **Given** spec-level and route-level rate limits, **when** requests arrive, **then** the route limit applies (R8, V4). |
+| S30 | **Given** spec-level and route-level ConnectionLimit policies on a JWT route, **when** concurrent requests arrive, **then** the route limit applies; **given** only a route-level ConnectionLimit, **then** requests rejected in the entry location do not hold a slot (R8, V4). |
 
 ### Validation, unit level
 
@@ -364,7 +379,7 @@ and a route with an effective `JWTAuth` policy unless it says otherwise.
 | ID | Scenario |
 |---|---|
 | S25 | **Given** a route without JWT conditions, or any `splits` route, **when** configuration is rendered, **then** the output is unchanged and no existing snapshot changes. |
-| S26 | **Given** a VirtualServer named `cafe.v1` using `matches`, `splits`, or a RateLimit JWT condition, **when** NGINX loads the configuration, **then** it loads, it does not share generated names with another VirtualServer in the same namespace such as `cafe-v1-89983ead`, and undotted names render as before (R11). |
+| S26 | **Given** a VirtualServer named `cafe.v1` using `matches`, `splits`, and a `jwtClaim` route, **when** NGINX loads the configuration, **then** it loads, and undotted names render as before (R11). |
 | S27 | **Given** a JWT route, **when** targets are rendered, **then** they keep their policies (R5), and a `jwksURI` policy without `keyCache` produces a Warning. |
 | S28 | **Given** WAF or DoS on a JWT route, **when** the request is redirected from the entry to a target, **then** it is inspected exactly once. **TBD:** the behaviour is decided by V5. |
 
@@ -399,28 +414,49 @@ flowchart TD
   (`internal/configs/policy.go`), with the parent VS `policyOwnerDetails`
   (`parentType: "vs"`; VSR subroutes also use the parent VS). The variable is
   shared with `RateLimit` and #11174 for the same claim.
-- Claim sets are collected in `routingCfg.AuthJWTClaimSets` and appended to
-  `authJWTClaimSets` at both match call sites in `GenerateVirtualServerConfig`.
-- `removeDuplicateAuthJWTClaimSets` deduplicates them. #11174's claim registry
-  (`jwtClaimRegistry`, `internal/configs/jwt_authorization.go`) records which
-  claim path owns each variable. `.` and `-` both become `_` and NGINX variable
+- Claim sets are collected in `routingCfg.AuthJWTClaimSets` at both match call
+  sites in `GenerateVirtualServerConfig`, but are not appended to
+  `authJWTClaimSets` there (R10).
+- **Collisions (R10).** #11174's `jwtClaimRegistry`
+  (`internal/configs/jwt_authorization.go`) records which claim path owns each
+  variable of the VirtualServer. `.` and `-` both become `_` and NGINX variable
   names are case-insensitive, so `a.b`, `a_b`, `Role` and `role` can share a
-  variable. Routing claims register in the same registry (R10).
+  variable. On `main`, policies register while `generatePolicies` runs, route by
+  route, and `removeDuplicateAuthJWTClaimSets` keeps the first claim set of a
+  variable. Routing claims therefore must not register inline: a routing
+  `a.b` on an earlier route would make a later route's authorization policy on
+  `a_b` be rejected, and if its claim set were appended first, deduplication
+  would keep it and the authorization check would read `a.b`. Instead:
+  1. After both route loops (VS routes and VSR subroutes), every
+     `generatePolicies` call has registered its claims.
+  2. For each JWT route in order, a new registry method, `claimRouting(sets)`,
+     returns a conflict if any routing variable is owned by a different claim
+     path (authorization, rate limit, or an earlier routing condition), and
+     otherwise registers the sets as non-authorization owners. Like
+     `claimAuthorization`, it registers nothing on a conflict. The route loops
+     record the indexes of each JWT route's entry and target locations, so the
+     post-pass can set their error return.
+  3. Accepted routing claim sets are appended to `authJWTClaimSets` after every
+     policy claim set, so a routing claim never wins deduplication over a
+     policy's. A rejected route fails closed as in R3: its entry and target
+     locations get `PoliciesErrorReturn` `500` and the VirtualServer gets a
+     Warning. Policies are never affected by routing claims.
 - `jwtHeader` and the `$jwt_claim_*` and `$jwt_header_*` variables are used
   directly as map sources (`getNameForSourceForMatchesRouteMapFromCondition`),
   with `jwtHeader: kid` mapped to `$jwt_header_kid`.
-- **Dotted resource names (R11).** `NewVSVariableNamer` and
-  `generateAuthJwtClaimSetVariable` only replace `-` with `_`. When the
-  namespace/name contains `.`, replace `.` with `_` and append
-  `_<first 8 hex chars of sha256("<ns>/<name>")>_` (note the trailing
-  underscore). Names without `.` keep their current form, so existing snapshots
-  don't change. The hash keeps `cafe.v1` distinct from `cafe-v1`. Kubernetes
-  names cannot end in `-`, so an undotted name never produces a trailing `_`,
-  which keeps dotted and undotted names apart (without it, `cafe.v1` and the
-  legal name `cafe-v1-89983ead` would both yield `default_cafe_v1_89983ead`,
-  and because an NGINX `map` variable is changeable, the second map would
-  silently replace the first). The existing `-`/separator ambiguity (ns `a-b`/name
-  `c` vs ns `a`/name `b-c`) is pre-existing and out of scope.
+- **Dotted VirtualServer names (R11).** `NewVSVariableNamer`
+  (`internal/configs/virtualserver.go`) only replaces `-` with `_`, so a VS
+  named `cafe.v1` yields `$vs_default_cafe.v1_matches_0` and the reload fails.
+  JWT routes use these `matches` variables. This design switches the namer to
+  #11174's `jwtVariableSafe` (`internal/configs/jwt_authorization.go`), which
+  also replaces `.` with `_`, the rule `$jwt_authz_*` and claim-set variables
+  already follow. Undotted names are unchanged, so existing snapshots don't
+  change. The namer also builds the `splits` and keyval variables; the
+  controller uses the same namer for NGINX Plus API weight updates
+  (`internal/k8s/controller.go`), so both sides stay consistent. Dotted names
+  with `matches` or `splits` fail the reload today, so nothing that loads
+  changes. The remaining dotted-name issues are a
+  [follow-up](#cross-plan-and-cross-project-actions).
 
 ### 2. Condition maps (`http` context)
 
@@ -477,13 +513,13 @@ reused unchanged.
 |---|---|---|
 | Route policies, including `auth_jwt` and `auth_jwt_require` | Target location, ACCESS | **Entry location, ACCESS**; again in the target (R5) |
 | Match map evaluated, target chosen | Entry location, REWRITE: **unverified** claims | Entry location, PRECONTENT: **verified** claims |
-| Route `limit_req` | Target location, PREACCESS: before `auth_jwt` | Target location, after the entry validated the token, unless spec-level limits also exist (R8) |
+| Route `limit_req` and `limit_conn` | Target location, PREACCESS: before `auth_jwt` | Target location, after the entry validated the token, unless spec-level limits of the same kind also exist (R8) |
 | CORS preflight (`OPTIONS`) | Target location, REWRITE (`204`) | Entry location, REWRITE (`204`) |
 
 #### Requirements
 
 R1 to R6 keep the numbering of #11174's
-[Required: validate-then-route](https://github.com/nginx/kubernetes-ingress/blob/feat/jwt-policy-claims/docs/developer/jwt-claim-validation-plan.md#required-validate-then-route).
+[Required: validate-then-route](jwt-claim-validation-plan.md#required-validate-then-route).
 
 | # | Requirement | Scenarios |
 |---|---|---|
@@ -494,10 +530,10 @@ R1 to R6 keep the numbering of #11174's
 | R5 | Target locations keep their policies (defence in depth). Config generation warns when a `jwksURI` policy without `keyCache` is used on such a route: `/_jwks_uri_server_*` has no `proxy_cache`, so every validation fetches the JWKS and the second check doubles IdP requests. External auth and API key subrequests also run twice. | S27 |
 | R6 | `root /dev/null;` makes the probe `/dev/null/nic-route` fail with `ENOTDIR`, which `try_files` skips without logging. Cost: one `stat` per request. | S1 |
 | R7 | The `try_files` fallback is `$vs_..._matches_N$is_args$args`. `try_files` replaces the request arguments with those of the fallback URI, while `rewrite` keeps them. Plain targets proxy `$request_uri` and are unaffected, but `rewritePath` targets and `${args}` / `${arg_*}` in headers or return bodies would lose the query string. | S19 |
-| R8 | When the route has its own rate limits and spec-level limits also exist, render the route's `limit_req` (and its options) in the entry location. Otherwise don't: route limits stay in the targets, and spec-level limits are inherited by both. A spec-level limit inherited by the entry would run there, and the target's route limit would be skipped: fail open if the route limit is stricter. | S20, S21 |
+| R8 | When the route has its own rate limits and spec-level limits also exist, render the route's `limit_req` (and its options) in the entry location. Otherwise don't: route limits stay in the targets, and spec-level limits are inherited by both. A spec-level limit inherited by the entry would run there, and the target's route limit would be skipped: fail open if the route limit is stricter. The same rule applies separately to ConnectionLimit (`limit_conn` and its options): `limit_conn` also runs at most once per request (`r->main->limit_conn_status`, [source](https://github.com/nginx/nginx/blob/master/src/http/modules/ngx_http_limit_conn_module.c)), and a connection counted in the entry stays counted until the request ends. | S20, S21, S30 |
 | R9 | For JWT conditions, emit `"" 0;` before the value key, unless the un-negated value is `""` (which would duplicate the key). | S4 |
-| R10 | `jwtClaim` claim sets register in #11174's `jwtClaimRegistry`. A routing claim that maps to the same variable as a different claim path used by any other feature (authorization, rate limit, or another routing condition) would route on the wrong claim, so the route fails closed as in R3, whichever feature registers first. | S18 |
-| R11 | Variable names generated from a VS namespace/name are valid NGINX variable names when the name contains `.`. | S26 |
+| R10 | `jwtClaim` claim sets register in #11174's `jwtClaimRegistry` through a new `claimRouting` method, in a pass after all policies are generated, and their claim sets are appended after every policy claim set. A routing claim that maps to the same variable as a different claim path used by any other feature (authorization, rate limit, or an earlier routing condition) would route on the wrong claim, so the route fails closed as in R3. Policies are never rejected or changed because of a routing claim, whatever the route order. See [Claim extraction](#1-claim-extraction-http-context). | S18 |
+| R11 | `NewVSVariableNamer` uses `jwtVariableSafe`, so `matches` and `splits` variables are valid NGINX variable names when the VS namespace or name contains `.`. Undotted names are unchanged. Collisions and the other builders are a [follow-up](#cross-plan-and-cross-project-actions). | S26 |
 
 #### Entry location contents
 
@@ -509,8 +545,8 @@ route-over-spec precedence is identical:
 |---|---|
 | `PoliciesErrorReturn` (invalid policy, R3, R10) | Fail before any other processing. |
 | `allow` / `deny`, `auth_basic`, external auth (`auth_request` and its sign-in `error_page`), API key (`set` and `auth_request`), JWT (`jwtAuth` define, including `auth_jwt_require`) | The ACCESS phase now runs in the entry. A spec-level policy inherited there would otherwise replace the route's own: a route-level BasicAuth user would get `401` from the entry. |
-| `JWTRequireReset`, using #11174's `jwtRequireResetNeeded` rule | `auth_jwt_require` is inherited and has no `off`. A server-level claim requirement would otherwise also apply in the entry location of a route whose own JWT policy sets none, and a request that the route's policy allows would get `403` before routing. |
-| `limit_req` and its options, per R8 | `limit_req` runs once per request. |
+| `JWTRequireReset`, using #11174's `jwtRequireResetNeeded` rule, rendered after the `jwtAuth` define exactly as in target locations (`auth_jwt_require $jwt_authz_none_<ns>_<name>;`) | `auth_jwt_require` is inherited and has no `off`. A server-level claim requirement would otherwise also apply in the entry location of a route whose own JWT policy sets none, and a request that the route's policy allows would get `403` before routing. |
+| `limit_req`, `limit_conn` and their options, per R8 | Each runs once per request. |
 | WAF, DoS | Inspection before validation. Double processing is checked in V5. |
 | CORS preflight (`if ($request_method = 'OPTIONS') { … return 204; }`) and CORS headers | Without them, browser preflights (sent without a token) get `401` from the entry. Today the target answers them before any auth check. |
 | HSTS, `add_header_inherit` | A CORS `add_header` in the entry stops inheritance of server-level `add_header` (same rule as `addHSTSToLocationsWithAddHeaders`). |
@@ -519,6 +555,7 @@ route-over-spec precedence is identical:
 | Not rendered in the entry location | Why |
 |---|---|
 | Action settings: proxy directives, action `responseHeaders`, rewrites, cache, EgressMTLS | No target has been chosen yet. |
+| Upstream headers from policies: #11174 claim headers (`proxySetHeader`, through `jwtPolicyProxyHeaders`) and ExternalAuth response headers (`AuthResponseHeaders`, `StrippedAuthResponseHeaders`) | They are `proxy_set_header`/`grpc_set_header` and `auth_request_set` for the request sent upstream; the entry does not proxy. The targets keep them, and their own `auth_jwt` and `auth_request` (R5) set the values they forward. |
 | `location-snippets` | A snippet's `rewrite` or `return` could change routing. The targets still apply them. |
 
 Implementation:
@@ -577,14 +614,25 @@ and renders no policies, as in #11174.
    - set `ValidateBeforeRouting` and fill the entry location from
      `routePoliciesCfg` through the helper shared with
      `addPoliciesCfgToLocation` (CORS headers only, no action headers), HSTS,
-     `Dos`, `AddHeaderInherit`, `ErrorPages` from `generateErrorPages`,
-     `JWTRequireReset` by the same rule #11174 uses for target locations, and
+     `Dos`, `AddHeaderInherit`, `ErrorPages` from `generateErrorPages`, and
      `GRPCErrorPages` when every target has `GRPCPass`;
-   - R8: copy the route's `LimitReqs` into the entry location only when
-     spec-level limits exist;
+   - R8: copy the route's `LimitReqs` and `LimitReqOptions` into the entry
+     location only when spec-level `LimitReqs` exist, and likewise
+     `LimitConns` and `LimitConnOptions` only when spec-level `LimitConns`
+     exist;
    - R5: warn for a `jwksURI` policy without `keyCache`.
-4. R11 lands first, as its own bug-fix commit, because it also fixes existing
-   `matches`, `splits` and RateLimit JWT configs.
+4. After both route loops:
+   - R10: register routing claims with `claimRouting` (see
+     [Claim extraction](#1-claim-extraction-http-context)) and append the
+     accepted claim sets;
+   - S29: `addJWTRequireReset` runs today only over `locations`, after they are
+     built. Extend that pass to the entry locations of JWT routes, using the
+     same `jwtRequireResetNeeded` rule (generalized to read the fields both
+     structs share), so the `$jwt_authz_none_<ns>_<name>` map is also emitted
+     when only an entry location needs it.
+5. R11 lands first, as its own small bug-fix commit (`NewVSVariableNamer`
+   uses `jwtVariableSafe`), because it also fixes existing `matches` and
+   `splits` configs on dotted VirtualServer names.
 
 ### Rejected alternatives
 
@@ -660,36 +708,36 @@ length as `maxLength`.
 
 ## Dependencies
 
-This design builds on #11174's stack, which is implemented on a chain of
-branches (`feat/jwt-claims-types-validation` through `feat/jwt-claims-templates`)
-and not yet merged. Land it first. It provides `validateJWTClaimPath`, the
-`jwtAuth` template define, `jwtClaimRegistry`, and `JWTRequireReset`. Both
-features edit the same template block, `virtualserver.go`, `http.go`,
-`policy.go`, `types.go`, the generated CRDs and the snapshots, so building this
-feature first would mean recreating those pieces and then resolving conflicts
-in every one of those files. Without #11174 the design still works, but S9 and
-S29 stay pending.
+#11174 is merged on `main` (#11225 types and validation, #11226 configuration
+generation, #11227 templates). This design reuses what it shipped. Its only
+changes to that code are the `claimRouting` registry method (R10) and
+extending the `JWTRequireReset` pass to entry locations (S29). R11 reuses
+`jwtVariableSafe` unchanged:
+
+| Concern | Shipped by #11174 (on `main`) | Used here for |
+|---|---|---|
+| Claim-path syntax and validation | `validateJWTClaimPath`, `maxJWTClaimNameLength` (`pkg/apis/configuration/validation/jwt_authorization.go`) | `jwtClaim` |
+| Claim variable names | `generateAuthJwtClaimSetVariable` with `jwtVariableSafe` (`policy.go`, `jwt_authorization.go`) | `jwtClaim` map sources; `NewVSVariableNamer` (R11) |
+| Collision detection | `jwtClaimRegistry` (`internal/configs/jwt_authorization.go`), one per VirtualServer, created in `GenerateVirtualServerConfig` and passed to every `generatePolicies` call | R10 |
+| JWT directive block | `{{ define "jwtAuth" }}` with `jwtAuthBlock` (`nginx-plus.virtualserver.tmpl`, `template_helper.go`) | Entry location of JWT routes |
+| Inherited `auth_jwt_require` reset | `Location.JWTRequireReset`, `jwtRequireResetNeeded`, `addJWTRequireReset`, the per-VS `$jwt_authz_none_<ns>_<name>` map | Entry location (S29) |
+| Claim headers to the upstream | `jwtPolicyProxyHeaders` (`proxySetHeader`); route `requestHeaders` win | Targets only; the entry does not proxy |
+
+Still owned by this design:
 
 | Concern | Owner | Notes |
 |---|---|---|
-| Claim-path syntax and validation | Shared `validateJWTClaimPath` | `claims[].name`, `jwtClaim` and `rateLimit.condition.jwt.claim` |
-| `auth_jwt_claim_set` variables, deduplication and collision detection | `removeDuplicateAuthJWTClaimSets`, `jwtClaimRegistry` | One variable per (parent VS, claim); R10 |
-| Inherited `auth_jwt_require` reset | `JWTRequireReset` | Also rendered by the entry location (S29) |
-| JWT directive block | Shared `jwtAuth` define | Rendered at `server`, `location`, and the entry location of JWT routes |
 | Other route-policy blocks | Shared defines added by this design (R2) | Rendered by the target `location` and the entry location |
-| Order of validation and routing | This design (R1 to R11) | Required by #11174 for #6829's routing criteria |
-| Upstream claim headers | Route `requestHeaders` win over `proxySetHeader` | #11174 |
-| Matching semantics | Both plans | Side-by-side table in [Matching semantics](#matching-semantics) |
+| Order of validation and routing | This design (R1 to R11) | Required by #11174's plan for #6829's routing criteria |
+| Matching semantics | Both features | Side-by-side table in [Matching semantics](#matching-semantics) |
 
-Changes needed in the #11174 plan to keep the two consistent are tracked on
-[PR #11187](https://github.com/nginx/kubernetes-ingress/pull/11187), not in
-this document. If the validation step of #11174's stack lands alone, `authorization`
-is accepted but not enforced: fail open. Both stacks merge as one
-unit.
+#11174's plan still describes #11175 with the earlier `$jwt_custom_<path>`
+variable and the old file name; see
+[Cross-plan and cross-project actions](#cross-plan-and-cross-project-actions).
 
 ## Delivery Plan
 
-Land #11174's stack first (see [Dependencies](#dependencies)). Merge the four
+#11174 is already on `main` (see [Dependencies](#dependencies)). Merge the four
 steps as one unit, for example through a feature branch. The
 implementation is one step, so validation never lands without configuration
 generation: if it did, `jwtClaim` would be accepted but render nothing, and
@@ -710,31 +758,56 @@ flowchart LR
 
 | Order | Scope | Turns green | Files |
 | :---: | --- | --- | --- |
-| **1** | **Design & Test Plan.** Agree the variables, R1 to R11, the entry location contents, matching semantics, scenarios, and the gaps vs #6829. | None. S1 to S29 are agreed here. | • [`docs/developer/jwt-claim-routing-high-level-design.md`](jwt-claim-routing-high-level-design.md) |
+| **1** | **Design & Test Plan.** Agree the variables, R1 to R11, the entry location contents, matching semantics, scenarios, and the gaps vs #6829. | None. S1 to S30 are agreed here. | • [`docs/developer/jwt-claim-routing-high-level-design.md`](jwt-claim-routing-high-level-design.md) |
 | **2** | **Examples & User Contract.** Show the user experience before implementation. Include a Policy with #11174 `authorization`, a VS, a VSR with a subroute-level policy, a JWK Secret, apps, and a README with the token outcome table. | None. The README table cites S1 to S4 and S8. | • `examples/custom-resources/jwt-claim-routing/` |
-| **3** | **Implementation.** Validation, configuration generation, and templates, in three groups of commits, each tests first. (a) NGINX Plus-only `jwtClaim` and `jwtHeader` condition fields, and `$jwt_claim_` / `$jwt_header_` in `variable`; shared `validateJWTClaimPath`; new fields in `types.go`, then `make update-codegen` and `make update-crds` (check `deploy/crds*.yaml` and `docs/crd/` by hand; CI does not diff them). (b) R11 dotted-name fix (its own first commit), claim sets, R9 keys, entry location contents, R3 guard, R8, collision handling. (c) Shared template defines with no change to existing snapshots, entry location rendering, new fixtures, verification gates V1 to V8. | S4, S12 to S18, S20 and S21 (config level), S22 to S24, S25, S26 (unit and template fixture), S27; S29 once #11174 lands | • [`pkg/apis/configuration/validation/virtualserver.go`](../../pkg/apis/configuration/validation/virtualserver.go)<br>• [`pkg/apis/configuration/validation/virtualserver_test.go`](../../pkg/apis/configuration/validation/virtualserver_test.go)<br>• [`pkg/apis/configuration/v1/types.go`](../../pkg/apis/configuration/v1/types.go) (`Condition.JWTClaimPath` with JSON tag `jwtClaim`, and `Condition.JWTHeader`)<br>• `config/crd/bases/`, `deploy/crds*.yaml`, `docs/crd/` (regenerated)<br>• [`internal/configs/version2/http.go`](../../internal/configs/version2/http.go)<br>• [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)<br>• [`internal/configs/policy.go`](../../internal/configs/policy.go)<br>• [`internal/configs/virtualserver_routing_test.go`](../../internal/configs/virtualserver_routing_test.go)<br>• [`internal/configs/virtualserver_policy_test.go`](../../internal/configs/virtualserver_policy_test.go)<br>• [`internal/configs/virtualserver_config_test.go`](../../internal/configs/virtualserver_config_test.go)<br>• [`internal/configs/virtualserver_helpers_test.go`](../../internal/configs/virtualserver_helpers_test.go)<br>• [`internal/configs/version2/nginx-plus.virtualserver.tmpl`](../../internal/configs/version2/nginx-plus.virtualserver.tmpl)<br>• [`internal/configs/version2/templates_test.go`](../../internal/configs/version2/templates_test.go)<br>• [`internal/configs/version2/__snapshots__/templates_test.snap`](../../internal/configs/version2/__snapshots__/templates_test.snap) |
-| **4** | **End-to-End Tests.** Runtime behaviour. Scenario IDs go in each test's docstring. | S1 to S3, S5 to S8, S10 to S17, S19 to S21, S26 (reload); S9 and S29 once #11174 lands; S28 once V5 decides | • [`tests/suite/test_jwt_policies.py`](../../tests/suite/test_jwt_policies.py)<br>• [`tests/suite/test_jwt_policies_vsr.py`](../../tests/suite/test_jwt_policies_vsr.py)<br>• [`tests/data/jwt-policy/`](../../tests/data/jwt-policy/)<br>• [`hack/secrets.json`](../../hack/secrets.json) |
+| **3** | **Implementation.** Validation, configuration generation, and templates, in three groups of commits, each tests first. (a) NGINX Plus-only `jwtClaim` and `jwtHeader` condition fields, and `$jwt_claim_` / `$jwt_header_` in `variable`; reuse `validateJWTClaimPath`; new fields in `types.go`, then `make update-codegen` and `make update-crds` (check `deploy/crds*.yaml` and `docs/crd/` by hand; CI does not diff them). (b) R11 namer fix (its own first commit), claim sets, R9 keys, entry location contents, R3 guard, R8, collision handling. (c) Shared template defines with no change to existing snapshots, entry location rendering, new fixtures, verification gates V1 to V8. | S4, S12 to S18, S20, S21 and S30 (config level), S22 to S24, S25, S26 (unit and template fixture), S27, S9 and S29 (config level) | • [`pkg/apis/configuration/validation/virtualserver.go`](../../pkg/apis/configuration/validation/virtualserver.go)<br>• [`pkg/apis/configuration/validation/virtualserver_test.go`](../../pkg/apis/configuration/validation/virtualserver_test.go)<br>• [`pkg/apis/configuration/v1/types.go`](../../pkg/apis/configuration/v1/types.go) (`Condition.JWTClaimPath` with JSON tag `jwtClaim`, and `Condition.JWTHeader`)<br>• `config/crd/bases/`, `deploy/crds*.yaml`, `docs/crd/` (regenerated)<br>• [`internal/configs/version2/http.go`](../../internal/configs/version2/http.go)<br>• [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)<br>• [`internal/configs/policy.go`](../../internal/configs/policy.go)<br>• [`internal/configs/jwt_authorization.go`](../../internal/configs/jwt_authorization.go) (`claimRouting`)<br>• [`internal/configs/jwt_authorization_test.go`](../../internal/configs/jwt_authorization_test.go)<br>• [`internal/configs/virtualserver_jwt_authorization_test.go`](../../internal/configs/virtualserver_jwt_authorization_test.go)<br>• [`internal/configs/virtualserver_routing_test.go`](../../internal/configs/virtualserver_routing_test.go)<br>• [`internal/configs/virtualserver_policy_test.go`](../../internal/configs/virtualserver_policy_test.go)<br>• [`internal/configs/virtualserver_config_test.go`](../../internal/configs/virtualserver_config_test.go)<br>• [`internal/configs/virtualserver_helpers_test.go`](../../internal/configs/virtualserver_helpers_test.go)<br>• [`internal/configs/version2/nginx-plus.virtualserver.tmpl`](../../internal/configs/version2/nginx-plus.virtualserver.tmpl)<br>• [`internal/configs/version2/templates_test.go`](../../internal/configs/version2/templates_test.go)<br>• [`internal/configs/version2/__snapshots__/templates_test.snap`](../../internal/configs/version2/__snapshots__/templates_test.snap) |
+| **4** | **End-to-End Tests.** Runtime behaviour. Scenario IDs go in each test's docstring. | S1 to S3, S5 to S8, S10 to S17, S19 to S21, S26 (reload), S9, S29, S30; S28 once V5 decides | • [`tests/suite/test_jwt_policies.py`](../../tests/suite/test_jwt_policies.py)<br>• [`tests/suite/test_jwt_policies_vsr.py`](../../tests/suite/test_jwt_policies_vsr.py)<br>• [`tests/data/jwt-policy/`](../../tests/data/jwt-policy/)<br>• [`hack/secrets.json`](../../hack/secrets.json) |
 
 The OSS template is not modified: JWT conditions are rejected on NGINX OSS.
 
 ### Cross-plan and cross-project actions
 
-- **#11174:** apply the requested changes tracked on PR #11187, including
-  replacing its references to `$jwt_custom_` with `jwtClaim`. Its
-  `$jwt_authz_*` and claim-set variable names also need R11.
+- **#11174 plan** (`jwt-claim-validation-plan.md`, merged): update its
+  references to #11175 — `$jwt_custom_<path>` becomes `jwtClaim`, and the
+  `jwt-variable-match-plan.md` links point to this document.
+- **Dotted resource names** (separate issue and PR): `jwtVariableSafe` lets
+  `cafe.v1` and `cafe-v1` in one namespace share `$vs_*`, `$jwt_authz_*` and
+  claim-set variables, and the RateLimit, CORS and API key builders still
+  produce invalid variable names for dotted names. Not part of this design's
+  delivery.
 - **Rate limiting** (follow-up issue, shared with #11174): count only validated
   tokens for spec-level limits and for routes without JWT conditions
   ([discussion #10371](https://github.com/nginx/kubernetes-ingress/discussions/10371)).
 - **#6829:** decide how invalid resources keep the last valid configuration.
 - **#11175:** update the issue scope and acceptance criteria to match this
-  design. The issue says no new CRD fields are needed on `Condition`, and this
-  design adds `jwtClaim` and `jwtHeader`.
+  design. See [#11175 acceptance criteria](#11175-acceptance-criteria) for
+  each criterion that is covered or changed.
 - **Documentation** (`nginx/documentation`): the `jwtClaim` and `jwtHeader` fields, the
   `$jwt_*` variables, and the JWT policy requirement; the example with token outcomes; the matching semantics
   table and recipes; and the security guidance (validate-then-route, fail
   closed, D1 to D4, set `keyCache` with `jwksURI`).
 
 ## Requirements Traceability
+
+### #11175 acceptance criteria
+
+The issue predates the validate-then-route design. *Changed* rows are
+deliberate deviations; the issue is updated to match (see
+[Cross-plan and cross-project actions](#cross-plan-and-cross-project-actions)).
+
+| #11175 criterion or proposal | Status | Scenarios |
+|---|---|---|
+| `matches[].conditions[].variable` accepts `$jwt_claim_<name>` and `$jwt_header_<name>` with NGINX Plus | Covered, for VS routes and VSR subroutes. `jwtClaim` and `jwtHeader` are added for nested and array claims. | S5, S23 |
+| `variable` accepts `$jwt_payload` | **Changed:** not supported. NIC renders no `auth_jwt_type`, so the variable is always empty. See [Non-Goals](#non-goals). | S23 |
+| OSS rejects `$jwt_*` with a clear error; malformed `$jwt_claim_` / `$jwt_header_` suffixes (not `^[a-zA-Z0-9_]+$`) are rejected | Covered. OSS also rejects `jwtClaim` and `jwtHeader`. | S22, S23, S24 |
+| `$jwt_payload` allowed where `$jwt_claim_*` and `$jwt_header_*` are (for example `action.proxy.requestHeaders`) | **Changed:** not added. In `responseHeaders.add` it would return decrypted payloads to clients. | — |
+| Routing works with `JWTAuth` at `spec.policies`, `routes[].policies` or `subroutes[].policies` | Covered, and the token is validated in the entry location before routing at every level (R1, R2). | S12 |
+| Unit tests for validation, configuration generation and snapshots | Covered: delivery step 3. | S4, S12 to S18, S22 to S27 |
+| CRD and VS/VSR docs list the JWT variables under `condition.variable` (NGINX Plus only) | Covered: step 3 regenerates `docs/crd/`; user docs are a separate PR in `nginx/documentation`, which also covers `jwtClaim` and `jwtHeader`. | — |
+| "No new CRD fields are required on `Condition`" | **Changed:** `jwtClaim` and `jwtHeader` are added. `$jwt_claim_<name>` cannot express nested claims, and a NIC-generated pseudo-variable such as `$jwt_custom_<path>` looks like an NGINX variable but isn't. See [Rejected alternatives](#rejected-alternatives). | S1, S2, S23 |
+| Expected configuration: `auth_jwt` added to the entry location, which keeps `rewrite ^ $vs_…_matches_N last;` | **Changed:** `rewrite ... last` leaves the location in the REWRITE phase, so the entry's `auth_jwt` never runs and the map evaluates unverified claims. JWT routes use `try_files` after ACCESS instead. See [Why validate first](#why-validate-first). | S1, S8, S25 |
+
+### #6829 requirements
 
 | #6829 requirement | Status | Scenarios |
 |---|---|---|
@@ -771,9 +844,10 @@ The OSS template is not modified: JWT conditions are rejected on NGINX OSS.
    `internal` ones. *Scenario S1.*
 3. **V3: Query string.** Upstream URI, `$args` and `$arg_*` are identical to
    `rewrite ... last` for plain, `rewritePath` and gRPC targets. *Scenario S19.*
-4. **V4: Rate limits.** With spec-level and route-level limits, the route limit
+4. **V4: Rate and connection limits.** With spec-level and route-level limits
+   (`limit_req`, and separately `limit_conn`), the route limit
    applies (R8). Without spec-level limits, requests rejected in the entry
-   location are not counted by the target's limit. *Scenarios S20, S21.*
+   location are not counted by the target's limit. *Scenarios S20, S21, S30.*
 5. **V5: WAF and DoS.** Check whether requests are inspected or logged twice
    across the internal redirect. Then decide whether the entry location keeps
    them (inspection before JWT parsing) or sets `app_protect_enable off` and
@@ -809,7 +883,7 @@ roles array and for a premium token signed with a different key.
 | S6 | | | `test_jwt_policies.py` (combined with header and argument conditions) |
 | S7 | | | `test_jwt_policies.py` (`return` and `redirect` targets) |
 | S8 | | Entry location with `auth_jwt` before `try_files` | `test_jwt_policies.py`, `test_jwt_policies_vsr.py` (missing, expired, bad signature, matching claims) |
-| S9 | Entry carries `auth_jwt_require` | Entry with `auth_jwt_require` | `test_jwt_policies.py` once #11174 lands |
+| S9 | Entry carries `auth_jwt_require` | Entry with `auth_jwt_require` | `test_jwt_policies.py` |
 | S10 | | | `test_jwt_policies.py` (token confusion) |
 | S11 | | | `test_jwt_policies_jwksuri.py` (endpoint down, no cache) |
 | S12 | `virtualserver_policy_test.go`, `virtualserver_config_test.go`: spec, route, subroute, inherited VS-route level | Entry with spec-level JWT inherited | `test_jwt_policies.py`, `test_jwt_policies_vsr.py` |
@@ -818,7 +892,7 @@ roles array and for a premium token signed with a different key.
 | S15 | `ErrorPages`, `GRPCErrorPages` | Entry with error pages and gRPC mapping | `test_jwt_policies.py` (entry errors) |
 | S16 | R3 guard: no JWT policy | | `test_jwt_policies.py` (500 and Warning event) |
 | S17 | R3 guard: OIDC route; spec-level `JWTAuth` with route-level OIDC | | `test_jwt_policies.py` (OIDC route) |
-| S18 | `virtualserver_helpers_test.go` (`TestRemoveDuplicateAuthJWTClaimSets`): `jwtClaim: a.b` vs authorization claim `a_b` (500), `jwtClaim: Role` vs `role` (500), and vs a rate-limit claim `a-b` (500); both orders | | |
+| S18 | `jwt_authorization_test.go` (`TestJWTClaimRegistry_Routing`): `claimRouting` conflicts and registers nothing on conflict. `virtualserver_jwt_authorization_test.go`, next to `TestVirtualServerJWTAuthorization_ClaimVariableCollisions`: `jwtClaim: a.b` vs authorization claim `a_b`, `jwtClaim: Role` vs `role`, vs a rate-limit claim `a-b`, and vs another route's `jwtClaim`, with the routing route both before and after the policy route: the routing route gets `500` and a Warning, the policy is accepted, and the rendered claim set is the policy's | | |
 | S19 | | Entry `try_files` fallback with `$is_args$args` | `test_jwt_policies.py` (query string, `rewritePath` target) |
 | S20 | R8: no route limit in the entry without spec-level limits | | `test_jwt_policies.py` (rate limits) |
 | S21 | R8: route limit in the entry with spec-level limits | Entry with `limit_req` | `test_jwt_policies.py` (rate limits) |
@@ -826,10 +900,11 @@ roles array and for a premium token signed with a different key.
 | S23 | `virtualserver_test.go`: valid on Plus (`jwtClaim`: `sub`, `user_details.level`, `user-details.level`; `jwtHeader`: `kid`; `variable`: `$jwt_claim_sub`, `$jwt_header_kid`); invalid (`jwtClaim`: `.a`, `a.`, `a..b`, `a$b`, `a/b`, `a:b`; `jwtHeader`: `a-b`, `a.b`; `variable`: `$jwt_claim_`, `$jwt_claim_a.b`, `$jwt_claim_a-b`, `$jwt_header_`, `$jwt_payload`, `$jwt_payload_x`, `$jwt_custom_a.b`, `$jwt_foo`); `jwtClaim` set together with `header`, `cookie`, `argument` or `variable` is rejected, and so is `jwtHeader` | | |
 | S24 | `virtualserver_test.go`: `jwtClaim` values `a;b`, `a b`, `a{b}`; `jwtHeader` values `a;b`, `a b`; and a JWT condition `value` with an unescaped `"` | | |
 | S25 | Non-JWT `matches` and `splits` unchanged | `make test` passes with no snapshot changes after the define extraction, before any new fixture | |
-| S26 | Both namers with `cafe.v1` (valid name, distinct from `cafe-v1` and from `cafe-v1-89983ead`); unchanged output for undotted names | Fixture with a dotted VS name and a `jwtClaim` match | One reload test with a dotted VS name |
+| S26 | `virtualserver_helpers_test.go` (`TestVariableNamerSafeNsName`): `cafe.v1` and `my.ns` give a valid variable name; undotted names unchanged | Fixture with a dotted VS name, `matches`, `splits` and a `jwtClaim` match; existing snapshots unchanged | One reload test with a dotted VS name |
 | S27 | Entry and target carry identical policy fields; the `jwksURI` without `keyCache` warning | Targets keep their policies | |
 | S28 | TBD after V5 | TBD | TBD |
-| S29 | `virtualserver_policy_test.go`: `JWTRequireReset` set on the entry only when a route-level JWT policy has no requirement under a server-level one | Entry with `auth_jwt_require` reset | `test_jwt_policies.py` once #11174 lands |
+| S29 | `virtualserver_policy_test.go`: `JWTRequireReset` set on the entry only when a route-level JWT policy has no requirement under a server-level one | Entry with `auth_jwt_require` reset | `test_jwt_policies.py` |
+| S30 | R8: route `LimitConns` in the entry only with spec-level `LimitConns`, independent of `LimitReqs` | Entry with `limit_conn` and its options | `test_jwt_policies.py` (connection limits; reuse the slow backend from the ConnectionLimit e2e tests) |
 
 Also: the existing ACME challenge and `AuthRequestOff` fixtures must render
 unchanged. No new pytest markers are expected; register any new ones in
