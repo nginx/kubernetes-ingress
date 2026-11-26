@@ -87,6 +87,14 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
+      - name: Resolve Dockerfile syntax frontend
+        run: |
+          syntax=$(sed -n '1s/^# syntax=//p' build/Dockerfile)
+          test -n "$syntax"
+          echo "BUILDKIT_SYNTAX=${DOCKER_REGISTRY}/${syntax}" >> "$GITHUB_ENV"
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+
       - name: NGINX package secrets
         uses: ./.github/actions/nginx-pkg-secrets
         with:
@@ -104,12 +112,30 @@ jobs:
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
         if: ${{ inputs.authenticated }}
 
+      - name: Setup Artifactory secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+        if: ${{ inputs.authenticated && vars.F5_REPO_HOST != '' }}
+
       - name: DockerHub Login
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
-        if: ${{ inputs.authenticated }}
+        if: ${{ inputs.authenticated && contains(vars.DOCKER_REGISTRY || 'docker.io', 'docker.io') }}
+
+      - name: F5 registry login
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ${{ vars.F5_REGISTRY_HOST }}
+          username: ${{ env.ARTIFACTORY_USER }}
+          password: ${{ env.ARTIFACTORY_TOKEN }}
+        if: ${{ inputs.authenticated && vars.F5_REGISTRY_HOST != '' && vars.F5_REPO_HOST != '' }}
 
       - name: Docker meta
         id: meta
@@ -153,13 +179,30 @@ jobs:
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
+          image: "${{ vars.DOCKER_REGISTRY || 'docker.io' }}/tonistiigi/binfmt:latest"
+        if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
+
+      - name: Export runner proxy settings
+        run: |
+          {
+            echo "HTTP_PROXY=${HTTP_PROXY:-${http_proxy:-}}"
+            echo "HTTPS_PROXY=${HTTPS_PROXY:-${https_proxy:-}}"
+            echo "NO_PROXY=${NO_PROXY:-${no_proxy:-}}"
+          } >> "$GITHUB_ENV"
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: |
+            env.http_proxy=${{ env.HTTP_PROXY }}
+            env.https_proxy=${{ env.HTTPS_PROXY }}
+            "env.no_proxy=${{ env.NO_PROXY }}"
+            image=${{ vars.DOCKER_REGISTRY || 'docker.io' }}/moby/buildkit:buildx-stable-1
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
+        id: build-base
         uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
@@ -172,13 +215,39 @@ jobs:
           push: true
           no-cache: true
           build-args: |
+            HTTP_PROXY=${{ env.HTTP_PROXY }}
+            HTTPS_PROXY=${{ env.HTTPS_PROXY }}
+            NO_PROXY=${{ env.NO_PROXY }}
+            http_proxy=${{ env.HTTP_PROXY }}
+            https_proxy=${{ env.HTTPS_PROXY }}
+            no_proxy=${{ env.NO_PROXY }}
+            DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
+            GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
+            F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
+            F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}
+            F5_DEBIAN_REPO=${{ vars.F5_DEBIAN_REPO }}
+            F5_DEBIAN_SECURITY_REPO=${{ vars.F5_DEBIAN_SECURITY_REPO }}
+            F5_UBI_REPO=${{ vars.F5_UBI_REPO }}
+            F5_EPEL_REPO=${{ vars.F5_EPEL_REPO }}
+            F5_FEDORA_REPO=${{ vars.F5_FEDORA_REPO }}
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
             BUILD_OS=${{ inputs.build-os }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-envs: |
+            ${{ inputs.authenticated && vars.F5_REPO_HOST != '' && 'f5-repo-user=ARTIFACTORY_USER' || '' }}
+            ${{ inputs.authenticated && vars.F5_REPO_HOST != '' && 'f5-repo-token=ARTIFACTORY_TOKEN' || '' }}
           secret-files: |
             ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
             ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
+
+      - name: Check base image for Artifactory references
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
+        env:
+          IMAGE: ${{ steps.base_name.outputs.image }}
+          F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
+        if: ${{ inputs.authenticated && vars.F5_REPO_HOST != '' && steps.build-base.conclusion == 'success' }}
 
       - name: Debug values
         run: |
@@ -211,17 +280,43 @@ jobs:
           load: false
           push: ${{ inputs.authenticated }}
           pull: true
-          sbom: ${{ inputs.authenticated }}
+          sbom: ${{ inputs.authenticated && format('generator={0}/docker/buildkit-syft-scanner:stable-1', vars.DOCKER_REGISTRY || 'docker.io') || 'false' }}
           provenance: false
           build-args: |
+            HTTP_PROXY=${{ env.HTTP_PROXY }}
+            HTTPS_PROXY=${{ env.HTTPS_PROXY }}
+            NO_PROXY=${{ env.NO_PROXY }}
+            http_proxy=${{ env.HTTP_PROXY }}
+            https_proxy=${{ env.HTTPS_PROXY }}
+            no_proxy=${{ env.NO_PROXY }}
+            DOCKER_REGISTRY=${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+            BUILDKIT_SYNTAX=${{ env.BUILDKIT_SYNTAX }}
+            GHCR_REGISTRY=${{ vars.GHCR_REGISTRY || 'ghcr.io' }}
+            F5_REPO_HOST=${{ vars.F5_REPO_HOST }}
+            F5_ALPINE_REPO=${{ vars.F5_ALPINE_REPO }}
+            F5_DEBIAN_REPO=${{ vars.F5_DEBIAN_REPO }}
+            F5_DEBIAN_SECURITY_REPO=${{ vars.F5_DEBIAN_SECURITY_REPO }}
+            F5_UBI_REPO=${{ vars.F5_UBI_REPO }}
+            F5_EPEL_REPO=${{ vars.F5_EPEL_REPO }}
+            F5_FEDORA_REPO=${{ vars.F5_FEDORA_REPO }}
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
             BUILD_OS=${{ inputs.build-os }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-envs: |
+            ${{ inputs.authenticated && vars.F5_REPO_HOST != '' && 'f5-repo-user=ARTIFACTORY_USER' || '' }}
+            ${{ inputs.authenticated && vars.F5_REPO_HOST != '' && 'f5-repo-token=ARTIFACTORY_TOKEN' || '' }}
           secret-files: |
             ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
             ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
+
+      - name: Check image for Artifactory references
+        run: docker run --rm --platform linux/amd64 --user 0 --entrypoint sh "$IMAGE" -c 'grep -rl "$0" /etc; test $? -eq 1' "$F5_REPO_HOST"
+        env:
+          IMAGE: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          F5_REPO_HOST: ${{ vars.F5_REPO_HOST }}
+        if: ${{ inputs.authenticated && vars.F5_REPO_HOST != '' && steps.build-push.conclusion == 'success' }}
 
       - name: Get dev storage names
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
