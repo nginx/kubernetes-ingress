@@ -16,6 +16,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func createTestConfiguration() *Configuration {
@@ -8478,4 +8479,183 @@ func TestFindResourcesForServiceIncludesChallengeRoutes(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestIsEqualDetectsRecreatedResources covers a resource that is deleted and
+// recreated under the same name. The new object restarts at generation 1, so
+// IsEqual has to look at the UID to see that it is not the object it replaced.
+func TestIsEqualDetectsRecreatedResources(t *testing.T) {
+	t.Parallel()
+
+	withUID := func(meta *metav1.ObjectMeta, uid string) {
+		meta.UID = types.UID(uid)
+	}
+
+	vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com",
+		[]conf_v1.Route{{Path: "/", Route: "virtualserverroute"}})
+	withUID(&vs.ObjectMeta, "vs-uid-1")
+	vsRecreated := vs.DeepCopy()
+	withUID(&vsRecreated.ObjectMeta, "vs-uid-2")
+
+	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
+	withUID(&vsr.ObjectMeta, "vsr-uid-1")
+	vsrRecreated := vsr.DeepCopy()
+	withUID(&vsrRecreated.ObjectMeta, "vsr-uid-2")
+
+	challenge := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/test")
+	withUID(&challenge.ObjectMeta, "challenge-uid-1")
+	challengeRecreated := challenge.DeepCopy()
+	withUID(&challengeRecreated.ObjectMeta, "challenge-uid-2")
+
+	withChallenges := func(routes ...*conf_v1.VirtualServerRoute) *VirtualServerConfiguration {
+		vsConfig := NewVirtualServerConfiguration(vs, nil, nil, []string{})
+		vsConfig.ChallengeRoutes = routes
+		return vsConfig
+	}
+
+	ing := createTestIngress("regular-ingress", "foo.example.com")
+	withUID(&ing.ObjectMeta, "ing-uid-1")
+	ingRecreated := ing.DeepCopy()
+	withUID(&ingRecreated.ObjectMeta, "ing-uid-2")
+
+	masterIng := createTestIngressMaster("master-ingress", "bar.example.com")
+	minionIng := createTestIngressMinion("minion-ingress", "bar.example.com", "/")
+	withUID(&minionIng.ObjectMeta, "minion-uid-1")
+	minionRecreated := minionIng.DeepCopy()
+	withUID(&minionRecreated.ObjectMeta, "minion-uid-2")
+
+	ts := createTestTransportServer("transportserver", "tcp-listener", "TCP")
+	withUID(&ts.ObjectMeta, "ts-uid-1")
+	tsRecreated := ts.DeepCopy()
+	withUID(&tsRecreated.ObjectMeta, "ts-uid-2")
+
+	tests := []struct {
+		name     string
+		first    Resource
+		second   Resource
+		expected bool
+	}{
+		{
+			name:     "VirtualServer with the same UID",
+			first:    NewVirtualServerConfiguration(vs, nil, nil, nil),
+			second:   NewVirtualServerConfiguration(vs.DeepCopy(), nil, nil, nil),
+			expected: true,
+		},
+		{
+			name:     "VirtualServer recreated with a different UID",
+			first:    NewVirtualServerConfiguration(vs, nil, nil, nil),
+			second:   NewVirtualServerConfiguration(vsRecreated, nil, nil, nil),
+			expected: false,
+		},
+		{
+			name:     "VirtualServerRoute with the same UID",
+			first:    NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, nil),
+			second:   NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr.DeepCopy()}, nil, nil),
+			expected: true,
+		},
+		{
+			name:     "VirtualServerRoute recreated with a different UID",
+			first:    NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, nil),
+			second:   NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrRecreated}, nil, nil),
+			expected: false,
+		},
+		{
+			name:     "challenge route recreated with a different UID",
+			first:    withChallenges(challenge),
+			second:   withChallenges(challengeRecreated),
+			expected: false,
+		},
+		{
+			name:     "Ingress with the same UID",
+			first:    NewRegularIngressConfiguration(ing),
+			second:   NewRegularIngressConfiguration(ing.DeepCopy()),
+			expected: true,
+		},
+		{
+			name:     "Ingress recreated with a different UID",
+			first:    NewRegularIngressConfiguration(ing),
+			second:   NewRegularIngressConfiguration(ingRecreated),
+			expected: false,
+		},
+		{
+			name:     "minion Ingress recreated with a different UID",
+			first:    NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIng)}, map[string][]string{}),
+			second:   NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionRecreated)}, map[string][]string{}),
+			expected: false,
+		},
+		{
+			name:     "TransportServer with the same UID",
+			first:    NewTransportServerConfiguration(ts),
+			second:   NewTransportServerConfiguration(ts.DeepCopy()),
+			expected: true,
+		},
+		{
+			name:     "TransportServer recreated with a different UID",
+			first:    NewTransportServerConfiguration(ts),
+			second:   NewTransportServerConfiguration(tsRecreated),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := test.first.IsEqual(test.second); got != test.expected {
+				t.Errorf("IsEqual() = %v, want %v", got, test.expected)
+			}
+		})
+	}
+}
+
+// TestAddOrUpdateVirtualServerRouteReportsRecreatedVSR covers a
+// VirtualServerRoute that is deleted and recreated before the delete is
+// processed. The recreated object has the same name and generation as the one
+// Configuration holds, but different weights and a new UID. It has to be
+// reported as a change for the VirtualServer that references it, otherwise the
+// new weights are never rendered.
+func TestAddOrUpdateVirtualServerRouteReportsRecreatedVSR(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	splitRoute := func(w1, w2 int) conf_v1.Route {
+		return conf_v1.Route{
+			Path: "/",
+			Splits: []conf_v1.Split{
+				{Weight: w1, Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "a"}}},
+				{Weight: w2, Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "b"}}},
+			},
+		}
+	}
+
+	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
+	vsr.UID = "uid-before-delete"
+	vsr.Generation = 1
+	vsr.Spec.Subroutes = []conf_v1.Route{splitRoute(100, 0)}
+	configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com",
+		[]conf_v1.Route{{Path: "/", Route: "virtualserverroute"}})
+	configuration.AddOrUpdateVirtualServer(vs)
+
+	recreated := vsr.DeepCopy()
+	recreated.UID = "uid-after-recreate"
+	recreated.Spec.Subroutes = []conf_v1.Route{splitRoute(0, 100)}
+
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(recreated)
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() returned problems: %v", problems)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("AddOrUpdateVirtualServerRoute() returned %d changes, want 1: %v", len(changes), changes)
+	}
+	if changes[0].Op != AddOrUpdate {
+		t.Errorf("change op = %v, want AddOrUpdate", changes[0].Op)
+	}
+	vsConfig, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("change resource is %T, want *VirtualServerConfiguration", changes[0].Resource)
+	}
+	if vsConfig.VirtualServer.Name != "virtualserver" {
+		t.Errorf("change is for VirtualServer %q, want %q", vsConfig.VirtualServer.Name, "virtualserver")
+	}
 }

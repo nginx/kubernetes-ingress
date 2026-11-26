@@ -382,9 +382,15 @@ func (tsc *TransportServerConfiguration) IsEqual(resource Resource) bool {
 	return compareObjectMetas(tsc.GetObjectMeta(), resource.GetObjectMeta()) && tsc.ListenerPort == tsConfig.ListenerPort
 }
 
+// compareObjectMetas reports whether two ObjectMetas describe the same version
+// of the same object. The UID is part of the comparison because a resource that
+// is deleted and recreated under the same name restarts at generation 1, so
+// namespace, name and generation alone cannot tell the new object from the old
+// one.
 func compareObjectMetas(meta1 *metav1.ObjectMeta, meta2 *metav1.ObjectMeta) bool {
 	return meta1.Namespace == meta2.Namespace &&
 		meta1.Name == meta2.Name &&
+		meta1.UID == meta2.UID &&
 		meta1.Generation == meta2.Generation
 }
 
