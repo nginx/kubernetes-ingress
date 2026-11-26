@@ -123,7 +123,9 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
+      # GCR is the target of the gcr leg, and the source whenever source_registry is on gcr.io.
       - name: Login to GCR
+        if: matrix.registry.login == 'gcr' || contains(inputs.source_registry, 'gcr.io')
         uses: ./.github/actions/vault-gcr-login
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
