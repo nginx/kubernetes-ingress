@@ -120,9 +120,9 @@ a repo the build never writes to.
    `(image, tag_suffix)` that are not already used, then run the validator.
 3. **Publish lists.** Add the new `tag_suffix` to the postfix list for its repo in `copy-images.sh` and in
    every release config that publishes it. Configs live in `.github/config/`:
-   `config-prep-nginx-test`, `config-plus-nginx`, `config-plus-gcr-release`, `config-gcr-retag`, and the
-   marketplace configs where relevant. A tag that is built but not in a postfix list is never published, and
-   a tag in a list that nothing builds makes the copy fail.
+   `config-prep-nginx-test`, `config-plus-nginx`, `config-plus-gcr-release` and `config-gcr-retag`. A tag
+   that is built but not in a postfix list is never published, and a tag in a list that nothing builds makes
+   the copy fail.
 4. **Makefile.** Add a local build target and add it to `all-images`.
 5. **Tests data.** Add the image to `tests/data/modules/data.json` so `check_container_packages.py` checks its
    packages, and to the smoke matrices if it needs e2e coverage.
