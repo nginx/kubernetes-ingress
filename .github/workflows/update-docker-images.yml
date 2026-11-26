@@ -1,4 +1,5 @@
 name: Update Docker Images
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Update Docker Images, triggered from ${{ github.event_name }} by @${{ github.actor }}
 
 on:
   schedule:
@@ -84,6 +85,7 @@ jobs:
       ic_version: ${{ needs.variables.outputs.tag }}
       target_image: ${{ matrix.target_image }}
       target_tag: ${{ matrix.source_os == 'debian' && format('{0}-{1}', needs.variables.outputs.tag, needs.variables.outputs.date) || format('{0}-{1}-{2}', needs.variables.outputs.tag, needs.variables.outputs.date, matrix.source_os) }}
+      dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
       id-token: write
@@ -216,7 +218,7 @@ jobs:
           pyxis_token: ${{ env.PYXIS_TOKEN }}
           platforms: ""
           preflight_version: 1.22.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
-          submit: ${{ ! inputs.dry_run || true }}
+          submit: ${{ ! inputs.dry_run }}
 
   patch-images-lts:
     name: Patch Images LTS
@@ -234,6 +236,7 @@ jobs:
       ic_version: ${{ matrix.tags }}
       target_image: ${{ matrix.image.target_image }}
       target_tag: ${{ format('{0}-{1}', matrix.tags, needs.variables.outputs.date) }}
+      dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
       id-token: write
