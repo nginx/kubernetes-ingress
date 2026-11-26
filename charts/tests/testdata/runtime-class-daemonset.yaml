@@ -1,0 +1,3 @@
+controller:
+  kind: daemonset
+  runtimeClassName: gvisor

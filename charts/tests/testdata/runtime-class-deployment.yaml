@@ -1,0 +1,3 @@
+controller:
+  kind: deployment
+  runtimeClassName: gvisor
