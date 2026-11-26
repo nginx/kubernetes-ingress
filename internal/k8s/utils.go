@@ -105,6 +105,35 @@ func (s *storeToEndpointSliceLister) GetServiceEndpointSlices(svc *v1.Service) (
 	return endpointSlices, fmt.Errorf("could not find endpointslices for service: %v", svc.Name)
 }
 
+// secretLister reads the Secrets that an informer group caches.
+type secretLister interface {
+	GetByKey(key string) (item interface{}, exists bool, err error)
+	List() []interface{}
+}
+
+// storesToSecretLister reads Secrets across the stores of an informer group's
+// Secret informers, one for each namespace it watches Secrets in.
+type storesToSecretLister []cache.Store
+
+// GetByKey returns the Secret with the given key from the store that holds it.
+func (s storesToSecretLister) GetByKey(key string) (interface{}, bool, error) {
+	for _, store := range s {
+		if obj, exists, err := store.GetByKey(key); exists || err != nil {
+			return obj, exists, err
+		}
+	}
+	return nil, false, nil
+}
+
+// List lists the Secrets in every store.
+func (s storesToSecretLister) List() []interface{} {
+	var objs []interface{}
+	for _, store := range s {
+		objs = append(objs, store.List()...)
+	}
+	return objs
+}
+
 // findPort locates the container port for the given pod and portName.  If the
 // targetPort is a number, use that.  If the targetPort is a string, look that
 // string up in all named ports in all containers in the target pod.  If no
