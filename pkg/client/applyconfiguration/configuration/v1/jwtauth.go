@@ -17,6 +17,8 @@ type JWTAuthApplyConfiguration struct {
 	JwksURI *string `json:"jwksURI,omitempty"`
 	// Enables in-memory caching of JWKS (JSON Web Key Sets) that are obtained from the jwksURI and sets a valid time for expiration.
 	KeyCache *string `json:"keyCache,omitempty"`
+	// Enables reloading of cached JWKS keys before keyCache expires when a token contains a nonempty key ID (kid) not found in the cache. Requires jwksURI and a non-zero keyCache. Default is false.
+	RefreshOnMiss *bool `json:"refreshOnMiss,omitempty"`
 	// Enables SNI (Server Name Indication) for the JWT policy. This is useful when the remote server requires SNI to serve the correct certificate.
 	SNIEnabled *bool `json:"sniEnabled,omitempty"`
 	// The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used.
@@ -74,6 +76,14 @@ func (b *JWTAuthApplyConfiguration) WithJwksURI(value string) *JWTAuthApplyConfi
 // If called multiple times, the KeyCache field is set to the value of the last call.
 func (b *JWTAuthApplyConfiguration) WithKeyCache(value string) *JWTAuthApplyConfiguration {
 	b.KeyCache = &value
+	return b
+}
+
+// WithRefreshOnMiss sets the RefreshOnMiss field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RefreshOnMiss field is set to the value of the last call.
+func (b *JWTAuthApplyConfiguration) WithRefreshOnMiss(value bool) *JWTAuthApplyConfiguration {
+	b.RefreshOnMiss = &value
 	return b
 }
 

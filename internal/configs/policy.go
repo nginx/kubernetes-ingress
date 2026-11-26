@@ -414,11 +414,12 @@ func (p *policiesCfg) addJWTAuthConfig(
 		}
 
 		p.JWTAuth.Auth = &version2.JWTAuth{
-			Key:      polKey,
-			JwksURI:  *JwksURI,
-			Realm:    jwtAuth.Realm,
-			Token:    jwtAuth.Token,
-			KeyCache: jwtAuth.KeyCache,
+			Key:           polKey,
+			JwksURI:       *JwksURI,
+			Realm:         jwtAuth.Realm,
+			Token:         jwtAuth.Token,
+			KeyCache:      jwtAuth.KeyCache,
+			RefreshOnMiss: jwtAuth.RefreshOnMiss,
 		}
 		p.JWTAuth.JWKSEnabled = true
 		p.addJWTAuthorization(jwtAuth.Authorization, polKey, polNamespace, polName, ownerDetails, jwtClaims, res)

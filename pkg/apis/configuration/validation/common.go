@@ -162,6 +162,11 @@ func validateTime(time string, fieldPath *field.Path) field.ErrorList {
 	return nil
 }
 
+// isZeroTime reports whether a valid NGINX time string represents a zero duration (e.g. "0", "0s", "0h 0m").
+func isZeroTime(time string) bool {
+	return !strings.ContainsAny(time, "123456789")
+}
+
 // http://nginx.org/en/docs/syntax.html
 const offsetErrMsg = "must consist of numeric characters followed by a valid size suffix. 'k|K|m|M|g|G"
 

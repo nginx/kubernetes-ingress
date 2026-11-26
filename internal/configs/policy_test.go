@@ -744,6 +744,54 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "jwt-policy-refresh",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-refresh": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-refresh",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:         "My Test API",
+							JwksURI:       "https://idp.example.com/keys",
+							KeyCache:      "1h",
+							RefreshOnMiss: true,
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Key:   "default/jwt-policy-refresh",
+						Realm: "My Test API",
+						JwksURI: version2.JwksURI{
+							JwksScheme:     "https",
+							JwksHost:       "idp.example.com",
+							JwksPort:       "",
+							JwksPath:       "/keys",
+							JwksSNIName:    "",
+							JwksSNIEnabled: false,
+							SSLVerify:      false,
+							TrustedCert:    "",
+							SSLVerifyDepth: 1,
+						},
+						KeyCache:      "1h",
+						RefreshOnMiss: true,
+					},
+					JWKSEnabled: true,
+				},
+			},
+			msg: "JWKS example with refreshOnMiss enabled",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "basic-auth-policy",
 					Namespace: "default",
 				},

@@ -119,6 +119,7 @@ The `.spec` object supports the following fields:
 | `jwt.jwksURI` | `string` | The remote URI where the request will be sent to retrieve JSON Web Key set |
 | `jwt.keyCache` | `string` | Enables in-memory caching of JWKS (JSON Web Key Sets) that are obtained from the jwksURI and sets a valid time for expiration. |
 | `jwt.realm` | `string` | The realm of the JWT. |
+| `jwt.refreshOnMiss` | `boolean` | Enables reloading of cached JWKS keys before keyCache expires when a token contains a nonempty key ID (kid) not found in the cache. Requires jwksURI and a non-zero keyCache. Default is false. |
 | `jwt.secret` | `string` | The name of the Kubernetes secret containing the JSON Web Key. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the JWK role and must store the JWK under the jwk key. |
 | `jwt.sniEnabled` | `boolean` | Enables SNI (Server Name Indication) for the JWT policy. This is useful when the remote server requires SNI to serve the correct certificate. |
 | `jwt.sniName` | `string` | The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used. |

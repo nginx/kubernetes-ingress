@@ -250,6 +250,95 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "refreshOnMiss must not be present when using Secret",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						Secret:        "my-jwk",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "refreshOnMiss with missing keyCache",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "refreshOnMiss with zero keyCache (0)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "0",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "refreshOnMiss with zero keyCache (0s)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "0s",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "refreshOnMiss with zero keyCache (0m)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "0m",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "refreshOnMiss with zero keyCache (0ms)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "0ms",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "refreshOnMiss with composite zero keyCache (0h 0m 0s)",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						JwksURI:       "https://myjwksuri.com",
+						KeyCache:      "0h 0m 0s",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tt {
@@ -388,6 +477,45 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 						TrustedCertSecret: "my-ca-secret",
 						SNIEnabled:        true,
 						SNIName:           "login.mydomain.com",
+					},
+				},
+			},
+		},
+		{
+			name: "with JWKS, non-zero keyCache, and refreshOnMiss enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						KeyCache:      "1h",
+						JwksURI:       "https://login.mydomain.com/keys",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "with JWKS, composite non-zero keyCache, and refreshOnMiss enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						KeyCache:      "0h 30m",
+						JwksURI:       "https://login.mydomain.com/keys",
+						RefreshOnMiss: true,
+					},
+				},
+			},
+		},
+		{
+			name: "with JWKS, zero keyCache, and refreshOnMiss disabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					JWTAuth: &v1.JWTAuth{
+						Realm:         "My Product API",
+						KeyCache:      "0s",
+						JwksURI:       "https://login.mydomain.com/keys",
+						RefreshOnMiss: false,
 					},
 				},
 			},
@@ -1296,6 +1424,15 @@ func TestValidateJWT_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "SNI enabled and no server name passed",
 		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product API",
+				JwksURI:       "https://idp.com/token",
+				KeyCache:      "1h",
+				RefreshOnMiss: true,
+			},
+			msg: "refreshOnMiss enabled with non-zero keyCache",
+		},
 	}
 	for _, test := range tests {
 		allErrs := validateJWT(test.jwt, field.NewPath("jwt"))
@@ -1427,6 +1564,23 @@ func TestValidateJWT_FailsOnInvalidInput(t *testing.T) {
 				SNIName:  "https://idp.com",
 			},
 			msg: "SNI server name passed, SNI not passed",
+		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product api",
+				Secret:        "my-jwk",
+				RefreshOnMiss: true,
+			},
+			msg: "using refreshOnMiss with Secret",
+		},
+		{
+			jwt: &v1.JWTAuth{
+				Realm:         "My Product api",
+				JwksURI:       "https://idp.com/token",
+				KeyCache:      "0s",
+				RefreshOnMiss: true,
+			},
+			msg: "using refreshOnMiss with zero keyCache",
 		},
 	}
 	for _, test := range tests {

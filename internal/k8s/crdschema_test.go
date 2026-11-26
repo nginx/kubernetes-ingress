@@ -317,3 +317,93 @@ func TestCRDSchemaGateAuthResponseHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestCRDSchemaGateJWTRefreshOnMiss(t *testing.T) {
+	t.Parallel()
+
+	gate := newCRDSchemaGate(t, "../../config/crd/bases/k8s.nginx.org_policies.yaml")
+
+	tests := []struct {
+		name  string
+		jwt   *conf_v1.JWTAuth
+		admit bool
+	}{
+		{
+			name:  "secret without refreshOnMiss",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", Secret: "jwk"},
+			admit: true,
+		},
+		{
+			name:  "secret with refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", Secret: "jwk", RefreshOnMiss: true},
+			admit: false,
+		},
+		{
+			name:  "secret and jwksURI with refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", Secret: "jwk", JwksURI: "https://idp.example.com/keys", KeyCache: "1h", RefreshOnMiss: true},
+			admit: false,
+		},
+		{
+			name:  "jwksURI with zero keyCache and refreshOnMiss disabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "0s", RefreshOnMiss: false},
+			admit: true,
+		},
+		{
+			name:  "jwksURI with non-zero keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "1h", RefreshOnMiss: true},
+			admit: true,
+		},
+		{
+			name:  "jwksURI with bare seconds keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "60", RefreshOnMiss: true},
+			admit: true,
+		},
+		{
+			name:  "jwksURI with ms keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "100ms", RefreshOnMiss: true},
+			admit: true,
+		},
+		{
+			name:  "jwksURI with composite non-zero keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "0h 30m", RefreshOnMiss: true},
+			admit: true,
+		},
+		{
+			name:  "jwksURI with missing keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", RefreshOnMiss: true},
+			admit: false,
+		},
+		{
+			name:  "jwksURI with 0 keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "0", RefreshOnMiss: true},
+			admit: false,
+		},
+		{
+			name:  "jwksURI with 0s keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "0s", RefreshOnMiss: true},
+			admit: false,
+		},
+		{
+			name:  "jwksURI with 0h 0m 0s keyCache and refreshOnMiss enabled",
+			jwt:   &conf_v1.JWTAuth{Realm: "api", JwksURI: "https://idp.example.com/keys", KeyCache: "0h 0m 0s", RefreshOnMiss: true},
+			admit: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := gate.admits(&conf_v1.Policy{Spec: conf_v1.PolicySpec{JWTAuth: tc.jwt}})
+			if tc.admit && err != nil {
+				t.Errorf("the CRD rejected a valid JWT policy: %v", err)
+			}
+			if !tc.admit {
+				if err == nil {
+					t.Error("the CRD admitted an invalid JWT policy")
+				} else if !strings.Contains(err.Error(), "refreshOnMiss can only be enabled when jwksURI and a non-zero keyCache are set") {
+					t.Errorf("want refreshOnMiss CEL rule message, got: %v", err)
+				}
+			}
+		})
+	}
+}

@@ -423,6 +423,10 @@ func validateJWTLocalSecret(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorL
 		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("keyCache"), "key cache must not be used when using Secret"))
 	}
 
+	if jwt.RefreshOnMiss {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("refreshOnMiss"), "refreshOnMiss must not be used when using Secret"))
+	}
+
 	// If JwksURI is not set, then none of the SNI fields should be set.
 	if jwt.SNIEnabled {
 		return append(allErrs, field.Forbidden(fieldPath.Child("sniEnabled"), "sniEnabled can only be set when JwksURI is set"))
@@ -438,7 +442,8 @@ func validateJWTLocalSecret(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorL
 // validateJWTRemoteJWKS validates the fields of a JWT policy that fetches keys from a remote JWKS URI.
 func validateJWTRemoteJWKS(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 	allErrs := validateJWKsURI(jwt.JwksURI, fieldPath.Child("jwksURI"))
-	allErrs = append(allErrs, validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))...)
+	keyCacheErrs := validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))
+	allErrs = append(allErrs, keyCacheErrs...)
 	// jwt.Token is not required field. Verify it if it's provided.
 	if jwt.Token != "" {
 		allErrs = append(allErrs, validateJWTToken(jwt.Token, fieldPath.Child("token"))...)
@@ -446,6 +451,9 @@ func validateJWTRemoteJWKS(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorLi
 	// keyCache must be present when using JWKS
 	if jwt.KeyCache == "" {
 		allErrs = append(allErrs, field.Required(fieldPath.Child("keyCache"), "key cache must be set, example value: 1h"))
+	}
+	if jwt.RefreshOnMiss && (jwt.KeyCache == "" || (len(keyCacheErrs) == 0 && isZeroTime(jwt.KeyCache))) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("refreshOnMiss"), jwt.RefreshOnMiss, "refreshOnMiss requires a non-zero keyCache"))
 	}
 
 	allErrs = append(allErrs, validateJWTSNI(jwt, fieldPath)...)

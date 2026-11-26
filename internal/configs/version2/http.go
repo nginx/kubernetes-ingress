@@ -561,6 +561,7 @@ type JWTAuth struct {
 	Realm            string
 	Token            string
 	KeyCache         string
+	RefreshOnMiss    bool
 	JwksURI          JwksURI
 	RequireVariable  string
 	RequireErrorCode int
