@@ -1135,7 +1135,7 @@ func TestApplyWeightOnlyVSChanges_KeepsFastLaneWithUnrelatedStatusUpdate(t *test
 // guard, which additionally has to reject VirtualServers that do not reference
 // the VSR: rebuildHosts reports a change for every host whose configuration
 // moved, so an unrelated VirtualServer can appear in the set, and it needs a
-// real render.
+// real render. It also rejects a change set that results in no weight updates.
 func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 	t.Parallel()
 
@@ -1156,6 +1156,7 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 	tests := []struct {
 		name    string
 		changes []ResourceChange
+		vsrOld  *conf_v1.VirtualServerRoute // defaults to vsrOld above
 	}{
 		{
 			name:    "delete instead of add-or-update",
@@ -1180,6 +1181,11 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 				{Op: AddOrUpdate, Resource: unrelated},
 			},
 		},
+		{
+			name:    "referencing VirtualServer but no weight updates",
+			changes: []ResourceChange{{Op: AddOrUpdate, Resource: referencing}},
+			vsrOld:  vsrNew,
+		},
 	}
 
 	for _, test := range tests {
@@ -1188,11 +1194,18 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 
 			lbc, mgr := newWeightTestLBC(t, true)
 
-			if lbc.applyWeightOnlyVSRChanges(vsrOld, vsrNew, test.changes) {
+			old := vsrOld
+			if test.vsrOld != nil {
+				old = test.vsrOld
+			}
+			if lbc.applyWeightOnlyVSRChanges(old, vsrNew, test.changes) {
 				t.Error("applyWeightOnlyVSRChanges() = true, want false")
 			}
 			if got := mgr.recordedKeyvals(); len(got) != 0 {
 				t.Errorf("rejected change set still wrote %d keyvals, want 0", len(got))
+			}
+			if got := drainEvents(t, lbc); len(got) != 0 {
+				t.Errorf("rejected change set emitted events %v, want none", got)
 			}
 		})
 	}
@@ -1214,35 +1227,6 @@ func TestApplyWeightOnlyVSRChanges_EmptyChangeSet(t *testing.T) {
 	}
 	if got := mgr.recordedKeyvals(); len(got) != 0 {
 		t.Errorf("empty change set wrote %d keyvals, want 0", len(got))
-	}
-}
-
-// TestApplyWeightOnlyVSRChanges_NoWeightUpdates covers a referencing
-// VirtualServer for which no weight update results. The fast lane would apply
-// nothing, so it must decline without side effects.
-func TestApplyWeightOnlyVSRChanges_NoWeightUpdates(t *testing.T) {
-	t.Parallel()
-
-	lbc, mgr := newWeightTestLBC(t, true)
-
-	vsrOld := testVSRWithSubroutes("default", "coffee", []splitShape{{routeSplits: []int{50, 50}}})
-	vsrNew := testVSRWithSubroutes("default", "coffee", []splitShape{{routeSplits: []int{50, 50}}})
-	changes := []ResourceChange{{
-		Op: AddOrUpdate,
-		Resource: &VirtualServerConfiguration{
-			VirtualServer:       weightTestVS("cafe", 2, nil),
-			VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsrNew},
-		},
-	}}
-
-	if lbc.applyWeightOnlyVSRChanges(vsrOld, vsrNew, changes) {
-		t.Error("applyWeightOnlyVSRChanges() = true, want false when there are no weight updates")
-	}
-	if got := mgr.recordedKeyvals(); len(got) != 0 {
-		t.Errorf("wrote %d keyvals, want 0", len(got))
-	}
-	if got := drainEvents(t, lbc); len(got) != 0 {
-		t.Errorf("emitted events %v, want none", got)
 	}
 }
 

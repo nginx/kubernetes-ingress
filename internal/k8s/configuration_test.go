@@ -16,7 +16,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 func createTestConfiguration() *Configuration {
@@ -4101,6 +4100,9 @@ func TestIsEqualForVirtualServersChallengeRoutes(t *testing.T) {
 	challengeWithUpdatedGen := challenge.DeepCopy()
 	challengeWithUpdatedGen.Generation++
 
+	challengeWithNewUID := challenge.DeepCopy()
+	challengeWithNewUID.UID = "new-uid"
+
 	withChallenges := func(routes ...*conf_v1.VirtualServerRoute) *VirtualServerConfiguration {
 		vsConfig := NewVirtualServerConfiguration(vs, nil, nil, []string{})
 		vsConfig.ChallengeRoutes = routes
@@ -4130,6 +4132,12 @@ func TestIsEqualForVirtualServersChallengeRoutes(t *testing.T) {
 			vsConfig2: withChallenges(challengeWithUpdatedGen),
 			expected:  false,
 			msg:       "challenge routes with different generation",
+		},
+		{
+			vsConfig1: withChallenges(challenge),
+			vsConfig2: withChallenges(challengeWithNewUID),
+			expected:  false,
+			msg:       "challenge routes with different UID",
 		},
 	}
 
@@ -5400,6 +5408,9 @@ func TestIsEqualForIngressConfigurations(t *testing.T) {
 	regularIngWithUpdatedAnnotations := regularIng.DeepCopy()
 	regularIngWithUpdatedAnnotations.Annotations["new"] = "value"
 
+	regularIngWithNewUID := regularIng.DeepCopy()
+	regularIngWithNewUID.UID = "new-uid"
+
 	masterIng := createTestIngressMaster("master-ingress", "bar.example.com")
 	minionIng := createTestIngressMinion("minion-ingress", "bar.example.com", "/")
 
@@ -5408,6 +5419,9 @@ func TestIsEqualForIngressConfigurations(t *testing.T) {
 
 	minionIngWithUpdatedAnnotations := minionIng.DeepCopy()
 	minionIngWithUpdatedAnnotations.Annotations["new"] = "value"
+
+	minionIngWithNewUID := minionIng.DeepCopy()
+	minionIngWithNewUID.UID = "new-uid"
 
 	tests := []struct {
 		ingConfig1 *IngressConfiguration
@@ -5446,6 +5460,12 @@ func TestIsEqualForIngressConfigurations(t *testing.T) {
 			msg:        "regular ingresses with different annotations",
 		},
 		{
+			ingConfig1: NewRegularIngressConfiguration(regularIng),
+			ingConfig2: NewRegularIngressConfiguration(regularIngWithNewUID),
+			expected:   false,
+			msg:        "regular ingresses with different UID",
+		},
+		{
 			ingConfig1: NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIng)}, map[string][]string{}),
 			ingConfig2: NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIng)}, map[string][]string{}),
 			expected:   true,
@@ -5468,6 +5488,12 @@ func TestIsEqualForIngressConfigurations(t *testing.T) {
 			ingConfig2: NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIngWithUpdatedAnnotations)}, map[string][]string{}),
 			expected:   false,
 			msg:        "masters with minions with different annotations",
+		},
+		{
+			ingConfig1: NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIng)}, map[string][]string{}),
+			ingConfig2: NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIngWithNewUID)}, map[string][]string{}),
+			expected:   false,
+			msg:        "masters with minions with different UID",
 		},
 	}
 
@@ -5499,6 +5525,12 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 
 	vsrWithUpdatedGen := vsr.DeepCopy()
 	vsrWithUpdatedGen.Generation++
+
+	vsWithNewUID := vs.DeepCopy()
+	vsWithNewUID.UID = "new-uid"
+
+	vsrWithNewUID := vsr.DeepCopy()
+	vsrWithNewUID.UID = "new-uid"
 
 	tests := []struct {
 		vsConfig1 *VirtualServerConfiguration
@@ -5532,6 +5564,18 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 		},
 		{
 			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vsWithNewUID, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			expected:  false,
+			msg:       "virtual servers with different UID",
+		},
+		{
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrWithNewUID}, nil, []string{}),
+			expected:  false,
+			msg:       "virtual servers with virtual server routes with different UID",
+		},
+		{
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
 			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{"path /coffee has conflicting subroutes"}),
 			expected:  true,
 			msg:       "virtual servers with different warnings remain equal for reload detection",
@@ -5554,6 +5598,41 @@ func TestIsEqualForDifferentResources(t *testing.T) {
 	result := ingConfig.IsEqual(vsConfig)
 	if result != false {
 		t.Error("IsEqual() for different resources returned true but expected false")
+	}
+}
+
+func TestIsEqualForTransportServers(t *testing.T) {
+	t.Parallel()
+	ts := createTestTransportServer("transportserver", "tcp-listener", "TCP")
+
+	tsWithNewUID := ts.DeepCopy()
+	tsWithNewUID.UID = "new-uid"
+
+	tests := []struct {
+		tsConfig1 *TransportServerConfiguration
+		tsConfig2 *TransportServerConfiguration
+		expected  bool
+		msg       string
+	}{
+		{
+			tsConfig1: NewTransportServerConfiguration(ts),
+			tsConfig2: NewTransportServerConfiguration(ts),
+			expected:  true,
+			msg:       "equal transport servers",
+		},
+		{
+			tsConfig1: NewTransportServerConfiguration(ts),
+			tsConfig2: NewTransportServerConfiguration(tsWithNewUID),
+			expected:  false,
+			msg:       "transport servers with different UID",
+		},
+	}
+
+	for _, test := range tests {
+		result := test.tsConfig1.IsEqual(test.tsConfig2)
+		if result != test.expected {
+			t.Errorf("IsEqual() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
+		}
 	}
 }
 
@@ -8479,132 +8558,6 @@ func TestFindResourcesForServiceIncludesChallengeRoutes(t *testing.T) {
 			}
 		}
 	})
-}
-
-// TestIsEqualDetectsRecreatedResources covers a resource that is deleted and
-// recreated under the same name. The new object restarts at generation 1, so
-// IsEqual has to look at the UID to see that it is not the object it replaced.
-func TestIsEqualDetectsRecreatedResources(t *testing.T) {
-	t.Parallel()
-
-	withUID := func(meta *metav1.ObjectMeta, uid string) {
-		meta.UID = types.UID(uid)
-	}
-
-	vs := createTestVirtualServerWithRoutes("virtualserver", "foo.example.com",
-		[]conf_v1.Route{{Path: "/", Route: "virtualserverroute"}})
-	withUID(&vs.ObjectMeta, "vs-uid-1")
-	vsRecreated := vs.DeepCopy()
-	withUID(&vsRecreated.ObjectMeta, "vs-uid-2")
-
-	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
-	withUID(&vsr.ObjectMeta, "vsr-uid-1")
-	vsrRecreated := vsr.DeepCopy()
-	withUID(&vsrRecreated.ObjectMeta, "vsr-uid-2")
-
-	challenge := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/test")
-	withUID(&challenge.ObjectMeta, "challenge-uid-1")
-	challengeRecreated := challenge.DeepCopy()
-	withUID(&challengeRecreated.ObjectMeta, "challenge-uid-2")
-
-	withChallenges := func(routes ...*conf_v1.VirtualServerRoute) *VirtualServerConfiguration {
-		vsConfig := NewVirtualServerConfiguration(vs, nil, nil, []string{})
-		vsConfig.ChallengeRoutes = routes
-		return vsConfig
-	}
-
-	ing := createTestIngress("regular-ingress", "foo.example.com")
-	withUID(&ing.ObjectMeta, "ing-uid-1")
-	ingRecreated := ing.DeepCopy()
-	withUID(&ingRecreated.ObjectMeta, "ing-uid-2")
-
-	masterIng := createTestIngressMaster("master-ingress", "bar.example.com")
-	minionIng := createTestIngressMinion("minion-ingress", "bar.example.com", "/")
-	withUID(&minionIng.ObjectMeta, "minion-uid-1")
-	minionRecreated := minionIng.DeepCopy()
-	withUID(&minionRecreated.ObjectMeta, "minion-uid-2")
-
-	ts := createTestTransportServer("transportserver", "tcp-listener", "TCP")
-	withUID(&ts.ObjectMeta, "ts-uid-1")
-	tsRecreated := ts.DeepCopy()
-	withUID(&tsRecreated.ObjectMeta, "ts-uid-2")
-
-	tests := []struct {
-		name     string
-		first    Resource
-		second   Resource
-		expected bool
-	}{
-		{
-			name:     "VirtualServer with the same UID",
-			first:    NewVirtualServerConfiguration(vs, nil, nil, nil),
-			second:   NewVirtualServerConfiguration(vs.DeepCopy(), nil, nil, nil),
-			expected: true,
-		},
-		{
-			name:     "VirtualServer recreated with a different UID",
-			first:    NewVirtualServerConfiguration(vs, nil, nil, nil),
-			second:   NewVirtualServerConfiguration(vsRecreated, nil, nil, nil),
-			expected: false,
-		},
-		{
-			name:     "VirtualServerRoute with the same UID",
-			first:    NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, nil),
-			second:   NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr.DeepCopy()}, nil, nil),
-			expected: true,
-		},
-		{
-			name:     "VirtualServerRoute recreated with a different UID",
-			first:    NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, nil),
-			second:   NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsrRecreated}, nil, nil),
-			expected: false,
-		},
-		{
-			name:     "challenge route recreated with a different UID",
-			first:    withChallenges(challenge),
-			second:   withChallenges(challengeRecreated),
-			expected: false,
-		},
-		{
-			name:     "Ingress with the same UID",
-			first:    NewRegularIngressConfiguration(ing),
-			second:   NewRegularIngressConfiguration(ing.DeepCopy()),
-			expected: true,
-		},
-		{
-			name:     "Ingress recreated with a different UID",
-			first:    NewRegularIngressConfiguration(ing),
-			second:   NewRegularIngressConfiguration(ingRecreated),
-			expected: false,
-		},
-		{
-			name:     "minion Ingress recreated with a different UID",
-			first:    NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionIng)}, map[string][]string{}),
-			second:   NewMasterIngressConfiguration(masterIng, []*MinionConfiguration{NewMinionConfiguration(minionRecreated)}, map[string][]string{}),
-			expected: false,
-		},
-		{
-			name:     "TransportServer with the same UID",
-			first:    NewTransportServerConfiguration(ts),
-			second:   NewTransportServerConfiguration(ts.DeepCopy()),
-			expected: true,
-		},
-		{
-			name:     "TransportServer recreated with a different UID",
-			first:    NewTransportServerConfiguration(ts),
-			second:   NewTransportServerConfiguration(tsRecreated),
-			expected: false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if got := test.first.IsEqual(test.second); got != test.expected {
-				t.Errorf("IsEqual() = %v, want %v", got, test.expected)
-			}
-		})
-	}
 }
 
 // TestAddOrUpdateVirtualServerRouteReportsRecreatedVSR covers a
