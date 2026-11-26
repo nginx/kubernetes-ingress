@@ -1,4 +1,5 @@
 name: "Create release branch"
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Create release branch ${{ inputs.branch_prefix }}${{ inputs.release_version }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -98,11 +99,11 @@ jobs:
             git checkout -b ${branch}
           fi
 
-          echo "Pushing to branch $branch"
           if ! ${{ inputs.dry_run }}; then
+              echo "Pushing to branch ${branch}"
               git push origin "${branch}"
           else
-              echo "DRY RUN not making any changes"
+              echo "[DRY RUN] Would push to branch ${branch}; running git push --dry-run, nothing is pushed"
               git push --dry-run origin "${branch}"
           fi
         env:
