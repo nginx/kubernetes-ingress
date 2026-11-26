@@ -27,6 +27,11 @@ on:
         description: The platforms to patch
         required: true
         type: string
+      dry_run:
+        description: Build the patched image without pushing it
+        required: false
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -79,7 +84,7 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
-      - name: Apply OS patches to Container
+      - name: ${{ inputs.dry_run && '[DRY RUN] Build patched image (not pushed)' || 'Apply OS patches to Container' }}
         uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
@@ -88,7 +93,7 @@ jobs:
           tags: "${{ inputs.target_image }}:${{ inputs.target_tag }}"
           platforms: ${{ inputs.platforms }}
           pull: true
-          push: true
+          push: ${{ ! inputs.dry_run }}
           build-args: |
             IMAGE_NAME=${{ inputs.image }}:${{ inputs.tag }}
             IC_VERSION=${{ inputs.ic_version }}

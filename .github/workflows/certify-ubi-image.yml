@@ -58,5 +58,5 @@ jobs:
           project_id: ${{ env.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ env.PYXIS_TOKEN }}
           preflight_version: ${{ inputs.preflight_version }}
-          submit: ${{ inputs.submit || true }}
+          submit: ${{ inputs.submit }}
           platforms: ${{ inputs.platforms }}
