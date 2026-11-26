@@ -115,7 +115,7 @@ Release pipelines are split into two independently dispatchable stages that run 
    - Generates Syft SBOMs, signs artifacts with Cosign, and uploads release tarballs to Azure blob storage
    - Does **not** create git tags, publish public images, or publish the GitHub release
 2. **Stage 2 (Publish)** (`release-publish.yml` / `release-publish-lts.yml`) -- runs in `nginx/kubernetes-ingress` (public):
-   - Copies prepped images from `docker-mgmt-test.nginx.com` to public registries (GCR, Docker Hub, ECR Public, Quay, GHCR, NGINX Registry) plus the marketplace registries (GCR Marketplace, ECR Marketplace, Azure Marketplace) for Plus
+   - Copies prepped images from `docker-mgmt-test.nginx.com` to public registries (GCR, Docker Hub, ECR Public, Quay, GHCR, NGINX Registry)
    - Publishes public Helm charts and certifies UBI images on OpenShift
    - Dispatches `sync-chart.yml` in `nginx/nginx-ingress-helm-operator` to raise the operator PR (requires a non-empty `operator_version` input, otherwise the job skips)
    - Verifies all prerequisites via `release-gate`
@@ -137,7 +137,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `lint-format.yml` | PR to `main`/`embargo/security-fixes*`, merge_group | Format & lint checks (gofumpt, goimports, golangci-lint, actionlint, markdownlint, yamllint, workflow gating validation) |
 | `regression.yml` | Daily cron (03:00 UTC), manual dispatch | Multi-K8s-version regression matrix tests |
 | `single-image-regression.yml` | Manual dispatch | Runs Python e2e tests on a single image variant and K8s version |
-| `build-base-images.yml` | Weekday cron (04:30 UTC), manual, workflow_call | Rebuilds all base images (alpine, debian, ubi) |
+| `build-base-images.yml` | Weekday cron (04:30 UTC), manual (optional `push_images`) | Rebuilds all base images (alpine, debian, ubi) |
 | `build-ubi-dependency.yml` | Push to `main` touching `build/dependencies/Dockerfile.ubi10`, manual | Builds the UBI dependency image published to `ghcr.io/nginx/dependencies/nginx-ubi` |
 | `image-promotion.yml` | Push to `main`/`release-*`, workflow_call | Rebuilds images via `build-artifacts.yml` (`force: true`), tags `edge`/`stable`, runs security scans, publishes GHCR edge chart |
 
@@ -150,7 +150,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `release-prep-lts.yml` | internal | Manual dispatch | LTS Stage 1: build LTS Plus images & binaries, stage in test registry, sign binaries, upload tarballs to Azure blob storage |
 | `release-publish-lts.yml` | public | Manual dispatch | LTS Stage 2: copy staged LTS Plus images to public registries, publish LTS Helm chart (`nginx-ingress-lts`), create git tag, attach release assets, close milestone, publish GitHub release |
 | `oss-release.yml` | public | Manual dispatch, workflow_call | Copies OSS images from staging registry to public registries via skopeo (called by `release-publish.yml`) |
-| `plus-release.yml` | public | Manual dispatch, workflow_call | Copies Plus/NAP images from staging registry to GCR, NGINX Registry and the GCR/ECR/Azure marketplaces via skopeo (called by `release-publish.yml`) |
+| `plus-release.yml` | public | Manual dispatch, workflow_call | Copies Plus/NAP images from staging registry to GCR and NGINX Registry via skopeo (called by `release-publish.yml`) |
 | `plus-release-lts.yml` | public | Manual dispatch, workflow_call | Copies LTS Plus images from staging registry to GCR and NGINX Registry (called by `release-publish-lts.yml` and `update-docker-images.yml`) |
 | `publish-helm.yml` | both | Manual dispatch, workflow_call | Packages and publishes Helm charts to OCI registries (GHCR, docker-mgmt-test) or the public Helm repo |
 | `create-release-branch.yml` | public | Manual dispatch | Creates a new `release-X.Y` branch and bumps versions |
@@ -176,7 +176,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | `codeql-analysis.yml` | Push, PR, merge_group | GitHub CodeQL security analysis |
-| `cve-publish.yml` | Issue comment (`/request-mirror-sync <target>`, `/approve-mirror-sync`) | **Internal repo only.** Syncs embargoed fixes to the public repo. `/request-mirror-sync` on the request issue opens a permission-track PR (HMAC-signed metadata); `/approve-mirror-sync` on that PR by a writer applies the patches and opens the public PRs. `issue_comment` workflows run from the default branch (`embargo/security-fixes`) only |
+| `cve-publish.yml` | Issue comment (`/request-mirror-sync <target>`, `/approve-mirror-sync`) | **Internal repo only.** Syncs embargoed fixes to the public repo. `/request-mirror-sync` on the request issue opens a permission-track PR (metadata HMAC-signed with `mirror-sync-hmac-key` from the NIC vault, not the GitHub App key); `/approve-mirror-sync` on that PR by a writer applies the patches and opens the public PRs. `issue_comment` workflows run from the default branch (`embargo/security-fixes`) only |
 | `scorecards.yml` | Weekly cron (Sun 20:43 UTC), push to `main` | OpenSSF Scorecards security scanning |
 | `dependency-review.yml` | PR to `main`/`release-*`, merge_group | GitHub Dependency Review for PRs |
 | `certify-ubi-image.yml` | Manual dispatch, called | Red Hat UBI certification for OpenShift (Pyxis) |
@@ -226,7 +226,7 @@ The `matrix-images-*.json` rows use `build_os` / `image` / `tag_suffix` and are 
 
 ### Change Detection & Optimization
 
-- `docs_only` detection in `variables.sh` identifies PRs touching only docs (`*.md`, `docs/**`, `examples/**`) and skips expensive image builds and integration tests.
+- `non_code_only` detection in `variables.sh` identifies PRs touching only docs (`*.md`, `docs/**`, `examples/**`) or repo tooling (`.pre-commit-config.yaml`, `renovate.json`, `.github/ISSUE_TEMPLATE/**`) and skips expensive image builds and integration tests.
 
 ### Fork Awareness
 
@@ -272,6 +272,7 @@ Gaps to be aware of: `make update-crds` also rewrites `deploy/crds*.yaml` and `d
 - Renovate manages tool versions via `# renovate:` comments -- do not update manually
 - `image-promotion.yml` runs on merge to `main` and `release-*`, not on PR -- don't expect images from PRs
 - Release-only workflows and `.github/config/config-*` files must be listed in `.github/scripts/exclude_ci_files.txt`, otherwise they feed `get_actions_md5()` and invalidate `stable_tag`, forcing a full image rebuild
+- Target registries for `oss-release.yml`, `plus-release.yml` and `plus-release-lts.yml` are listed in `.github/data/registries.json` (`input` = the boolean that enables it, `login` = which login steps run, `config` = the `copy-images.sh` config). To add a registry: add an entry, add its boolean input, and add login steps gated on `matrix.registry.login`. The image set itself stays in the config file
 - `.github/config/config-*` files are shared between `release-publish.yml`, `image-promotion.yml`, `regression.yml` and `update-docker-images.yml`. Never add a `SOURCE_*_IMAGE_PREFIX` override to one -- the other callers read from the dev registry and would break. Override `TARGET_*` only
 - Every job in every workflow must be gated as `github.repository == 'nginx/kubernetes-ingress'`, `github.repository == 'nginx/kubernetes-ingress-internal'` (internal-only jobs like prep), or `(github.repository == 'nginx/kubernetes-ingress' || github.repository == 'nginx/kubernetes-ingress-internal')` (CI jobs that run in both), optionally followed by `&& ( ... )` with **all** extra conditions inside one balanced group. `&&` binds tighter than `||`, so an ungrouped chain like `gate && (a) || (b)` parses as `(gate && (a)) || (b)` and would run on a fork. Enforced by `.github/scripts/validate-workflow-gating.sh` (pre-commit + `lint-format.yml`); run it locally after editing any job's `if`
 - Adding a job to a shared workflow means picking the right gate string. An internal-repo gate in `release-publish.yml` (or vice versa) silently skips the job forever -- there is no error, just a permanently grey box
