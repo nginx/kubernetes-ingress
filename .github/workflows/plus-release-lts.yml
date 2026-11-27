@@ -1,4 +1,5 @@
 name: "Release NGINX Ingress Controller LTS Plus Images"
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Release LTS Plus Images ${{ inputs.source_tag }} -> ${{ inputs.target_tag }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:

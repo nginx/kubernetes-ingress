@@ -172,11 +172,11 @@ jobs:
           if ! git rev-parse --verify "refs/tags/${tag}"; then
             echo "Adding tag ${tag}."
             git tag -a "${tag}" -m "Version ${tag#v*}"
-            echo "Pushing to tag ${tag} to branch ${branch}"
             if ! ${{ inputs.dry_run }}; then
+              echo "Pushing tag ${tag} on branch ${branch}"
               git push origin "${tag}"
             else
-              echo "DRY RUN not making any changes"
+              echo "[DRY RUN] Would push tag ${tag} on branch ${branch}; running git push --dry-run, nothing is pushed"
               git push --dry-run origin "${tag}"
             fi
           else
