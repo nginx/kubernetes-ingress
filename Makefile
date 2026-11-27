@@ -57,7 +57,7 @@ UBI10_PACKAGES_IMAGE ?= $(strip $(GHCR_REGISTRY))/nginx/dependencies/nginx-ubi:u
 STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
 
 # renovate: datasource=github-tags depName=golang/vuln
-GOVULNCHECK_VERSION ?= v1.9.0
+GOVULNCHECK_VERSION ?= v1.10.0
 
 GO_DOCKER_IMAGE_NAME    ?= $(strip $(DOCKER_REGISTRY))/library/golang
 # renovate: datasource=docker depName=golang versioning=docker
