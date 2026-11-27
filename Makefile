@@ -51,7 +51,7 @@ DOCKER_REGISTRY               ?= docker.io ## The Docker registry to use for ima
 PLUS_ARGS ?=  $(DOCKER_AUTH) --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO)
 
 # Variables that can be overridden
-UBI10_PACKAGES_IMAGE ?= $(strip $(GHCR_REGISTRY))/nginx/dependencies/nginx-ubi:ubi10@sha256:94dafbf3beec35c54010009aade5ef2c290bc396ce2ca4a494974f26f2fe1898
+UBI10_PACKAGES_IMAGE ?= $(strip $(GHCR_REGISTRY))/nginx/dependencies/nginx-ubi:ubi10@sha256:492ae559892992788cb7e2f808d111c73f117b9af59aa6bb1286b1027db0741c
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
