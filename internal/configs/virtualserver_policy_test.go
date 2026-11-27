@@ -78,11 +78,12 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				},
 				Spec: conf_v1.PolicySpec{
 					JWTAuth: &conf_v1.JWTAuth{
-						Realm:      "Spec Realm API",
-						JwksURI:    "https://idp.spec.example.com:443/spec-keys",
-						KeyCache:   "1h",
-						SNIEnabled: true,
-						SNIName:    "idp.spec.example.com",
+						Realm:         "Spec Realm API",
+						JwksURI:       "https://idp.spec.example.com:443/spec-keys",
+						KeyCache:      "1h",
+						RefreshOnMiss: true,
+						SNIEnabled:    true,
+						SNIName:       "idp.spec.example.com",
 					},
 				},
 			},
@@ -148,9 +149,10 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 		Server: version2.Server{
 			JWTAuthList: map[string]*version2.JWTAuth{
 				"default/jwt-policy": {
-					Key:      "default/jwt-policy",
-					Realm:    "Spec Realm API",
-					KeyCache: "1h",
+					Key:           "default/jwt-policy",
+					Realm:         "Spec Realm API",
+					KeyCache:      "1h",
+					RefreshOnMiss: true,
 					JwksURI: version2.JwksURI{
 						JwksScheme:     "https",
 						JwksHost:       "idp.spec.example.com",
@@ -179,9 +181,10 @@ func TestGenerateVirtualServerConfigJWKSPolicy(t *testing.T) {
 				},
 			},
 			JWTAuth: &version2.JWTAuth{
-				Key:      "default/jwt-policy",
-				Realm:    "Spec Realm API",
-				KeyCache: "1h",
+				Key:           "default/jwt-policy",
+				Realm:         "Spec Realm API",
+				KeyCache:      "1h",
+				RefreshOnMiss: true,
 				JwksURI: version2.JwksURI{
 					JwksScheme:     "https",
 					JwksHost:       "idp.spec.example.com",

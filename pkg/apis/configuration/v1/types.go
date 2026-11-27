@@ -966,6 +966,7 @@ type ConnectionLimit struct {
 }
 
 // JWTAuth holds JWT authentication configuration.
+// +kubebuilder:validation:XValidation:rule="!(has(self.refreshOnMiss) && self.refreshOnMiss) || ((!has(self.secret) || size(self.secret) == 0) && has(self.jwksURI) && size(self.jwksURI) > 0 && has(self.keyCache) && self.keyCache.matches('[1-9]'))",message="refreshOnMiss can only be enabled when jwksURI and a non-zero keyCache are set"
 type JWTAuth struct {
 	// The realm of the JWT.
 	Realm string `json:"realm"`
@@ -977,6 +978,9 @@ type JWTAuth struct {
 	JwksURI string `json:"jwksURI"`
 	// Enables in-memory caching of JWKS (JSON Web Key Sets) that are obtained from the jwksURI and sets a valid time for expiration.
 	KeyCache string `json:"keyCache"`
+	// Enables reloading of cached JWKS keys before keyCache expires when a token contains a nonempty key ID (kid) not found in the cache. Requires jwksURI and a non-zero keyCache. Default is false.
+	// +kubebuilder:default:=false
+	RefreshOnMiss bool `json:"refreshOnMiss,omitempty"`
 	// Enables SNI (Server Name Indication) for the JWT policy. This is useful when the remote server requires SNI to serve the correct certificate.
 	SNIEnabled bool `json:"sniEnabled"`
 	// The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used.

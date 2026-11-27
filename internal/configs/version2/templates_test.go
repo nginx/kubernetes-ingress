@@ -1197,6 +1197,76 @@ func TestExecuteVirtualServerTemplateWithJWKSWithoutToken(t *testing.T) {
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplateWithJWKSRefreshOnMiss(t *testing.T) {
+	t.Parallel()
+	cfg := virtualServerCfgWithJWTPolicyJWKSWithoutToken
+	cfg.Server.JWTAuth = &JWTAuth{
+		Key:           "default/jwt-policy",
+		Realm:         "Spec Realm API",
+		KeyCache:      "1h",
+		RefreshOnMiss: true,
+		JwksURI: JwksURI{
+			JwksScheme: "https",
+			JwksHost:   "idp.spec.example.com",
+			JwksPort:   "443",
+			JwksPath:   "/spec-keys",
+		},
+	}
+	cfg.Server.Locations = []Location{
+		{
+			Path:        "/tea",
+			ProxyPass:   "http://vs_default_cafe_tea",
+			ServiceName: "tea-svc",
+			JWTAuth: &JWTAuth{
+				Key:           "default/jwt-policy-route",
+				Realm:         "Route Realm API",
+				KeyCache:      "30m",
+				RefreshOnMiss: true,
+				JwksURI: JwksURI{
+					JwksScheme: "http",
+					JwksHost:   "idp.route.example.com",
+					JwksPort:   "80",
+					JwksPath:   "/route-keys",
+				},
+			},
+		},
+		{
+			Path:        "/coffee",
+			ProxyPass:   "http://vs_default_cafe_coffee",
+			ServiceName: "coffee-svc",
+			JWTAuth: &JWTAuth{
+				Key:           "default/jwt-policy-route",
+				Realm:         "Route Realm API",
+				KeyCache:      "1h",
+				RefreshOnMiss: false,
+				JwksURI: JwksURI{
+					JwksScheme: "http",
+					JwksHost:   "idp.route.example.com",
+					JwksPort:   "80",
+					JwksPath:   "/route-keys",
+				},
+			},
+		},
+	}
+
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("auth_jwt_key_cache 1h refresh_on_miss;")) {
+		t.Error("want `auth_jwt_key_cache 1h refresh_on_miss;` in generated template")
+	}
+	if !bytes.Contains(got, []byte("auth_jwt_key_cache 30m refresh_on_miss;")) {
+		t.Error("want `auth_jwt_key_cache 30m refresh_on_miss;` in generated template")
+	}
+	if !bytes.Contains(got, []byte("auth_jwt_key_cache 1h;")) {
+		t.Error("want `auth_jwt_key_cache 1h;` without refresh_on_miss for /coffee location")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplateWithBackupServerNGINXPlus(t *testing.T) {
 	t.Parallel()
 

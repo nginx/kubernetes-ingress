@@ -1178,7 +1178,7 @@ server {
 {{ $.Indent }}auth_jwt "{{ .Realm }}"{{ if .Token }} token={{ .Token }}{{ end }};
 {{ $.Indent }}{{ if .Secret}}auth_jwt_key_file {{ .Secret }};{{ end }}
 {{- if .JwksURI.JwksHost }}
-{{ $.Indent }}{{ if .KeyCache }}auth_jwt_key_cache {{ .KeyCache }};{{ end }}
+{{ $.Indent }}{{ if .KeyCache }}auth_jwt_key_cache {{ .KeyCache }}{{ if .RefreshOnMiss }} refresh_on_miss{{ end }};{{ end }}
 {{ $.Indent }}auth_jwt_key_request /_jwks_uri_server_{{ .Key }};
 {{- end }}
 {{- if .RequireVariable }}
