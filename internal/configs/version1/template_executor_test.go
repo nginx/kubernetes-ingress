@@ -207,7 +207,7 @@ http {
     access_log {{.AccessLog}};
 
     {{- if .LatencyMetrics}}
-    log_format response_time '{"upstreamAddress":"$upstream_addr", "upstreamResponseTime":"$upstream_response_time", "proxyHost":"$proxy_host", "upstreamStatus": "$upstream_status"}';
+    log_format response_time '{"upstreamAddress":"$upstream_addr", "upstreamResponseTime":"$upstream_response_time", "proxyHost":"$proxy_host", "upstreamStatus": "$upstream_status", "upstreamCacheStatus":"$upstream_cache_status"}';
     access_log syslog:server=unix:/var/lib/nginx/nginx-syslog.sock,nohostname,tag=nginx response_time;
     {{- end}}
 
