@@ -79,168 +79,85 @@ permissions:
   contents: read
 
 jobs:
-  release-to-gcr-release-registry:
-    name: Push images to the GCR Release Registry
+  registries:
+    name: Select target registries
     runs-on: ubuntu-26.04
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.gcr_release_registry)
+    if: github.repository == 'nginx/kubernetes-ingress'
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
     steps:
+      # The manifest is read from this workflow's own commit, not inputs.branch, so it always
+      # matches the job below. The config files it points to are read from inputs.branch.
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.branch }}
+          sparse-checkout: .github/data/registries.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
 
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
-
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
-
-      - name: Get Id Token for Source Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        id: idtoken-source
-        with:
-          script: |
-            let id_token = await core.getIDToken()
-            core.setOutput('id_token', id_token)
-
-      - name: Login to Source Management Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ${{ inputs.source_registry }}
-          username: ${{ steps.idtoken-source.outputs.id_token }}
-          password: ${{ github.actor }}
-
-      - name: Publish OSS images
+      - name: Select registries enabled by inputs
+        id: select
+        env:
+          INPUTS: ${{ toJSON(inputs) }}
         run: |
-          export CONFIG_PATH=.github/config/config-oss-gcr-release
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
+          matrix=$(jq -c --argjson in "${INPUTS}" '.oss | map(select(($in[.input] | tostring) == "true"))' .github/data/registries.json)
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "${matrix}" | jq .
 
-  release-oss-to-ecr-public-registry:
-    name: Push OSS images to the AWS Public Registry
-    runs-on: ubuntu-26.04
+  publish:
+    name: Push OSS images to the ${{ matrix.registry.name }}
+    runs-on: 'kic-plus'
+    needs: [registries]
     permissions:
       contents: read
       id-token: write
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.ecr_public_registry)
+      packages: write # for the GitHub Public Registry
+    # A matrix cannot be empty, so skip when every registry input is false.
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.registries.outputs.matrix != '[]')
+    strategy:
+      fail-fast: false
+      matrix:
+        registry: ${{ fromJSON(needs.registries.outputs.matrix) }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Setup secrets
+      # GCR is the target of the gcr leg, and the source whenever source_registry is on gcr.io.
+      - name: Login to GCR
+        if: matrix.registry.login == 'gcr' || contains(inputs.source_registry, 'gcr.io')
+        uses: ./.github/actions/vault-gcr-login
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+
+      - name: Setup ECR secrets
+        if: matrix.registry.login == 'ecr'
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
           client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
           tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, aws-public-role"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, AWS_ROLE_PUBLIC_ECR"
-
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
+          secret-names: "aws-public-role"
+          env-names: "AWS_ROLE_PUBLIC_ECR"
 
       - name: Configure AWS Credentials
+        if: matrix.registry.login == 'ecr'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           aws-region: us-east-1
           role-to-assume: ${{ env.AWS_ROLE_PUBLIC_ECR }}
 
       - name: Login to Public ECR
+        if: matrix.registry.login == 'ecr'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: public.ecr.aws
 
-      - name: Get Id Token for Source Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        id: idtoken-source
-        with:
-          script: |
-            let id_token = await core.getIDToken()
-            core.setOutput('id_token', id_token)
-
-      - name: Login to Source Management Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ${{ inputs.source_registry }}
-          username: ${{ steps.idtoken-source.outputs.id_token }}
-          password: ${{ github.actor }}
-
-      - name: Publish images
-        run: |
-          export CONFIG_PATH=.github/config/config-oss-ecr
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
-
-  release-oss-to-dockerhub-public-registry:
-    name: Push OSS images to the DockerHub Public Registry
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.dockerhub_public_registry)
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Setup NIC secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
-
-      - name: Setup Common secrets
+      - name: Setup DockerHub secrets
+        if: matrix.registry.login == 'dockerhub'
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
           client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
@@ -249,164 +166,33 @@ jobs:
           secret-names: "docker-username, docker-password"
           env-names: "DOCKER_USERNAME, DOCKER_PASSWORD"
 
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
-
       - name: DockerHub Login
+        if: matrix.registry.login == 'dockerhub'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
-      - name: Get Id Token for Source Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        id: idtoken-source
-        with:
-          script: |
-            let id_token = await core.getIDToken()
-            core.setOutput('id_token', id_token)
-
-      - name: Login to Source Management Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ${{ inputs.source_registry }}
-          username: ${{ steps.idtoken-source.outputs.id_token }}
-          password: ${{ github.actor }}
-
-      - name: Publish images
-        run: |
-          export CONFIG_PATH=.github/config/config-oss-dockerhub
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
-
-  release-oss-to-quay-public-registry:
-    name: Push OSS images to the Quay Public Registry
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: read
-      id-token: write
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.quay_public_registry)
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Setup secrets
+      - name: Setup Quay secrets
+        if: matrix.registry.login == 'quay'
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
           client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
           tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, quay-username, quay-robot-token"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, QUAY_USERNAME, QUAY_ROBOT_TOKEN"
-
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
+          secret-names: "quay-username, quay-robot-token"
+          env-names: "QUAY_USERNAME, QUAY_ROBOT_TOKEN"
 
       - name: Login to Quay.io
+        if: matrix.registry.login == 'quay'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: quay.io
           username: ${{ env.QUAY_USERNAME }}
           password: ${{ env.QUAY_ROBOT_TOKEN }}
 
-      - name: Get Id Token for Source Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        id: idtoken-source
-        with:
-          script: |
-            let id_token = await core.getIDToken()
-            core.setOutput('id_token', id_token)
-
-      - name: Login to Source Management Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ${{ inputs.source_registry }}
-          username: ${{ steps.idtoken-source.outputs.id_token }}
-          password: ${{ github.actor }}
-
-      - name: Publish images
-        run: |
-          export CONFIG_PATH=.github/config/config-oss-quay
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
-
-  release-oss-to-github-public-registry:
-    name: Push OSS images to the GitHub Public Registry
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.github_public_registry)
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.branch }}
-
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
-          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
-
-      - name: Authenticate to Google Cloud
-        id: gcr-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          token_format: access_token
-          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
-          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
-
-      - name: Login to GCR
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: gcr.io
-          username: oauth2accesstoken
-          password: ${{ steps.gcr-auth.outputs.access_token }}
-
       - name: Login to GitHub Container Registry
+        if: matrix.registry.login == 'ghcr'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
@@ -431,11 +217,10 @@ jobs:
           password: ${{ github.actor }}
 
       - name: Publish images
-        run: |
-          export CONFIG_PATH=.github/config/config-oss-github
-          export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
-          if ${{ inputs.dry_run }}; then
-            export DRY_RUN=true
-          fi
-          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
+        env:
+          CONFIG_PATH: ${{ matrix.registry.config }}
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          TARGET_TAG: ${{ inputs.target_tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          SOURCE_REGISTRY: ${{ inputs.source_registry }}
+        run: .github/scripts/copy-images.sh "${SOURCE_REGISTRY}"

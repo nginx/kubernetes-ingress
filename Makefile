@@ -3,6 +3,19 @@ VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
+
+# variables that can be overridden by the user
+PLUS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
+# Local build through the F5 Artifactory mirror:
+#   F5_REPO_USER=<user> F5_REPO_TOKEN=<token> F5_REPO_HOST=<host> make debian-image
+# Check that no credentials or mirror URLs reached the image:
+#   docker run --rm --user 0 --entrypoint sh <image> -c 'grep -rl "$0" /etc; test $? -eq 1' <host>
+F5_REPO_USER                  ?= ## The user for the F5 package repository.
+F5_REPO_TOKEN                 ?= ## The token for the F5 package repository.
+F5_REPO_HOST                  ?= ## The host of the F5 package mirror (Artifactory).
+F5_DEBIAN_REPO                ?= debian-remote ## The Artifactory repository mirroring deb.debian.org/debian.
+F5_DEBIAN_SECURITY_REPO       ?= debian-security-remote ## The Artifactory repository mirroring deb.debian.org/debian-security.
+
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.31.0
 NGINX_PLUS_VERSION            ?= R37.0
@@ -11,7 +24,17 @@ NAP_WAF_COMMON_VERSION        ?= 11.665
 NAP_WAF_PLUGIN_VERSION        ?= 6.29
 NAP_AGENT_VERSION             ?= 2
 NGINX_AGENT_VERSION           ?= 3
-PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
+
+# variables that can be overridden by the user, but are required for plus/staging builds
+NGX_CRT 					  ?= nginx-repo.crt
+NGX_KEY 					  ?= nginx-repo.key
+
+DOCKER_AUTH = --secret id=$(NGX_CRT),src=$(NGX_CRT) --secret id=$(NGX_KEY),src=$(NGX_KEY)
+
+REGISTRY                      ?= ## The registry where the image is located.
+GHCR_REGISTRY                 ?= ghcr.io ## The GitHub Container Registry to use for images.
+DOCKER_REGISTRY               ?= docker.io ## The Docker registry to use for images.
+PLUS_ARGS ?=  $(DOCKER_AUTH) --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO)
 
 # Variables that can be overridden
 
@@ -21,17 +44,25 @@ STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
 # renovate: datasource=github-tags depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.9.0
 
-GO_DOCKER_IMAGE_NAME    ?= golang
+GO_DOCKER_IMAGE_NAME    ?= $(strip $(DOCKER_REGISTRY))/library/golang
 # renovate: datasource=docker depName=golang versioning=docker
 GO_DOCKER_IMAGE_VERSION ?= 1.27.4-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
-REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
 TARGET                        ?= local ## The target of the build. Possible values: local, container, download, goreleaser, and debug
-PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
-override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
+override DOCKER_BUILD_OPTIONS += --build-arg DOCKER_REGISTRY=$(DOCKER_REGISTRY) --build-arg GHCR_REGISTRY=$(GHCR_REGISTRY) --build-arg IC_VERSION=$(VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
+ifneq ($(F5_REPO_USER),)
+ifeq ($(strip $(F5_REPO_HOST)),)
+$(error F5_REPO_HOST must be set when F5_REPO_USER is set)
+endif
+override DOCKER_BUILD_OPTIONS += --secret id=f5-repo-user,env=F5_REPO_USER \
+--secret id=f5-repo-token,env=F5_REPO_TOKEN \
+--build-arg F5_REPO_HOST=$(F5_REPO_HOST) \
+--build-arg F5_DEBIAN_REPO=$(F5_DEBIAN_REPO) \
+--build-arg F5_DEBIAN_SECURITY_REPO=$(F5_DEBIAN_SECURITY_REPO)
+endif
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443

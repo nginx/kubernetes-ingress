@@ -76,8 +76,9 @@ Because the stages are decoupled, a transient failure in publishing or external 
 | `lint-format.yml` | PR to `main`/`release-*`, merge_group | Format & lint checks (gofumpt, goimports, golangci-lint, actionlint, markdownlint, yamllint) |
 | `regression.yml` | Daily cron (03:00 UTC), manual dispatch | Multi-K8s-version regression matrix tests |
 | `single-image-regression.yml` | Manual dispatch | Runs Python e2e tests on a single image variant and K8s version |
-| `build-base-images.yml` | Weekday cron (04:30 UTC), manual, workflow_call | Rebuilds all base images (alpine, debian, ubi) |
-| `image-promotion.yml` | Push to `main`/`release-*`, workflow_call | Post-merge image tagging (`edge`/`stable`), security scanning, GHCR edge chart publish |
+| `build-base-images.yml` | Weekday cron (04:30 UTC), manual (optional `push_images`) | Rebuilds all base images (alpine, debian, ubi) |
+| `build-ubi-dependency.yml` | Push to `main` touching `build/dependencies/Dockerfile.ubi10`, manual | Builds the UBI dependency image published to `ghcr.io/nginx/dependencies/nginx-ubi` |
+| `image-promotion.yml` | Push to `main`/`release-*`, workflow_call | Rebuilds images via `build-artifacts.yml` (`force: true`), tags `edge`/`stable`, runs security scans, publishes GHCR edge chart |
 
 ### Release Workflows
 
@@ -192,6 +193,7 @@ The `matrix-images-*.json` rows use `build_os` / `image` / `tag_suffix` and are 
 - Renovate manages tool versions via `# renovate:` comments -- do not update manually
 - `image-promotion.yml` runs on merge to `main` and `release-*`, not on PR -- don't expect images from PRs
 - Release-only workflows and `.github/config/config-*` files must be listed in `.github/scripts/exclude_ci_files.txt`, otherwise they feed `get_actions_md5()` and invalidate `stable_tag`, forcing a full image rebuild
+- Target registries for `oss-release.yml`, `plus-release.yml` and `plus-release-lts.yml` are listed in `.github/data/registries.json` (`input` = the boolean that enables it, `login` = which login steps run, `config` = the `copy-images.sh` config). To add a registry: add an entry, add its boolean input, and add login steps gated on `matrix.registry.login`. The image set itself stays in the config file
 - `.github/config/config-*` files are shared between `release-publish.yml`, `image-promotion.yml`, `regression.yml` and `update-docker-images.yml`. Never add a `SOURCE_*_IMAGE_PREFIX` override to one -- the other callers read from the dev registry and would break. Override `TARGET_*` only
 - Every job in a non-`mirror-*` workflow must be gated as `github.repository == 'nginx/kubernetes-ingress'` (or `nginx/kubernetes-ingress-internal` for internal-only jobs like prep) optionally followed by `&& ( ... )` with **all** extra conditions inside one balanced group. `&&` binds tighter than `||`, so an ungrouped chain like `gate && (a) || (b)` parses as `(gate && (a)) || (b)` and would run on a fork. Enforced by `.github/scripts/validate-workflow-gating.sh` (pre-commit + `lint-format.yml`); run it locally after editing any job's `if`
 - A job whose `if` contains `always()`, `!cancelled()` or `failure()` runs **even when a `needs` dependency failed**. Such jobs must assert every dependency explicitly (`needs.<job>.result == 'success'`), which is why the release jobs list results one by one
