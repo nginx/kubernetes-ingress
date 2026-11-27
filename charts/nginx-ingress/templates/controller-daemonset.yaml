@@ -50,6 +50,9 @@ spec:
 {{- if .Values.controller.priorityClassName }}
       priorityClassName: {{ .Values.controller.priorityClassName }}
 {{- end }}
+{{- if .Values.controller.runtimeClassName }}
+      runtimeClassName: {{ .Values.controller.runtimeClassName | quote }}
+{{- end }}
       hostNetwork: {{ .Values.controller.hostNetwork }}
       dnsPolicy: {{ .Values.controller.dnsPolicy }}
       {{- if .Values.controller.shareProcessNamespace }}

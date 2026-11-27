@@ -288,6 +288,24 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "batch-reload-window",
 			namespace:   "default",
 		},
+		"runtimeClassNameDeployment": {
+			valuesFile:    "testdata/runtime-class-deployment.yaml",
+			releaseName:   "runtime-class-deployment",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-deployment.yaml"},
+		},
+		"runtimeClassNameDaemonSet": {
+			valuesFile:    "testdata/runtime-class-daemonset.yaml",
+			releaseName:   "runtime-class-daemonset",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-daemonset.yaml"},
+		},
+		"runtimeClassNameStatefulSet": {
+			valuesFile:    "testdata/runtime-class-statefulset.yaml",
+			releaseName:   "runtime-class-statefulset",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-statefulset.yaml"},
+		},
 	}
 
 	// Path to the helm chart we will test
@@ -461,6 +479,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "appprotect-waf-plm-without-url",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url"},
+		},
+		"runtimeClassNameInvalid": {
+			valuesFile:        "testdata/runtime-class-invalid.yaml",
+			releaseName:       "runtime-class-invalid",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'/controller/runtimeClassName': got number, want string"},
 		},
 	}
 

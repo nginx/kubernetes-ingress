@@ -2055,6 +2055,11 @@
           "title": "The priorityClassName",
           "$ref": "#/definitions/io.k8s.api.core.v1.PodSpec/properties/priorityClassName"
         },
+        "runtimeClassName": {
+          "default": "",
+          "title": "The runtimeClassName",
+          "$ref": "#/definitions/io.k8s.api.core.v1.PodSpec/properties/runtimeClassName"
+        },
         "podDisruptionBudget": {
           "type": "object",
           "default": {},
@@ -2575,6 +2580,7 @@
             "extraLabels": {}
           },
           "priorityClassName": "",
+          "runtimeClassName": "",
           "readyStatus": {
             "enable": true,
             "port": 8081,
@@ -3222,6 +3228,7 @@
           "extraLabels": {}
         },
         "priorityClassName": "",
+        "runtimeClassName": "",
         "readyStatus": {
           "enable": true,
           "port": 8081,

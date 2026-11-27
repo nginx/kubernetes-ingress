@@ -53,6 +53,9 @@ spec:
 {{- if .Values.controller.priorityClassName }}
       priorityClassName: {{ .Values.controller.priorityClassName }}
 {{- end }}
+{{- if .Values.controller.runtimeClassName }}
+      runtimeClassName: {{ .Values.controller.runtimeClassName | quote }}
+{{- end }}
       serviceAccountName: {{ include "nginx-ingress.serviceAccountName" . }}
       automountServiceAccountToken: true
       securityContext:
