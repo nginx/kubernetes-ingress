@@ -8,6 +8,7 @@
 .github/config/config-plus-*
 .github/config/config-prep-*
 .github/data/matrix-regression.json
+.github/data/registries.json
 .github/ISSUE_TEMPLATE/*
 .github/scripts/create-release-tarballs.sh
 .github/scripts/docker-updater.sh
