@@ -51,11 +51,11 @@ spec:
         ports:
         - containerPort: 80
         volumeMounts:
-          - name: secret
-            mountPath: "/etc/nginx/ssl"
-            readOnly: true
-          - name: config-volume
-            mountPath: /etc/nginx/conf.d
+        - name: secret
+          mountPath: "/etc/nginx/ssl"
+          readOnly: true
+        - name: config-volume
+          mountPath: /etc/nginx/conf.d
       volumes:
       - name: secret
         secret:

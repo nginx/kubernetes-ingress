@@ -32,6 +32,9 @@ map {{ $m.Source }} {{ $m.Variable }} {
 {{range $limitReqZone := .LimitReqZones}}
 limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}};
 {{end}}
+{{- range $z := .LimitConnZones }}
+limit_conn_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }};
+{{- end }}
 
 {{range $server := .Servers}}
 server {
@@ -93,6 +96,15 @@ server {
 	{{- end }}
 	{{- if gt (len $server.Deny) 0 }}
 		allow all;
+	{{- end }}
+
+	{{- if $server.LimitConns }}
+	limit_conn_dry_run {{ if $server.LimitConnOptions.DryRun }}on{{ else }}off{{ end }};
+	limit_conn_log_level {{ $server.LimitConnOptions.LogLevel }};
+	limit_conn_status {{ $server.LimitConnOptions.RejectCode }};
+	{{- range $lc := $server.LimitConns }}
+	limit_conn {{ $lc.ZoneName }} {{ $lc.Connections }};
+	{{- end }}
 	{{- end }}
 
 	{{- range $setRealIPFrom := $server.SetRealIPFrom}}
@@ -297,6 +309,18 @@ server {
 		{{- if gt (len $location.Deny) 0 }}
 		allow all;
 		{{- end }}
+
+		{{- if $location.LimitConns }}
+		limit_conn_dry_run {{ if $location.LimitConnOptions.DryRun }}on{{ else }}off{{ end }};
+		limit_conn_log_level {{ $location.LimitConnOptions.LogLevel }};
+		limit_conn_status {{ $location.LimitConnOptions.RejectCode }};
+		{{- range $lc := $location.LimitConns }}
+		limit_conn {{ $lc.ZoneName }} {{ $lc.Connections }};
+		{{- end }}
+		{{- else if and $location.ACMEChallenge $server.LimitConns }}
+		{{- /* The challenge location inherits the server's limit_conn; dry run keeps it from rejecting the ACME server. */}}
+		limit_conn_dry_run on;
+		{{- end }}
 		{{- if $location.AddHeaderInherit}}
 		add_header_inherit {{$location.AddHeaderInherit}};
 		{{- end}}
@@ -362,6 +386,15 @@ server {
 		grpc_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
 		grpc_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		{{- end}}
+		{{- with $location.AuthResponseHeaders }}
+		{{- range $h := .Headers }}
+		auth_request_set {{ $h.Variable }} {{ $h.Source }};
+		grpc_set_header {{ $h.Name }} {{ $h.Variable }};
+		{{- end }}
+		{{- end }}
+		{{- range $name := $location.StrippedAuthResponseHeaders }}
+		grpc_set_header {{ $name }} "";
+		{{- end }}
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
 		{{- end}}
@@ -425,6 +458,15 @@ server {
 		proxy_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
 		proxy_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		{{- end}}
+		{{- with $location.AuthResponseHeaders }}
+		{{- range $h := .Headers }}
+		auth_request_set {{ $h.Variable }} {{ $h.Source }};
+		proxy_set_header {{ $h.Name }} {{ $h.Variable }};
+		{{- end }}
+		{{- end }}
+		{{- range $name := $location.StrippedAuthResponseHeaders }}
+		proxy_set_header {{ $name }} "";
+		{{- end }}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
 		proxy_buffers {{$location.ProxyBuffers}};
@@ -515,6 +557,9 @@ server {
 	location @custom_default_backend {
 		internal;
 		proxy_intercept_errors off;
+		{{- range $name := $server.AuthResponseHeaderNames }}
+		proxy_set_header {{ $name }} "";
+		{{- end }}
 		proxy_pass http://{{$server.CustomHTTPErrorBackend}};
 	}
 	{{- end}}

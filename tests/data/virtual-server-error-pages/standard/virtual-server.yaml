@@ -14,22 +14,22 @@ spec:
   routes:
   - path: "/backend1"
     errorPages:
-      - codes: [502]
-        redirect:
-          code: 307
-          url: ${scheme}://virtual-server.example.com/error.html
+    - codes: [502]
+      redirect:
+        code: 307
+        url: ${scheme}://virtual-server.example.com/error.html
     action:
       pass: backend1
   - path: "/backend2"
     errorPages:
-      - codes: [502]
-        return:
-          code: 207
-          type: application/json
-          body: |
-            {\"status\": \"${upstream_status}\",\"message\":\"Forbidden\"}
-          headers:
-          - name: x-debug-original-status
-            value: ${upstream_status}
+    - codes: [502]
+      return:
+        code: 207
+        type: application/json
+        body: |
+          {\"status\": \"${upstream_status}\",\"message\":\"Forbidden\"}
+        headers:
+        - name: x-debug-original-status
+          value: ${upstream_status}
     action:
       pass: backend2

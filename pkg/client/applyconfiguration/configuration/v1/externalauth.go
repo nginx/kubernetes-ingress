@@ -29,6 +29,8 @@ type ExternalAuthApplyConfiguration struct {
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
 	SNIName *string `json:"sniName,omitempty"`
+	// AuthResponseHeaders lists headers of the external authentication server's response that are passed to the backend after the server allows a request with a 2xx response. The server's value replaces a header of the same name from the client or from other configuration, and a listed header that the server does not return is removed. Names contain letters, digits, and hyphens, have at most 46 characters, and must be unique, ignoring case. At most 32 names are allowed. Host, Connection, Proxy-Connection, Content-Length, Transfer-Encoding, TE, Keep-Alive, Expect, Upgrade, X-Real-IP, X-Forwarded-For, X-Forwarded-Host, X-Forwarded-Port, and X-Forwarded-Proto are not allowed.
+	AuthResponseHeaders []string `json:"authResponseHeaders,omitempty"`
 }
 
 // ExternalAuthApplyConfiguration constructs a declarative configuration of the ExternalAuth type for use with
@@ -124,5 +126,15 @@ func (b *ExternalAuthApplyConfiguration) WithTrustedCertSecret(value string) *Ex
 // If called multiple times, the SNIName field is set to the value of the last call.
 func (b *ExternalAuthApplyConfiguration) WithSNIName(value string) *ExternalAuthApplyConfiguration {
 	b.SNIName = &value
+	return b
+}
+
+// WithAuthResponseHeaders adds the given value to the AuthResponseHeaders field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the AuthResponseHeaders field.
+func (b *ExternalAuthApplyConfiguration) WithAuthResponseHeaders(values ...string) *ExternalAuthApplyConfiguration {
+	for i := range values {
+		b.AuthResponseHeaders = append(b.AuthResponseHeaders, values[i])
+	}
 	return b
 }

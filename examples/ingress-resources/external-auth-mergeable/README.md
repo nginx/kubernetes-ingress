@@ -8,7 +8,8 @@ In this example we deploy the cafe application, configure load balancing using t
 - `/coffee` is protected by **OAuth2 Proxy** using [oauth2-proxy](https://oauth2-proxy.github.io/oauth2-proxy/)
   configured with [GitHub OAuth](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app).
 
-Each minion Ingress references its own ExternalAuth Policy via the `nginx.org/policies` annotation.
+Each minion Ingress references its own ExternalAuth Policy via the `nginx.org/policies` annotation. The OAuth2 Policy
+also passes the user name and email that oauth2-proxy returns to the coffee backend.
 
 ## Prerequisites
 
@@ -64,7 +65,7 @@ kubectl apply -f basic-auth.yaml
    | ----- | ----- |
    | **Application name** | `nginx-ingress-demo` (or any name) |
    | **Homepage URL** | `https://cafe.example.com` |
-   | **Authorization callback URL** | `https://cafe.example.com/oauth2/callback` |
+   | **Redirect URI** | `https://cafe.example.com/oauth2/callback` |
 
 1. Click **Register application**.
 1. Note the **Client ID** and generate a **client secret**.
@@ -84,6 +85,9 @@ kubectl apply -f basic-auth.yaml
     kubectl apply -f oauth2-proxy.yaml
     ```
 
+The oauth2-proxy configuration sets `set_xauthrequest = true`, so oauth2-proxy returns the user's details in
+`X-Auth-Request-*` headers when it allows a request.
+
 ## Step 6 - Deploy the ExternalAuth Policies
 
 Create the ExternalAuth policies that the minion Ingress resources will reference:
@@ -92,6 +96,10 @@ Create the ExternalAuth policies that the minion Ingress resources will referenc
 kubectl apply -f basic-auth-policy.yaml
 kubectl apply -f oauth2-policy.yaml
 ```
+
+The OAuth2 policy lists `X-Auth-Request-User` and `X-Auth-Request-Email` in `authResponseHeaders`. After oauth2-proxy
+allows a request, NGINX passes these headers from its response to the coffee backend. Their values replace any headers
+of the same name that the client sends, and a listed header that oauth2-proxy does not return is removed.
 
 ## Step 7 - Configure Load Balancing
 
@@ -132,3 +140,17 @@ granting access, GitHub redirects you back and the page loads normally.
 
 > **Note:** The OAuth2 flow requires browser interaction. Use a browser for the initial login. Once authenticated, the
 > `_oauth2_proxy` cookie allows subsequent requests, including `curl`, to pass through.
+
+The coffee backend does not print request headers. To check that NGINX passes the user and email to it, look for the
+directives that the OAuth2 policy adds to the configuration:
+
+```console
+kubectl exec <nginx-ingress-pod> -n nginx-ingress -- grep auth_resp_ /etc/nginx/conf.d/default-cafe-ingress-master.conf
+```
+
+```text
+auth_request_set $auth_resp_x_auth_request_user $upstream_http_x_auth_request_user;
+proxy_set_header X-Auth-Request-User $auth_resp_x_auth_request_user;
+auth_request_set $auth_resp_x_auth_request_email $upstream_http_x_auth_request_email;
+proxy_set_header X-Auth-Request-Email $auth_resp_x_auth_request_email;
+```

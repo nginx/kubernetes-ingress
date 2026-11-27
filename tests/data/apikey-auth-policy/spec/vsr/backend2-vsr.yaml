@@ -13,4 +13,4 @@ spec:
     action:
       pass: backend2
     policies:
-      - name: api-key-policy-vs-route
+    - name: api-key-policy-vs-route

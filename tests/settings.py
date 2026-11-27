@@ -34,4 +34,8 @@ NS_COUNT = 0
 # Nginx registry address to pull waf components from
 NGX_REG = "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr"
 # WAF component version to pull from above registry
-WAF_V5_VERSION = "5.16.1"
+WAF_V5_VERSION = "5.16.3"
+# F5 WAF Policy Controller (PLM) chart and image version, must match WAF_V5_VERSION
+PLM_VERSION = "5.16.3"
+# PLM chart source: a Helm repository URL or an oci:// registry path
+DEFAULT_PLM_HELM_REPO = "https://helm.nginx.com/stable"

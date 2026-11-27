@@ -20,9 +20,9 @@ spec:
     action:
       pass: tea
     policies:
-      - name: external-auth-basic-policy
+    - name: external-auth-basic-policy
   - path: /coffee
     action:
       pass: coffee
     policies:
-      - name: external-auth-oauth2-policy
+    - name: external-auth-oauth2-policy

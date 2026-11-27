@@ -14,18 +14,18 @@ spec:
     spec:
       containers:
       - name: syslog
-        image: balabit/syslog-ng:4.12.0
+        image: balabit/syslog-ng:4.13.0
         ports:
         - containerPort: 514
         - containerPort: 601
         volumeMounts:
-          - name: config-volume
-            mountPath: /etc/syslog-ng/syslog-ng.conf
-            subPath: syslog-ng.conf
-      volumes:
         - name: config-volume
-          configMap:
-            name: syslog-config
+          mountPath: /etc/syslog-ng/syslog-ng.conf
+          subPath: syslog-ng.conf
+      volumes:
+      - name: config-volume
+        configMap:
+          name: syslog-config
 ---
 apiVersion: v1
 kind: Service

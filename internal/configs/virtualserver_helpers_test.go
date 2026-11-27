@@ -349,6 +349,38 @@ func TestRemoveDuplicateLimitReqZones(t *testing.T) {
 	}
 }
 
+func TestRemoveDuplicateLimitConnZones(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		zones    []version2.LimitConnZone
+		expected []version2.LimitConnZone
+	}{
+		{
+			name: "duplicates keep the first zone",
+			zones: []version2.LimitConnZone{
+				{ZoneName: "a", Key: "total"},
+				{ZoneName: "b"},
+				{ZoneName: "a", Key: "total"},
+			},
+			expected: []version2.LimitConnZone{
+				{ZoneName: "a", Key: "total"},
+				{ZoneName: "b"},
+			},
+		},
+		{
+			name:     "no zones",
+			zones:    nil,
+			expected: nil,
+		},
+	}
+	for _, test := range tests {
+		if result := removeDuplicateLimitConnZones(test.zones); !reflect.DeepEqual(result, test.expected) {
+			t.Errorf("removeDuplicateLimitConnZones() for %s returned %#v, expected %#v", test.name, result, test.expected)
+		}
+	}
+}
+
 func TestRemoveDuplicateMaps(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -643,6 +675,10 @@ func TestAddPoliciesCfgToLocations(t *testing.T) {
 	cfg := policiesCfg{
 		Allow: []string{"127.0.0.1"},
 		Deny:  []string{"127.0.0.2"},
+		ConnectionLimit: connectionLimit{
+			Conns:   []version2.LimitConn{{ZoneName: "zone", Connections: 10}},
+			Options: version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
+		},
 		ErrorReturn: &version2.Return{
 			Code: 400,
 		},
@@ -656,9 +692,11 @@ func TestAddPoliciesCfgToLocations(t *testing.T) {
 
 	expectedLocations := []version2.Location{
 		{
-			Path:  "/",
-			Allow: []string{"127.0.0.1"},
-			Deny:  []string{"127.0.0.2"},
+			Path:             "/",
+			Allow:            []string{"127.0.0.1"},
+			Deny:             []string{"127.0.0.2"},
+			LimitConns:       []version2.LimitConn{{ZoneName: "zone", Connections: 10}},
+			LimitConnOptions: version2.LimitConnOptions{LogLevel: "error", RejectCode: 503},
 			PoliciesErrorReturn: &version2.Return{
 				Code: 400,
 			},
@@ -1079,6 +1117,15 @@ func TestGenerateAuthJwtClaimSetVariable(t *testing.T) {
 			},
 			expected: "$jwt_default_webapp_vs_a_b_c",
 		},
+		{
+			claim: "iss",
+			ownerDetails: policyOwnerDetails{
+				parentNamespace: "my.ns",
+				parentName:      "cafe.example-vs",
+				parentType:      "vs",
+			},
+			expected: "$jwt_my_ns_cafe_example_vs_vs_iss",
+		},
 	}
 
 	for _, test := range tests {
@@ -1230,7 +1277,7 @@ func TestGenerateLocationForProxying(t *testing.T) {
 		VSRNamespace:             "",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "", nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -1284,7 +1331,7 @@ func TestGenerateLocationForProxying_WithUseForwardedHeaders(t *testing.T) {
 		UseForwardedHeaders:      true,
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "", nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -1333,7 +1380,7 @@ func TestGenerateLocationForGrpcProxying(t *testing.T) {
 		GRPCPass:                 "grpc://test-upstream",
 	}
 
-	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{Type: "grpc"}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "", nil)
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("generateLocationForForGrpcProxying() mismatch (-want +got):\n%s", diff)
 	}
@@ -3554,7 +3601,7 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := generateProxySetHeaders(test.proxy, test.useForwardedHeaders)
+		result := generateProxySetHeaders(test.proxy, test.useForwardedHeaders, nil)
 		if diff := cmp.Diff(test.expected, result); diff != "" {
 			t.Errorf("generateProxySetHeaders() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}

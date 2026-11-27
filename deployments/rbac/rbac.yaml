@@ -134,39 +134,39 @@ rules:
   - get
   - list
 - apiGroups:
-    - cis.f5.com
+  - cis.f5.com
   resources:
-    - ingresslinks
+  - ingresslinks
   verbs:
-    - list
-    - watch
-    - get
+  - list
+  - watch
+  - get
 - apiGroups:
-    - cert-manager.io
+  - cert-manager.io
   resources:
-    - certificates
+  - certificates
   verbs:
-    - list
-    - watch
-    - get
-    - update
-    - create
-    - delete
+  - list
+  - watch
+  - get
+  - update
+  - create
+  - delete
 # Grants for the DNSEndpoint CRD. Both API groups are listed so the -external-dns-group-version
 # flag can be toggled between externaldns.nginx.org/v1 (default, for external-dns <= v0.20.x)
 # and externaldns.k8s.io/v1alpha1 (required for external-dns v0.21.0+) without editing RBAC.
 - apiGroups:
-    - externaldns.nginx.org
-    - externaldns.k8s.io
+  - externaldns.nginx.org
+  - externaldns.k8s.io
   resources:
-    - dnsendpoints
+  - dnsendpoints
   verbs:
-    - list
-    - watch
-    - get
-    - update
-    - create
-    - delete
+  - list
+  - watch
+  - get
+  - update
+  - create
+  - delete
 - apiGroups:
   - externaldns.nginx.org
   - externaldns.k8s.io

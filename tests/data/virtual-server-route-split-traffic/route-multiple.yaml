@@ -14,12 +14,12 @@ spec:
   subroutes:
   - path: "/backends/backend1"
     splits:
-      - weight: 90
-        action:
-          pass: backend1
-      - weight: 10
-        action:
-          pass: backend3
+    - weight: 90
+      action:
+        pass: backend1
+    - weight: 10
+      action:
+        pass: backend3
   - path: "/backends/backend3"
     action:
       pass: backend3

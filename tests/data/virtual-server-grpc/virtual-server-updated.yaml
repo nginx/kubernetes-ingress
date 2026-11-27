@@ -12,7 +12,7 @@ spec:
     port: 50051
     type: grpc
     tls:
-      enable: True
+      enable: true
   - name: grpc2
     service: grpc2-svc
     port: 50051

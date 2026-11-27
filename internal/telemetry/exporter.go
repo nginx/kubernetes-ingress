@@ -158,4 +158,6 @@ type NICResourceCounts struct {
 	HSTSPolicies int64
 	// OIDCNativePolicies is the number of OIDC Native policies managed by NGINX Ingress Controller
 	OIDCNativePolicies int64
+	// ConnectionLimitPolicies is the number of ConnectionLimit policies managed by NGINX Ingress Controller
+	ConnectionLimitPolicies int64
 }

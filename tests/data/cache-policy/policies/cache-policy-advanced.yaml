@@ -21,7 +21,7 @@ spec:
       threshold: "200ms"
 
     cacheKey: "$scheme$host$request_uri$request_method"
-    cacheUseStale: [ "error", "timeout", "updating", "http_500" ]
+    cacheUseStale: ["error", "timeout", "updating", "http_500"]
     cacheRevalidate: true
     cacheBackgroundUpdate: true
     cacheMinUses: 1
@@ -32,5 +32,5 @@ spec:
       age: "30s"
 
     conditions:
-      noCache: [ "$cookie_nocache", "$arg_nocache" ]
-      bypass: [ "$http_authorization" ]
+      noCache: ["$cookie_nocache", "$arg_nocache"]
+      bypass: ["$http_authorization"]

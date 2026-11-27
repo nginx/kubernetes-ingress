@@ -7,9 +7,9 @@ spec:
   tls:
     secret: tls-secret
     redirect:
-      enable: True
-#      code: 301
-#      basedOn: scheme
+      enable: true
+      # code: 301
+      # basedOn: scheme
   upstreams:
   - name: backend2
     service: backend2-svc

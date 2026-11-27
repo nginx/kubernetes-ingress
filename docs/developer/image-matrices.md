@@ -99,9 +99,6 @@ regular CI flow, and the `/lts/` path (`nginx-ic/lts/nginx-plus-ingress`) only e
 `patch-images-lts.json` set those paths. Do not add `/lts/` to the matrix `image`, or the staging copy will read
 a repo the build never writes to.
 
-AWS and Azure marketplace tags (`-mktpl`) are not in the matrices. They are produced at release time by the
-publish configs.
-
 ## NGINX Agent versions
 
 - OSS and plain Plus images ship nginx-agent v3 only.
@@ -123,9 +120,9 @@ publish configs.
    `(image, tag_suffix)` that are not already used, then run the validator.
 3. **Publish lists.** Add the new `tag_suffix` to the postfix list for its repo in `copy-images.sh` and in
    every release config that publishes it. Configs live in `.github/config/`:
-   `config-prep-nginx-test`, `config-plus-nginx`, `config-plus-gcr-release`, `config-gcr-retag`, and the
-   marketplace configs where relevant. A tag that is built but not in a postfix list is never published, and
-   a tag in a list that nothing builds makes the copy fail.
+   `config-prep-nginx-test`, `config-plus-nginx`, `config-plus-gcr-release` and `config-gcr-retag`. A tag
+   that is built but not in a postfix list is never published, and a tag in a list that nothing builds makes
+   the copy fail.
 4. **Makefile.** Add a local build target and add it to `all-images`.
 5. **Tests data.** Add the image to `tests/data/modules/data.json` so `check_container_packages.py` checks its
    packages, and to the smoke matrices if it needs e2e coverage.
@@ -138,8 +135,6 @@ CI will rebuild every image once after a matrix or `build-*.yml` change, because
 ## Registry naming
 
 - The NGINX registry uses `nginx-ic-nap-dos` for WAF+DoS, and the dev and release GCR paths match it.
-- `config-plus-ecr` deliberately keeps `nginx-plus-ingress-dos-nap`. It is the name of the AWS Marketplace
-  repository, not an internal path, and ECR does not create repositories on push.
 - Staging in `docker-mgmt-test` mirrors the dev and release GCR layout. `config-prep-nginx-test` leaves the
   image prefixes at their `copy-images.sh` defaults on purpose, and the publish stage reads them back with the
   same defaults. Any prefix override in a prep config must be matched by a `SOURCE_*` override in every publish

@@ -11,7 +11,7 @@ spec:
   - path: /
     routeSelector:
       matchLabels:
-       app: cafe
+        app: cafe
     policies:
-      - name: api-key-policy
-        namespace: cafe
+    - name: api-key-policy
+      namespace: cafe

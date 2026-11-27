@@ -30,8 +30,6 @@ spec:
         value: deprecated
       action:
         pass: backend3-deprecated
-#    action:
-#      pass: backend4-stable
   - path: "/backend2"
     action:
       pass: backend2

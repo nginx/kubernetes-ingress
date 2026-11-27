@@ -224,11 +224,14 @@ def wait_and_assert_status_code(code, req_url, host=None, **kwargs) -> None:
 
     :param  code: status_code
     :param  req_url: request url
-    :param  host: optional host header
-    :param  kwargs: optional arguments passed to ``requests.get``
+    :param  host: optional host header (overrides any "host" in ``headers``)
+    :param  kwargs: optional arguments passed to ``requests.get``; a ``headers`` dict is
+        merged with the host header rather than replaced
     :return:
     """
-    headers = {} if host is None else {"host": host}
+    headers = dict(kwargs.pop("headers", None) or {})
+    if host is not None:
+        headers["host"] = host
     resp = None
     last_error = None
     # One initial request plus up to 31 retries (~31s of polling), matching the

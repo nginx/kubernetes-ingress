@@ -9,14 +9,27 @@ OSS_REPO					  ?= "packages.nginx.org" ## The package repo to install nginx oss 
 PLUS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
 WAF_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app protect waf from
 DOS_REPO					  ?= "pkgs.nginx.com" ## The package repo to install nginx app protect dos from
+# Local build through the F5 Artifactory mirror:
+#   F5_REPO_USER=<user> F5_REPO_TOKEN=<token> F5_REPO_HOST=<host> make debian-image
+# Check that no credentials or mirror URLs reached the image:
+#   docker run --rm --user 0 --entrypoint sh <image> -c 'grep -rl "$0" /etc; test $? -eq 1' <host>
+F5_REPO_USER                  ?= ## The user for the F5 package repository.
+F5_REPO_TOKEN                 ?= ## The token for the F5 package repository.
+F5_REPO_HOST                  ?= ## The host of the F5 package mirror (Artifactory).
+F5_ALPINE_REPO                ?= alpine-remote ## The Artifactory repository mirroring the Alpine package repos.
+F5_DEBIAN_REPO                ?= debian-remote ## The Artifactory repository mirroring deb.debian.org/debian.
+F5_DEBIAN_SECURITY_REPO       ?= debian-security-remote ## The Artifactory repository mirroring deb.debian.org/debian-security.
+F5_UBI_REPO                   ?= redhat-cbn-ubi-remote ## The Artifactory repository mirroring cdn-ubi.redhat.com.
+F5_EPEL_REPO                  ?= rpm-epel-remote ## The Artifactory repository mirroring the EPEL package repos.
+F5_FEDORA_REPO                ?= fedoraproject-rpm-remote ## The Artifactory repository mirroring dl.fedoraproject.org/pub/epel (epel-release download).
 
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.8
-NGINX_PLUS_VERSION            ?= R37.2
+NGINX_OSS_VERSION             ?= 1.31.10
+NGINX_PLUS_VERSION            ?= R37.3
 
-NAP_WAF_VERSION               ?= 37.2+5.777
+NAP_WAF_VERSION               ?= 37.3+5.777
 NAP_WAF_COMMON_VERSION        ?= 11.869
-NAP_WAF_PLUGIN_VERSION        ?= 6.32
+NAP_WAF_PLUGIN_VERSION        ?= 6.34
 NAP_WAF_IPI_VERSION           ?= 1.71
 
 AGENT_V2_VERSION              ?= 2
@@ -32,11 +45,13 @@ OSS_REPO ?=
 ifeq ($(OSS_REPO),pkgs-test.nginx.com)
 override OSS_ARGS += $(DOCKER_AUTH)
 endif
-
+REGISTRY                      ?= ## The registry where the image is located.
+GHCR_REGISTRY                 ?= ghcr.io ## The GitHub Container Registry to use for images.
+DOCKER_REGISTRY               ?= docker.io ## The Docker registry to use for images.
 PLUS_ARGS ?=  $(DOCKER_AUTH) --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO)
 
 # Variables that can be overridden
-UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d622f38e0d0f4dba7bfc6228fee7241adf7e1c981f16c532cfbd47eccfc9
+UBI10_PACKAGES_IMAGE ?= $(strip $(GHCR_REGISTRY))/nginx/dependencies/nginx-ubi:ubi10@sha256:94dafbf3beec35c54010009aade5ef2c290bc396ce2ca4a494974f26f2fe1898
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
@@ -44,16 +59,29 @@ STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
 # renovate: datasource=github-tags depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.9.0
 
-GO_DOCKER_IMAGE_NAME    ?= golang
+GO_DOCKER_IMAGE_NAME    ?= $(strip $(DOCKER_REGISTRY))/library/golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.27.3-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.27.4-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
-REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
 TARGET                        ?= local ## The target of the build. Possible values: local, container, download, goreleaser, and debug
-override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO) --build-arg OSS_PACKAGE_REPO=$(OSS_REPO) ## The options for the docker build command. For example, --pull
+override DOCKER_BUILD_OPTIONS += --build-arg DOCKER_REGISTRY=$(DOCKER_REGISTRY) --build-arg GHCR_REGISTRY=$(GHCR_REGISTRY) --build-arg IC_VERSION=$(VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO) --build-arg OSS_PACKAGE_REPO=$(OSS_REPO) ## The options for the docker build command. For example, --pull
+ifneq ($(F5_REPO_USER),)
+ifeq ($(strip $(F5_REPO_HOST)),)
+$(error F5_REPO_HOST must be set when F5_REPO_USER is set)
+endif
+override DOCKER_BUILD_OPTIONS += --secret id=f5-repo-user,env=F5_REPO_USER \
+--secret id=f5-repo-token,env=F5_REPO_TOKEN \
+--build-arg F5_REPO_HOST=$(F5_REPO_HOST) \
+--build-arg F5_ALPINE_REPO=$(F5_ALPINE_REPO) \
+--build-arg F5_DEBIAN_REPO=$(F5_DEBIAN_REPO) \
+--build-arg F5_DEBIAN_SECURITY_REPO=$(F5_DEBIAN_SECURITY_REPO) \
+--build-arg F5_UBI_REPO=$(F5_UBI_REPO) \
+--build-arg F5_EPEL_REPO=$(F5_EPEL_REPO) \
+--build-arg F5_FEDORA_REPO=$(F5_FEDORA_REPO)
+endif
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 PLATFORM                      ?= linux/amd64 ## The platform(s) for dependency image builds. For example: linux/amd64 or linux/amd64,linux/arm64
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
@@ -61,7 +89,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.15.0 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.52.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.53.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.12.0 ## The version of gofumpt to use
 
@@ -128,14 +156,14 @@ govulncheck: ## Run govulncheck linter
 
 .PHONY: test
 test: ## Run GoLang tests
-	go test -tags=aws,helmunit -shuffle=on ./...
+	go test -tags=helmunit -shuffle=on ./...
 
 .PHONY: test-update-snaps
 test-update-snaps:
-	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
+	UPDATE_SNAPS=always go test -tags=helmunit -shuffle=on ./...
 
 cover: ## Generate coverage report
-	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -tags=helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
 
 cover-html: test ## Generate and show coverage report in HTML format
 	go tool cover -html coverage.txt
@@ -157,6 +185,10 @@ update-crds: ## Update CRDs
 	kustomize build config/crd/app-protect-dos --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-dos.yaml
 	kustomize build config/crd/app-protect-waf --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-waf.yaml
 	$(MAKE) update-crd-docs
+
+.PHONY: update-helm-schema
+update-helm-schema: ## Regenerate the bundled Kubernetes definitions in the Helm chart values schema
+	./hack/generate-helm-schema.sh
 
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
@@ -440,6 +472,8 @@ ubi-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Controlle
 ubi10-dependency-image-local: ## Build UBI10 dependency image locally (no push). Requires rhel_license. Set PLATFORM=linux/arm64 for arm64 (default: linux/amd64).
 	docker buildx build --platform $(PLATFORM) \
 		--file build/dependencies/Dockerfile.ubi10 \
+		--build-arg DOCKER_REGISTRY=$(DOCKER_REGISTRY) \
+		--build-arg GHCR_REGISTRY=$(GHCR_REGISTRY) \
 		--tag $(BUILD_IMAGE) \
 		--secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key \
 		--secret id=rhel_license,src=rhel_license --target final --load .

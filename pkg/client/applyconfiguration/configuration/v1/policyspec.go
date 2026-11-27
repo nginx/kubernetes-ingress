@@ -15,6 +15,8 @@ type PolicySpecApplyConfiguration struct {
 	AccessControl *AccessControlApplyConfiguration `json:"accessControl,omitempty"`
 	// The rate limit policy controls the rate of processing requests per a defined key.
 	RateLimit *RateLimitApplyConfiguration `json:"rateLimit,omitempty"`
+	// The connection limit policy limits the number of requests in progress at the same time per a defined key.
+	ConnectionLimit *ConnectionLimitApplyConfiguration `json:"connectionLimit,omitempty"`
 	// The JWT policy configures NGINX Plus to authenticate client requests using JSON Web Tokens.
 	JWTAuth *JWTAuthApplyConfiguration `json:"jwt,omitempty"`
 	// The basic auth policy configures NGINX to authenticate client requests using HTTP Basic authentication credentials.
@@ -68,6 +70,14 @@ func (b *PolicySpecApplyConfiguration) WithAccessControl(value *AccessControlApp
 // If called multiple times, the RateLimit field is set to the value of the last call.
 func (b *PolicySpecApplyConfiguration) WithRateLimit(value *RateLimitApplyConfiguration) *PolicySpecApplyConfiguration {
 	b.RateLimit = value
+	return b
+}
+
+// WithConnectionLimit sets the ConnectionLimit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ConnectionLimit field is set to the value of the last call.
+func (b *PolicySpecApplyConfiguration) WithConnectionLimit(value *ConnectionLimitApplyConfiguration) *PolicySpecApplyConfiguration {
+	b.ConnectionLimit = value
 	return b
 }
 

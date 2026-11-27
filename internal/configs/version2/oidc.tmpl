@@ -32,6 +32,9 @@
 
     location @do_oidc_flow {
         status_zone "OIDC start";
+        {{- if .ServerJWTAuth }}
+        auth_jwt off; # the server-level JWT policy must not gate the OIDC flow
+        {{- end }}
         js_content oidc.auth;
         default_type text/plain; # In case we throw an error
     }
@@ -40,6 +43,9 @@
     location = {{ printf "%q" .RedirectURI }} {
         # This location is called by the IdP after successful authentication
         status_zone "OIDC code exchange";
+        {{- if .ServerJWTAuth }}
+        auth_jwt off; # the server-level JWT policy must not gate the OIDC flow
+        {{- end }}
         js_content oidc.codeExchange;
         error_page 500 502 504 @oidc_error;
     }
@@ -109,6 +115,9 @@
 
     location = /logout {
         status_zone "OIDC logout";
+        {{- if .ServerJWTAuth }}
+        auth_jwt off; # the server-level JWT policy must not gate the OIDC flow
+        {{- end }}
         add_header Set-Cookie "auth_token=; $oidc_cookie_flags";
         add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags";
         add_header Set-Cookie "auth_redir=; $oidc_cookie_flags";
@@ -117,6 +126,9 @@
 
     location = /front_channel_logout {
         status_zone "OIDC logout";
+        {{- if .ServerJWTAuth }}
+        auth_jwt off; # the server-level JWT policy must not gate the OIDC flow
+        {{- end }}
         add_header Cache-Control "no-store";
         default_type text/plain;
         js_content oidc.handleFrontChannelLogout;

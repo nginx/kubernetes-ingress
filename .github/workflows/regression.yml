@@ -101,14 +101,17 @@ jobs:
           env-names: "CODECOV_TOKEN"
 
       - name: Setup Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+
+      - name: Generate secrets for tests
+        run: make secrets
 
       - name: Run Tests
         run: make cover
@@ -146,9 +149,9 @@ jobs:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Setup Helm
-        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.3.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup NIC secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
@@ -177,7 +180,7 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -280,7 +283,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.checks.outputs.branch }}
+          # LTS entries test a released image, so use the tests, manifests and CRDs from that tag, not main
+          ref: ${{ matrix.images.lts == true && matrix.images.lts_tag || needs.checks.outputs.branch }}
 
       - name: Set image variables
         id: image_details
@@ -290,7 +294,7 @@ jobs:
             echo "tag=${{ matrix.images.lts_tag }}" >> $GITHUB_OUTPUT
           else
             echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
-            echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+            echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
           fi
 
 
@@ -321,14 +325,14 @@ jobs:
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: Login to GHCR
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -347,7 +351,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.16.1 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.16.3 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
 
       - name: Generate secrets for tests
@@ -367,6 +371,9 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ env.PLUS_JWT }}
+          plm-helm-repo: ${{ vars.PLM_HELM_REPO }}
+          # pyproject.toml has -x; override it so one failure does not hide the rest of the nightly
+          pytest-args: --maxfail=100
 
       - name: Upload Test Results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -420,9 +427,6 @@ jobs:
     with:
       nginx_registry: true
       gcr_release_registry: false
-      gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
-      az_mktpl_registry: false
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       target_tag: "nightly"
       branch: ${{ needs.checks.outputs.branch }}

@@ -257,6 +257,8 @@ func (c *Collector) PolicyCount() map[string]int {
 			// if the condition is Variables, we count it as RateLimitVariables,
 			// otherwise we count it as RateLimit.
 			procecessRateLimitCounters(spec.RateLimit, policyCounters)
+		case spec.ConnectionLimit != nil:
+			policyCounters["ConnectionLimit"]++
 		case spec.JWTAuth != nil:
 			policyCounters["JWTAuth"]++
 		case spec.BasicAuth != nil:

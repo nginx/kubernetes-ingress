@@ -10,10 +10,14 @@ spec:
       return:
         code: 200
         type: text/plain
-        body: 'PREFIX SUBROUTE MATCH\nPath Directive:      /images/thumbnails/\nRequest URI:         ${request_uri}\nVirtualServerRoute:  prefix-routes\nMatched a subroute under the /images/ parent route delegation.\n'
+        body: 'PREFIX SUBROUTE MATCH\nPath Directive:      /images/thumbnails/\nRequest
+          URI:         ${request_uri}\nVirtualServerRoute:  prefix-routes\nMatched
+          a subroute under the /images/ parent route delegation.\n'
   - path: /images/originals/
     action:
       return:
         code: 200
         type: text/plain
-        body: 'PREFIX SUBROUTE MATCH\nPath Directive:      /images/originals/\nRequest URI:         ${request_uri}\nVirtualServerRoute:  prefix-routes\nMatched a subroute under the /images/ parent route delegation.\n'
+        body: 'PREFIX SUBROUTE MATCH\nPath Directive:      /images/originals/\nRequest
+          URI:         ${request_uri}\nVirtualServerRoute:  prefix-routes\nMatched
+          a subroute under the /images/ parent route delegation.\n'

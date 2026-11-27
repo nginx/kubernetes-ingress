@@ -1,0 +1,62 @@
+{
+  "oss": [
+    {
+      "input": "gcr_release_registry",
+      "name": "GCR Release Registry",
+      "login": "gcr",
+      "config": ".github/config/config-oss-gcr-release"
+    },
+    {
+      "input": "ecr_public_registry",
+      "name": "AWS Public Registry",
+      "login": "ecr",
+      "config": ".github/config/config-oss-ecr"
+    },
+    {
+      "input": "dockerhub_public_registry",
+      "name": "DockerHub Public Registry",
+      "login": "dockerhub",
+      "config": ".github/config/config-oss-dockerhub"
+    },
+    {
+      "input": "quay_public_registry",
+      "name": "Quay Public Registry",
+      "login": "quay",
+      "config": ".github/config/config-oss-quay"
+    },
+    {
+      "input": "github_public_registry",
+      "name": "GitHub Public Registry",
+      "login": "ghcr",
+      "config": ".github/config/config-oss-github"
+    }
+  ],
+  "plus": [
+    {
+      "input": "gcr_release_registry",
+      "name": "GCR Release Registry",
+      "login": "gcr",
+      "config": ".github/config/config-plus-gcr-release"
+    },
+    {
+      "input": "nginx_registry",
+      "name": "NGINX Registry",
+      "login": "nginx",
+      "config": ".github/config/config-plus-nginx"
+    }
+  ],
+  "plus-lts": [
+    {
+      "input": "gcr_release_registry",
+      "name": "GCR Release Registry",
+      "login": "gcr",
+      "config": ".github/config/config-plus-gcr-release-lts"
+    },
+    {
+      "input": "nginx_registry",
+      "name": "NGINX Registry",
+      "login": "nginx",
+      "config": ".github/config/config-plus-nginx-lts"
+    }
+  ]
+}

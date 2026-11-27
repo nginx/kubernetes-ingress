@@ -642,13 +642,13 @@ type namespacedInformer struct {
 	namespace                    string
 	sharedInformerFactory        informers.SharedInformerFactory
 	confSharedInformerFactory    k8s_nginx_informers.SharedInformerFactory
-	secretInformerFactory        informers.SharedInformerFactory
+	secretInformerFactories      []informers.SharedInformerFactory
 	dynInformerFactory           dynamicinformer.DynamicSharedInformerFactory
 	ingressLister                storeToIngressLister
 	svcLister                    cache.Store
 	endpointSliceLister          storeToEndpointSliceLister
 	podLister                    indexerToPodLister
-	secretLister                 cache.Store
+	secretLister                 secretLister
 	virtualServerLister          cache.Store
 	virtualServerRouteLister     cache.Store
 	appProtectPolicyLister       cache.Store
@@ -699,16 +699,18 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespaced
 		}
 	}
 
-	// Check if secrets informer should be created for this namespace
-	for _, v := range lbc.secretNamespaceList {
-		if v == "" || v == ns {
-			nsi.isSecretsEnabledNamespace = true
-			nsi.secretInformerFactory = informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(ns), informers.WithTweakListOptions(secretsTweakListOptionsFunc))
-			if err := nsi.addSecretHandler(createSecretHandlers(lbc)); err != nil {
-				return nil, fmt.Errorf("failed to add secret handler for namespace %s: %w", ns, err)
-			}
-			break
+	var secretStores storesToSecretLister
+	for _, secretNs := range lbc.secretNamespacesFor(ns) {
+		factory := informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(secretNs), informers.WithTweakListOptions(secretsTweakListOptionsFunc))
+		store, err := nsi.addSecretHandler(factory, createSecretHandlers(lbc))
+		if err != nil {
+			return nil, fmt.Errorf("failed to add secret handler for namespace %s: %w", secretNs, err)
 		}
+		secretStores = append(secretStores, store)
+	}
+	if len(secretStores) > 0 {
+		nsi.isSecretsEnabledNamespace = true
+		nsi.secretLister = secretStores
 	}
 
 	if err := lbc.addCustomResourceHandlers(nsi, ns); err != nil {
@@ -721,6 +723,19 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespaced
 
 	lbc.namespacedInformers.Set(ns, nsi)
 	return nsi, nil
+}
+
+// secretNamespacesFor returns the namespaces whose Secrets the informer group for
+// ns watches
+func (lbc *LoadBalancerController) secretNamespacesFor(ns string) []string {
+	switch {
+	case slices.Contains(lbc.secretNamespaceList, ""), slices.Contains(lbc.secretNamespaceList, ns):
+		return []string{ns}
+	case ns == "":
+		return slices.Compact(slices.Sorted(slices.Values(lbc.secretNamespaceList)))
+	default:
+		return nil
+	}
 }
 
 // addCustomResourceHandlers sets up informers and event handlers for custom resources (VirtualServer,
@@ -789,16 +804,17 @@ func (lbc *LoadBalancerController) AddSyncQueue(item interface{}) {
 	lbc.syncQueue.Enqueue(item)
 }
 
-// addSecretHandler adds the handler for secrets to the controller
-func (nsi *namespacedInformer) addSecretHandler(handlers cache.ResourceEventHandlerFuncs) error {
-	informer := nsi.secretInformerFactory.Core().V1().Secrets().Informer()
+// addSecretHandler adds the handler for the Secrets that factory watches and
+// returns the store that caches them.
+func (nsi *namespacedInformer) addSecretHandler(factory informers.SharedInformerFactory, handlers cache.ResourceEventHandlerFuncs) (cache.Store, error) {
+	informer := factory.Core().V1().Secrets().Informer()
 	if _, err := informer.AddEventHandler(handlers); err != nil {
-		return fmt.Errorf("failed to add Secret event handler: %w", err)
+		return nil, fmt.Errorf("failed to add Secret event handler: %w", err)
 	}
-	nsi.secretLister = informer.GetStore()
+	nsi.secretInformerFactories = append(nsi.secretInformerFactories, factory)
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
-	return nil
+	return informer.GetStore(), nil
 }
 
 // addIngressHandler adds the handler for ingresses to the controller
@@ -947,8 +963,8 @@ func (lbc *LoadBalancerController) runContext() context.Context {
 func (nsi *namespacedInformer) start() {
 	go nsi.sharedInformerFactory.Start(nsi.stopCh)
 
-	if nsi.isSecretsEnabledNamespace {
-		go nsi.secretInformerFactory.Start(nsi.stopCh)
+	for _, factory := range nsi.secretInformerFactories {
+		go factory.Start(nsi.stopCh)
 	}
 
 	if nsi.areCustomResourcesEnabled {
@@ -1005,15 +1021,33 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			}
 		}
 
-		// handle virtualservers
+		// handle resources that reference a scaled Policy
 		if lbc.areCustomResourcesEnabled {
-			resources = lbc.findVirtualServersUsingRatelimitScaling()
-			resourceExes = lbc.createExtendedResources(resources)
-			for _, vserver := range resourceExes.VirtualServerExes {
-				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
-				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
-				if err != nil {
-					nl.Errorf(l, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
+			// Skip Ingresses the loops above already regenerated, so each resource reloads once.
+			regenerated := make(map[string]bool, len(resources))
+			for _, r := range resources {
+				regenerated[r.GetKeyWithKind()] = true
+			}
+			// Call the configurator directly, as reload_invariant_test.go requires.
+			for _, r := range lbc.findResourcesUsingPolicyScaling() {
+				if regenerated[r.GetKeyWithKind()] {
+					continue
+				}
+				switch impl := r.(type) {
+				case *VirtualServerConfiguration:
+					vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
+					warnings, err := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
+					lbc.updateVirtualServerStatusAndEvents(impl, warnings, err)
+				case *IngressConfiguration:
+					if impl.IsMaster {
+						mergeableIng := lbc.createMergeableIngresses(impl)
+						warnings, err := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
+						lbc.updateMergeableIngressStatusAndEvents(mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions), warnings, err)
+					} else {
+						ingEx := lbc.createIngressEx(impl.Ingress, impl.ValidHosts, nil)
+						warnings, err := lbc.configurator.AddOrUpdateIngress(ingEx)
+						lbc.updateRegularIngressStatusAndEvents(mergeIngressPolicyWarnings(impl, ingEx, nil), warnings, err)
+					}
 				}
 			}
 		}
@@ -1021,16 +1055,17 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 	}
 }
 
-func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []Resource {
+func (lbc *LoadBalancerController) findResourcesUsingPolicyScaling() []Resource {
 	policies := lbc.getAllPolicies()
 	resources := make([]Resource, 0, len(policies))
 	for _, policy := range policies {
-		if policy.Spec.RateLimit != nil && policy.Spec.RateLimit.Scale {
+		rl, cl := policy.Spec.RateLimit, policy.Spec.ConnectionLimit
+		if (rl != nil && rl.Scale) || (cl != nil && cl.Scale) {
 			newresources := lbc.configuration.FindResourcesForPolicy(policy.Namespace, policy.Name)
 			resources = append(resources, newresources...)
 		}
 	}
-	return resources
+	return removeDuplicateResources(resources)
 }
 
 func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *configs.VirtualServerEx, svcNamespace, serviceName string) bool {
@@ -1613,6 +1648,16 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 	if nsi.appProtectDosEnabled {
 		lbc.cleanupUnwatchedAppDosResources(nsi)
 	}
+	if nsi.isSecretsEnabledNamespace {
+		lbc.cleanupUnwatchedSecrets(nsi)
+	}
+	nl.Debugf(l, "Finished cleaning up configuration for unwatched resources in namespace: %v", nsi.namespace)
+}
+
+// cleanupUnwatchedSecrets removes the Secrets of a namespace that is no longer
+// watched. Only call it for an informer group that watches Secrets: a namespace
+// left out of -watch-secret-namespace has no Secret lister.
+func (lbc *LoadBalancerController) cleanupUnwatchedSecrets(nsi *namespacedInformer) {
 	for _, obj := range nsi.secretLister.List() {
 		sec := obj.(*api_v1.Secret)
 		key := getResourceKey(&sec.ObjectMeta)
@@ -1629,7 +1674,6 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 			nl.Warnf(sl, "A special TLS Secret %v was removed. Retaining the Secret.", key)
 		}
 	}
-	nl.Debugf(l, "Finished cleaning up configuration for unwatched resources in namespace: %v", nsi.namespace)
 }
 
 func (lbc *LoadBalancerController) syncVirtualServer(task task) {
@@ -4331,6 +4375,7 @@ func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyVal
 		IsPlus:           lbc.isNginxPlus,
 		EnableOIDC:       lbc.enableOIDC,
 		EnableAppProtect: lbc.appProtectEnabled,
+		PageSize:         os.Getpagesize(),
 	}
 	if lbc.configuration != nil {
 		cfg.EnableSnippets = lbc.configuration.snippetsEnabled

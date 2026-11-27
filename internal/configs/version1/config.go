@@ -24,6 +24,7 @@ type IngressNginxConfig struct {
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	LimitConnZones          []version2.LimitConnZone
 	KeyValZones             []version2.KeyValZone
 	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
 	// templates can safely emit app_protect_enable off; in internal sub-request
@@ -126,6 +127,8 @@ type Server struct {
 	Deny                   []string
 	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
+	LimitConnOptions       version2.LimitConnOptions
+	LimitConns             []version2.LimitConn
 
 	HealthChecks map[string]HealthCheck
 
@@ -172,6 +175,9 @@ type Server struct {
 	// named location — that is, custom-http-errors are configured AND the Ingress
 	// has a spec.defaultBackend. Doubles as the enable flag; no separate boolean.
 	CustomHTTPErrorBackend string
+	// AuthResponseHeaderNames are the auth response headers that any ExternalAuth Policy of the server lists.
+	// @custom_default_backend removes them from the requests it re-sends, and never forwards values.
+	AuthResponseHeaderNames []string
 
 	AppRoot string
 
@@ -240,6 +246,7 @@ type Location struct {
 	AddHeaders              []version2.AddHeader
 	JWTAuth                 *JWTAuth
 	ExternalAuth            *version2.ExternalAuth
+	AuthResponseHeaders     *version2.AuthResponseHeaders // set only by the resolution pass
 	BasicAuth               *BasicAuth
 	ServiceName             string
 	LimitReq                *LimitReq
@@ -281,8 +288,13 @@ type Location struct {
 	EgressMTLS                 *version2.EgressMTLS
 	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
+	LimitConnOptions           version2.LimitConnOptions
+	LimitConns                 []version2.LimitConn
 	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
 	ACMEChallenge bool
+	// StrippedAuthResponseHeaders are the names that an ExternalAuth Policy of the server lists but the location
+	// does not forward. The location removes the client's copies. Set only by the resolution pass.
+	StrippedAuthResponseHeaders []string
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.

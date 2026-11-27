@@ -16,14 +16,14 @@ spec:
       fails: "one"
       passes: "one"
       port: "80"
-      connect-timeout: False
+      connect-timeout: false
       read-timeout: 100
       send-timeout: 200
       headers:
-        - name: 100
-          value: 100
+      - name: 100
+        value: 100
       statusMatch: 100
-    slow-start: True
+    slow-start: true
     queue:
       size: "one"
       timeout: 1

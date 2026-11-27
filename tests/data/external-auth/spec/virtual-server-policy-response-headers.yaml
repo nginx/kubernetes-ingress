@@ -1,0 +1,16 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  host: virtual-server.example.com
+  policies:
+  - name: external-auth-policy-response-headers
+  upstreams:
+  - name: echo
+    service: headers-echo-svc
+    port: 80
+  routes:
+  - path: "/backend1"
+    action:
+      pass: echo

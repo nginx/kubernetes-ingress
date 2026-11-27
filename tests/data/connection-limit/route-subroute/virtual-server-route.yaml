@@ -1,0 +1,20 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server-route
+spec:
+  host: virtual-server-route.example.com
+  upstreams:
+  - name: backend3
+    service: backend3-svc
+    port: 80
+  routes:
+  - path: "/backend3"
+    policies:
+    - name: connection-limit-total
+    action:
+      pass: backend3
+  - path: "/backends"
+    route: backends
+  - path: "/backend2"
+    route: backend2-namespace/backend2

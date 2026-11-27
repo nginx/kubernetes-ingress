@@ -170,6 +170,7 @@ func (c *Collector) Collect(ctx context.Context) {
 			ExternalAuthPolicies:       int64(report.ExternalAuthCount),
 			HSTSPolicies:               int64(report.HSTSCount),
 			OIDCNativePolicies:         int64(report.OIDCNativeCount),
+			ConnectionLimitPolicies:    int64(report.ConnectionLimitCount),
 			WAFBundleSourceTypes:       report.WAFBundleSourceTypes,
 			WAFLogBundleSourceTypes:    report.WAFLogBundleSourceTypes,
 
@@ -232,6 +233,7 @@ type Report struct {
 	ExternalAuthCount       int
 	HSTSCount               int
 	OIDCNativeCount         int
+	ConnectionLimitCount    int
 	WAFBundleSourceTypes    []string
 	WAFLogBundleSourceTypes []string
 	GlobalConfiguration     bool
@@ -317,6 +319,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		externalAuthCount       int
 		hstsCount               int
 		oidcNativeCount         int
+		connectionLimitCount    int
 	)
 	// Collect Custom Resources (Policies) only if CR enabled at startup.
 	if c.Config.CustomResourcesEnabled {
@@ -337,6 +340,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		externalAuthCount = policies["ExternalAuth"]
 		hstsCount = policies["HSTS"]
 		oidcNativeCount = policies["OIDCNative"]
+		connectionLimitCount = policies["ConnectionLimit"]
 	}
 
 	wafBundleSourceTypes := c.WAFBundleSourceTypes()
@@ -406,6 +410,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		ExternalAuthCount:       externalAuthCount,
 		HSTSCount:               hstsCount,
 		OIDCNativeCount:         oidcNativeCount,
+		ConnectionLimitCount:    connectionLimitCount,
 		GlobalConfiguration:     c.Config.GlobalConfiguration,
 		IngressAnnotations:      ingressAnnotations,
 		AppProtectVersion:       appProtectVersion,

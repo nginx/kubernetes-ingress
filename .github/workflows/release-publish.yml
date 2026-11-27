@@ -62,7 +62,6 @@ jobs:
       short_tag: ${{ steps.vars.outputs.short_tag }}
       chart_version: ${{ steps.vars.outputs.chart_version }}
       date: ${{ steps.vars.outputs.date }}
-      k8s_version: ${{ steps.vars.outputs.k8s_version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,8 +84,6 @@ jobs:
           fi
           date=$(date "+%Y%m%d")
           echo "date=${date}" >> $GITHUB_OUTPUT
-          k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
-          echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
   release-oss:
@@ -127,9 +124,6 @@ jobs:
     with:
       gcr_release_registry: true
       nginx_registry: true
-      gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
-      az_mktpl_registry: false
       source_registry: ${{ inputs.source_registry }}
       source_tag: ${{ inputs.nic_version }}
       target_tag: ${{ inputs.nic_version }}
@@ -200,40 +194,20 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Get secrets from vault
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+      - name: Checkout github-app-token action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
-          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
-
-      - name: Decode GitHub App private key
-        id: app_key
-        run: |
-          set +x
-          echo "::add-mask::$APP_PRIVATE_KEY_B64"
-          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
-          while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-              echo "::add-mask::$line"
-            fi
-          done <<< "$private_key"
-          delimiter="GHEOF_$(openssl rand -hex 12)"
-          {
-            echo "private_key<<$delimiter"
-            echo "$private_key"
-            echo "$delimiter"
-          } >> "$GITHUB_OUTPUT"
+          sparse-checkout: .github/actions/github-app-token
+          persist-credentials: false
 
       - name: Generate GitHub App token
         id: app_token
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: ./.github/actions/github-app-token
         with:
-          client-id: ${{ env.APP_CLIENT_ID }}
-          private-key: ${{ steps.app_key.outputs.private_key }}
-          owner: ${{ github.repository_owner }}
+          azure-client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          app: nginx-bot-nic-trigger-remote-workflow-app
           repositories: nginx-ingress-helm-operator
 
       - name: Trigger Operator sync
@@ -249,7 +223,6 @@ jobs:
               inputs: {
                 chart_version: '${{ needs.variables.outputs.chart_version }}',
                 operator_version: '${{ inputs.operator_version }}',
-                k8s_version: '${{ needs.variables.outputs.k8s_version }}',
                 dry_run: '${{ inputs.dry_run }}'
               },
             })
@@ -467,3 +440,30 @@ jobs:
         env:
           RELEASE_ID: ${{ steps.release-id.outputs.release_id }}
         if: ${{ ! inputs.dry_run }}
+
+  # github-release publishes with GITHUB_TOKEN, and GitHub does not start workflows from
+  # events made with that token, so a `release: published` trigger would never fire.
+  # workflow_dispatch is the exception. The NKP run is separate, so a failure there does not
+  # fail the release, and it can be re-run on its own.
+  nkp-catalog:
+    # Without !cancelled(), every job in `needs` must have succeeded, so this only runs once
+    # github-release has published the release.
+    if: github.repository == 'nginx/kubernetes-ingress' && (! inputs.dry_run && ! contains(inputs.skip_step, 'nkp-catalog'))
+    name: Trigger NKP Catalog PR
+    runs-on: ubuntu-26.04
+    needs: [variables, github-release]
+    permissions:
+      contents: read
+      actions: write # to dispatch nkp-catalog-pr.yml
+    steps:
+      - name: Dispatch NKP Catalog PR workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIC_VERSION: ${{ inputs.nic_version }}
+          CHART_VERSION: ${{ needs.variables.outputs.chart_version }}
+        run: |
+          gh workflow run nkp-catalog-pr.yml --repo "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF_NAME}" \
+            -f nic_version="${NIC_VERSION}" -f chart_version="${CHART_VERSION}"
+          runs="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/nkp-catalog-pr.yml"
+          echo "Dispatched NKP Catalog PR for NIC ${NIC_VERSION}, chart ${CHART_VERSION}: ${runs}"
+          echo "### NKP Catalog PR dispatched for NIC ${NIC_VERSION}: ${runs}" >> "$GITHUB_STEP_SUMMARY"

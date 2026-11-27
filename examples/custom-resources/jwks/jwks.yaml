@@ -8,3 +8,21 @@ spec:
     token: $http_token
     jwksURI: http://keycloak.default.svc.cluster.local:8080/realms/jwks-example/protocol/openid-connect/certs
     keyCache: 1h
+    # Optional claim validation. Remove the authorization block to only validate the token signature.
+    authorization:
+      errorCode: 403 # Optional: 401 | 403 (default: 403)
+      require: All # Optional: Any | All (default: All), how rules combine
+      rules:
+      - require: All # Optional: Any | All (default: Any), how claims in this rule combine
+        claims:
+        - name: aud # a string or an array (RFC 7519)
+          match: Contains
+          values: [account]
+        - name: scope # space-delimited (RFC 6749)
+          match: Contains
+          values: [openid, profile]
+          proxySetHeader: X-Token-Scope # forwarded to the upstream
+        - name: realm_access.roles # nested claim, separated by '.'
+          match: Contains
+          values: [blocked]
+          negate: true # must NOT contain the role "blocked"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -201,6 +202,90 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitJWTClaim(t *te
 
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusTemplateWithJWTAuthorizationMaps(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	// Mirrors the output of generateJWTAuthorization for one rule with an Exact claim (with a
+	// proxySetHeader) and a nested Contains claim. Map keys are already NGINX-escaped.
+	const (
+		issVar   = "$jwt_default_cafe_vs_iss"
+		rolesVar = "$jwt_default_cafe_vs_realm_access_roles"
+		policy   = "$jwt_authz_default_cafe_vs_default_jwt_authz"
+	)
+	cfg := VirtualServerConfig{
+		Server: Server{ServerName: "cafe.example.com", VSName: "default/cafe"},
+		AuthJWTClaimSets: []AuthJWTClaimSet{
+			{Variable: issVar, Claim: "iss"},
+			{Variable: rolesVar, Claim: "realm_access roles"},
+		},
+		Maps: []Map{
+			{
+				Source:   issVar,
+				Variable: policy + "_r0_c0",
+				Parameters: []Parameter{
+					{Value: `""`, Result: "0"},
+					{Value: `"~^(https://idp\\.example\\.com)\\z"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+			{
+				Source:   issVar,
+				Variable: policy + "_r0_c0_hdr",
+				Parameters: []Parameter{
+					{Value: `"~[\r\n]"`, Result: `""`},
+					{Value: "default", Result: issVar},
+				},
+			},
+			{
+				Source:   rolesVar,
+				Variable: policy + "_r0_c1",
+				Parameters: []Parameter{
+					{Value: `""`, Result: "0"},
+					{Value: `"~(^|[ ,])(admin|a\"b)([ ,]|\\z)"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+			{
+				Source:   policy + "_r0_c0" + policy + "_r0_c1",
+				Variable: policy + "_r0",
+				Parameters: []Parameter{
+					{Value: `"~1"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+			{
+				Source:   policy + "_r0",
+				Variable: policy,
+				Parameters: []Parameter{
+					{Value: `"~^1+$"`, Result: "1"},
+					{Value: "default", Result: "0"},
+				},
+			},
+		},
+	}
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := string(got)
+	for _, want := range []string{
+		"auth_jwt_claim_set $jwt_default_cafe_vs_realm_access_roles realm_access roles;",
+		`"~^(https://idp\\.example\\.com)\\z" 1;`,
+		`"~(^|[ ,])(admin|a\"b)([ ,]|\\z)" 1;`,
+		`"~[\r\n]" "";`,
+		`map $jwt_authz_default_cafe_vs_default_jwt_authz_r0_c0$jwt_authz_default_cafe_vs_default_jwt_authz_r0_c1 $jwt_authz_default_cafe_vs_default_jwt_authz_r0 {`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("want %q in:\n%s", want, config)
+		}
+	}
+
+	snaps.MatchSnapshot(t, config)
 }
 
 func TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitVariableAPIKey(t *testing.T) {
@@ -5053,6 +5138,174 @@ func vsLocationBlock(t *testing.T, conf string, header string) string {
 }
 
 const (
+	clZonePerClient      = "pol_cl_default_per-client_vs_default_cafe_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+	clZoneDownloadsTotal = "pol_cl_default_downloads-total_vs_default_cafe_11239872d178729acc9e5aeaf7fc001a0ffd878c922330be43712b9b3be043a7"
+	clZoneTeaRoutes      = "pol_cl_default_per-client_vs_default_cafe_vsr_tea_tea-routes_666c983e93f9457d8016308ec730332d1bb1d990f59522a4e5a63f264620399a"
+)
+
+var virtualServerCfgWithConnectionLimit = VirtualServerConfig{
+	LimitConnZones: []LimitConnZone{
+		{Key: "${binary_remote_addr}", ZoneName: clZonePerClient, ZoneSize: "10m"},
+		{Key: "total", ZoneName: clZoneDownloadsTotal, ZoneSize: "10m"},
+		{Key: "${binary_remote_addr}", ZoneName: clZoneTeaRoutes, ZoneSize: "10m"},
+	},
+	Server: Server{
+		ServerName:       "cafe.example.com",
+		StatusZone:       "cafe.example.com",
+		LimitConnOptions: LimitConnOptions{LogLevel: "error", RejectCode: 503},
+		LimitConns:       []LimitConn{{ZoneName: clZonePerClient, Connections: 10}},
+		Locations: []Location{
+			{
+				Path:      "/coffee",
+				ProxyPass: "http://vs_default_cafe_coffee",
+			},
+			{
+				Path:             "/downloads",
+				ProxyPass:        "http://vs_default_cafe_files",
+				LimitConnOptions: LimitConnOptions{LogLevel: "error", RejectCode: 503},
+				LimitConns: []LimitConn{
+					{ZoneName: clZonePerClient, Connections: 10},
+					{ZoneName: clZoneDownloadsTotal, Connections: 200},
+				},
+			},
+			{
+				Path:             "/tea",
+				ProxyPass:        "http://vs_default_cafe_vsr_tea_tea-routes_tea",
+				LimitConnOptions: LimitConnOptions{LogLevel: "error", RejectCode: 503},
+				LimitConns:       []LimitConn{{ZoneName: clZoneTeaRoutes, Connections: 10}},
+			},
+			{
+				Path:             "/dry-run",
+				ProxyPass:        "http://vs_default_cafe_coffee",
+				LimitConnOptions: LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+				LimitConns:       []LimitConn{{ZoneName: clZonePerClient, Connections: 10}},
+			},
+			{
+				Path:             "/options-only",
+				ProxyPass:        "http://vs_default_cafe_coffee",
+				LimitConnOptions: LimitConnOptions{DryRun: true, LogLevel: "warn", RejectCode: 429},
+			},
+		},
+	},
+}
+
+func TestExecuteVirtualServerTemplate_RendersConnectionLimitForNGINX(t *testing.T) {
+	t.Parallel()
+
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithConnectionLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(got))
+
+	assertVSConnectionLimitRendering(t, string(got))
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersConnectionLimitForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithConnectionLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(got))
+
+	assertVSConnectionLimitRendering(t, string(got))
+	snaps.MatchSnapshot(t, string(got))
+}
+
+// assertVSConnectionLimitRendering checks that every block with limit_conn sets all three
+// options explicitly, and that blocks without limit_conn render none of them.
+func assertVSConnectionLimitRendering(t *testing.T, conf string) {
+	t.Helper()
+
+	for _, want := range []string{
+		"limit_conn_zone ${binary_remote_addr} zone=" + clZonePerClient + ":10m;",
+		"limit_conn_zone total zone=" + clZoneDownloadsTotal + ":10m;",
+		"limit_conn_zone ${binary_remote_addr} zone=" + clZoneTeaRoutes + ":10m;",
+	} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	firstLocation := strings.Index(conf, "location \"")
+	if firstLocation == -1 {
+		t.Fatal("no location in generated config")
+	}
+
+	blocks := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{
+			name: "server",
+			text: conf[:firstLocation],
+			want: []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZonePerClient + " 10;",
+			},
+		},
+		{
+			name: "/downloads",
+			text: vsLocationBlock(t, conf, `location "/downloads" {`),
+			want: []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZonePerClient + " 10;",
+				"limit_conn " + clZoneDownloadsTotal + " 200;",
+			},
+		},
+		{
+			name: "/tea",
+			text: vsLocationBlock(t, conf, `location "/tea" {`),
+			want: []string{
+				"limit_conn_dry_run off;",
+				"limit_conn_log_level error;",
+				"limit_conn_status 503;",
+				"limit_conn " + clZoneTeaRoutes + " 10;",
+			},
+		},
+		{
+			name: "/dry-run",
+			text: vsLocationBlock(t, conf, `location "/dry-run" {`),
+			want: []string{
+				"limit_conn_dry_run on;",
+				"limit_conn_log_level warn;",
+				"limit_conn_status 429;",
+				"limit_conn " + clZonePerClient + " 10;",
+			},
+		},
+		{
+			name: "/coffee",
+			text: vsLocationBlock(t, conf, `location "/coffee" {`),
+		},
+		{
+			name: "/options-only",
+			text: vsLocationBlock(t, conf, `location "/options-only" {`),
+		},
+	}
+
+	for _, b := range blocks {
+		if b.want == nil && strings.Contains(b.text, "limit_conn") {
+			t.Errorf("%s must not contain limit_conn directives, got:\n%s", b.name, b.text)
+		}
+		for _, want := range b.want {
+			if !strings.Contains(b.text, want) {
+				t.Errorf("want %q in %s, got:\n%s", want, b.name, b.text)
+			}
+		}
+	}
+}
+
+const (
 	acmeChallengeTestPath     = "/.well-known/acme-challenge/tok"
 	acmeChallengeRedirectExpr = `if ($uri ~ "^/\.well-known/acme-challenge/")`
 	// acmeChallengeTestLocArg is the challenge location argument as rendered: VirtualServer
@@ -5305,6 +5558,38 @@ func TestVirtualServerForNginxPlusACMEChallengeWithJWTAndOIDC(t *testing.T) {
 	snaps.MatchSnapshot(t, conf)
 }
 
+func testVirtualServerACMEChallengeWithConnectionLimit(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
+	t.Helper()
+
+	cfg := acmeChallengeTestCfg(base, acmeChallengeTestLocation())
+	cfg.LimitConnZones = []LimitConnZone{{Key: "total", ZoneName: clZoneDownloadsTotal, ZoneSize: "10m"}}
+	cfg.Server.LimitConnOptions = LimitConnOptions{LogLevel: "error", RejectCode: 503}
+	cfg.Server.LimitConns = []LimitConn{{ZoneName: clZoneDownloadsTotal, Connections: 200}}
+
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	challenge := locationBlock(t, conf, acmeChallengeTestLocArg)
+	assertCount(t, challenge, "limit_conn_dry_run on;", 1)
+	assertCount(t, challenge, "limit_conn", 1)
+	assertCount(t, locationBlock(t, conf, `"/coffee"`), "limit_conn", 0)
+	assertCount(t, conf, "limit_conn "+clZoneDownloadsTotal+" 200;", 1)
+	snaps.MatchSnapshot(t, conf)
+}
+
+func TestVirtualServerForNginxACMEChallengeWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeWithConnectionLimit(t, newTmplExecutorNGINX(t), virtualServerCfg)
+}
+
+func TestVirtualServerForNginxPlusACMEChallengeWithConnectionLimit(t *testing.T) {
+	t.Parallel()
+	testVirtualServerACMEChallengeWithConnectionLimit(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
+}
+
 func testVirtualServerRedirectNoChallengeUnchanged(t *testing.T, executor *TemplateExecutor, base VirtualServerConfig) {
 	t.Helper()
 
@@ -5332,4 +5617,261 @@ func TestVirtualServerForNginxRedirectNoChallengeUnchanged(t *testing.T) {
 func TestVirtualServerForNginxPlusRedirectNoChallengeUnchanged(t *testing.T) {
 	t.Parallel()
 	testVirtualServerRedirectNoChallengeUnchanged(t, newTmplExecutorNGINXPlus(t), virtualServerCfgPlus)
+}
+
+// TestVirtualServerWithAuthResponseHeaders covers the rendering of the ExternalAuth response headers design: a pair of
+// directives per listed name, grpc_set_header for gRPC backends, nothing for unlisted names or locations without a
+// list, and unchanged auth_request handling.
+func TestVirtualServerWithAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	extAuth := &ExternalAuth{
+		URI: &AuthURI{
+			Service:      "auth-svc",
+			Upstream:     "vs_exauth_default_p",
+			Path:         "/auth",
+			InternalPath: "/_external_auth/auth",
+		},
+	}
+	tenantUUID := AuthResponseHeader{Name: "Tenant-UUID", Variable: "$auth_resp_tenant_uuid", Source: "$upstream_http_tenant_uuid"}
+	sessionID := AuthResponseHeader{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"}
+	cfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "vs_default_cafe_tea", Servers: []UpstreamServer{{Address: "10.0.0.20:80"}}},
+			{Name: "vs_default_cafe_coffee", Servers: []UpstreamServer{{Address: "10.0.0.30:80"}}},
+			{Name: "vs_default_cafe_grpc", Servers: []UpstreamServer{{Address: "10.0.0.50:50051"}}},
+			{Name: "vs_exauth_default_p", Servers: []UpstreamServer{{Address: "10.0.0.40:80"}}},
+		},
+		Server: Server{
+			ServerName: "cafe.example.com",
+			StatusZone: "cafe.example.com",
+			Locations: []Location{
+				{
+					Path:         "/tea",
+					ProxyPass:    "http://vs_default_cafe_tea",
+					ServiceName:  "tea-svc",
+					ExternalAuth: extAuth,
+					AuthResponseHeaders: &AuthResponseHeaders{
+						Policy:  "default/p",
+						Headers: []AuthResponseHeader{tenantUUID, sessionID},
+					},
+				},
+				{
+					Path:                "/helloworld.Greeter",
+					GRPCPass:            "grpc://vs_default_cafe_grpc",
+					ServiceName:         "grpc-svc",
+					ExternalAuth:        extAuth,
+					AuthResponseHeaders: &AuthResponseHeaders{Policy: "default/p", Headers: []AuthResponseHeader{tenantUUID}},
+				},
+				{
+					Path:         "/coffee",
+					ProxyPass:    "http://vs_default_cafe_coffee",
+					ServiceName:  "coffee-svc",
+					ExternalAuth: extAuth,
+				},
+				{
+					Path:                 "/_external_auth/auth",
+					Internal:             true,
+					DisableWAF:           true,
+					ProxyPass:            "http://vs_exauth_default_p/auth",
+					ProxyPassRequestBody: "off",
+					ServiceName:          "auth-svc",
+				},
+			},
+		},
+	}
+
+	authLines := func(block string) []string {
+		var lines []string
+		for _, line := range strings.Split(block, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "auth_request ") || strings.HasPrefix(line, "error_page 401") {
+				lines = append(lines, line)
+			}
+		}
+		return lines
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+			conf := string(data)
+
+			tea := locationBlock(t, conf, `"/tea"`)
+			assertCount(t, tea, "auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;", 1)
+			assertCount(t, tea, "proxy_set_header Tenant-UUID $auth_resp_tenant_uuid;", 1)
+			assertCount(t, tea, "auth_request_set $auth_resp_x_session_id $upstream_http_x_session_id;", 1)
+			assertCount(t, tea, "proxy_set_header X-Session-ID $auth_resp_x_session_id;", 1)
+
+			grpc := locationBlock(t, conf, `"/helloworld.Greeter"`)
+			assertCount(t, grpc, "auth_request_set $auth_resp_tenant_uuid $upstream_http_tenant_uuid;", 1)
+			assertCount(t, grpc, "grpc_set_header Tenant-UUID $auth_resp_tenant_uuid;", 1)
+			assertCount(t, grpc, "proxy_set_header Tenant-UUID", 0)
+
+			// Unlisted headers stay behind: only listed names render, and only where a list applies.
+			coffee := locationBlock(t, conf, `"/coffee"`)
+			assertCount(t, coffee, "auth_request_set", 0)
+			assertCount(t, locationBlock(t, conf, `"/_external_auth/auth"`), "auth_request_set", 0)
+			assertCount(t, conf, "auth_request_set", 3)
+
+			// Rejections are unchanged: a list does not change the auth_request and 401 handling.
+			if want, got := authLines(coffee), authLines(tea); len(want) == 0 || !slices.Equal(want, got) {
+				t.Errorf("auth_request lines with a list %q, want %q", got, want)
+			}
+
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+// TestVirtualServerWithStrippedAuthResponseHeaders covers the scenario "Client copies are removed": a location renders
+// an empty header for each listed name that it does not forward, for proxy and gRPC backends.
+func TestVirtualServerWithStrippedAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	sessionID := AuthResponseHeader{Name: "X-Session-ID", Variable: "$auth_resp_x_session_id", Source: "$upstream_http_x_session_id"}
+	cfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "vs_default_cafe_tea", Servers: []UpstreamServer{{Address: "10.0.0.20:80"}}},
+			{Name: "vs_default_cafe_coffee", Servers: []UpstreamServer{{Address: "10.0.0.30:80"}}},
+			{Name: "vs_default_cafe_grpc", Servers: []UpstreamServer{{Address: "10.0.0.50:50051"}}},
+		},
+		Server: Server{
+			ServerName: "cafe.example.com",
+			StatusZone: "cafe.example.com",
+			Locations: []Location{
+				{
+					Path:                        "/tea",
+					ProxyPass:                   "http://vs_default_cafe_tea",
+					ServiceName:                 "tea-svc",
+					StrippedAuthResponseHeaders: []string{"Tenant-UUID", "X-Session-ID"},
+				},
+				{
+					Path:                        "/helloworld.Greeter",
+					GRPCPass:                    "grpc://vs_default_cafe_grpc",
+					ServiceName:                 "grpc-svc",
+					StrippedAuthResponseHeaders: []string{"Tenant-UUID"},
+				},
+				{
+					Path:                        "/coffee",
+					ProxyPass:                   "http://vs_default_cafe_coffee",
+					ServiceName:                 "coffee-svc",
+					AuthResponseHeaders:         &AuthResponseHeaders{Policy: "default/q", Headers: []AuthResponseHeader{sessionID}},
+					StrippedAuthResponseHeaders: []string{"Tenant-UUID"},
+				},
+			},
+		},
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+			conf := string(data)
+
+			tea := locationBlock(t, conf, `"/tea"`)
+			assertCount(t, tea, `proxy_set_header Tenant-UUID "";`, 1)
+			assertCount(t, tea, `proxy_set_header X-Session-ID "";`, 1)
+
+			grpc := locationBlock(t, conf, `"/helloworld.Greeter"`)
+			assertCount(t, grpc, `grpc_set_header Tenant-UUID "";`, 1)
+			assertCount(t, grpc, "proxy_set_header Tenant-UUID", 0)
+
+			coffee := locationBlock(t, conf, `"/coffee"`)
+			assertCount(t, coffee, "proxy_set_header X-Session-ID $auth_resp_x_session_id;", 1)
+			assertCount(t, coffee, `proxy_set_header Tenant-UUID "";`, 1)
+
+			// Stripped names read no captured value.
+			assertCount(t, conf, "auth_request_set", 1)
+
+			snaps.MatchSnapshot(t, conf)
+		})
+	}
+}
+
+// TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders covers the scenario "Legacy OIDC headers are replaced":
+// a location that forwards username or Authorization renders no legacy OIDC line for it.
+func TestVirtualServerForNginxPlusWithOIDCAndAuthResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	cfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "vs_default_cafe_tea", Servers: []UpstreamServer{{Address: "10.0.0.20:80"}}},
+			{Name: "vs_default_cafe_coffee", Servers: []UpstreamServer{{Address: "10.0.0.30:80"}}},
+		},
+		Server: Server{
+			ServerName: "cafe.example.com",
+			StatusZone: "cafe.example.com",
+			OIDC: &OIDC{
+				AuthEndpoint:          "https://idp.example.com/auth",
+				ClientID:              "test-client",
+				ClientSecret:          "test-secret",
+				JwksURI:               "https://idp.example.com/jwks",
+				TokenEndpoint:         "https://idp.example.com/token",
+				EndSessionEndpoint:    "https://idp.example.com/logout",
+				PostLogoutRedirectURI: "https://example.com/logout",
+				Scope:                 "openid+profile+email",
+				AccessTokenEnable:     true,
+			},
+			Locations: []Location{
+				{
+					Path:        "/tea",
+					ProxyPass:   "http://vs_default_cafe_tea",
+					ServiceName: "tea-svc",
+					OIDC:        true,
+					AuthResponseHeaders: &AuthResponseHeaders{
+						Policy: "default/p",
+						Headers: []AuthResponseHeader{
+							{Name: "username", Variable: "$auth_resp_username", Source: "$upstream_http_username"},
+							{Name: "Authorization", Variable: "$auth_resp_authorization", Source: "$upstream_http_authorization"},
+						},
+					},
+				},
+				{
+					Path:        "/coffee",
+					ProxyPass:   "http://vs_default_cafe_coffee",
+					ServiceName: "coffee-svc",
+					OIDC:        true,
+				},
+			},
+		},
+	}
+
+	data, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	conf := string(data)
+
+	tea := locationBlock(t, conf, `"/tea"`)
+	assertCount(t, tea, "username $jwt_claim_sub;", 0)
+	assertCount(t, tea, "$access_token", 0)
+	assertCount(t, tea, "proxy_set_header username $auth_resp_username;", 1)
+	assertCount(t, tea, "proxy_set_header Authorization $auth_resp_authorization;", 1)
+
+	coffee := locationBlock(t, conf, `"/coffee"`)
+	assertCount(t, coffee, "proxy_set_header username $jwt_claim_sub;", 1)
+	assertCount(t, coffee, "$access_token", 1)
+	assertCount(t, coffee, "auth_request_set", 0)
+
+	snaps.MatchSnapshot(t, conf)
 }

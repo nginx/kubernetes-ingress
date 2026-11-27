@@ -297,3 +297,25 @@ def assert_waf_blocked(response):
     """Assert that the response was rejected by App Protect WAF."""
     assert response.status_code == 200
     assert "The requested URL was rejected. Please consult with your administrator." in response.text
+
+
+def wait_for_plm_bundle_ready(custom_objects: CustomObjectsApi, namespace, plural, name, timeout=240) -> dict:
+    """
+    Wait until PLM reports a compiled bundle for an APPolicy or APLogConf (status.bundle.state is ready).
+
+    :param custom_objects: CustomObjectsApi
+    :param namespace: namespace of the resource
+    :param plural: appolicies or aplogconfs
+    :param name: resource name
+    :param timeout: seconds to wait
+    :return: the resource
+    """
+    bundle = {}
+    for _ in range(0, timeout, 5):
+        resource = custom_objects.get_namespaced_custom_object("appprotect.f5.com", "v1", namespace, plural, name)
+        bundle = resource.get("status", {}).get("bundle", {})
+        if bundle.get("state") == "ready":
+            print(f"{plural} {namespace}/{name} bundle is ready: {bundle.get('location')}")
+            return resource
+        wait_before_test(5)
+    raise TimeoutError(f"{plural} {namespace}/{name} bundle not ready after {timeout}s. Last bundle status: {bundle}")
