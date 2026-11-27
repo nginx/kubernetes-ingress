@@ -1,4 +1,5 @@
 name: "Retag Dev Images"
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Retag Dev Images ${{ inputs.source_tag }} -> ${{ inputs.target_tag }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
