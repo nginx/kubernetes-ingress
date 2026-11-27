@@ -29,7 +29,7 @@ ARG UBI10_PACKAGES_IMAGE=${GHCR_REGISTRY}/nginx/dependencies/nginx-ubi:ubi10@sha
 
 
 ############################################# External dependency images #############################################
-FROM ${DOCKER_REGISTRY}/library/golang:1.27.4-alpine@sha256:0a5f7fe796599ff487605987432e7619ae45beeb2fba4c2ce0b907879932aebf AS golang-builder
+FROM ${DOCKER_REGISTRY}/library/golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS golang-builder
 FROM ${GHCR_REGISTRY}/nginx/alpine-fips:0.6.0-alpine3.24@sha256:2122f993efed0ba145bfc118699f042a7c7dce82274d01e7f72ed3884cdfed4b AS alpine-fips-3.24
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
 FROM ${DOCKER_REGISTRY}/redhat/ubi10-minimal:10.3-1794499233@sha256:fb2f7f857cc60d88e3fad19da505083a682ca4569d7b55a61f64aaa43641f741 AS ubi-minimal
@@ -154,7 +154,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 
 
 ############################################### NGINX OSS - Debian #############################################
-FROM ${DOCKER_REGISTRY}/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS debian
+FROM ${DOCKER_REGISTRY}/library/debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0 AS debian
 ARG OSS_PACKAGE_REPO
 ARG F5_REPO_HOST
 ARG F5_DEBIAN_REPO
@@ -516,7 +516,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     debian:13-slim
 # Installs: nginx-plus, nginx-plus-module-njs/otel/fips-check, libcap2-bin, libcurl4
 # Extended: debian-plus (Agent v3)  •  debian-plus-nap-base  •  debian-plus-nap-v5-base
-FROM ${DOCKER_REGISTRY}/library/debian:13-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS debian-plus-only
+FROM ${DOCKER_REGISTRY}/library/debian:13-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0 AS debian-plus-only
 ARG F5_REPO_HOST
 ARG F5_DEBIAN_REPO
 ARG F5_DEBIAN_SECURITY_REPO
