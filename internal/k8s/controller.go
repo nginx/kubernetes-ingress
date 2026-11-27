@@ -2560,7 +2560,8 @@ func vsrWeightOnlyEligible(prevVsr, curVsr *conf_v1.VirtualServerRoute) bool {
 // against its own render.
 //
 // It returns false, without side effects, unless every change is a plain
-// AddOrUpdate of a VirtualServer that actually references vsrNew. An
+// AddOrUpdate of a VirtualServer that actually references vsrNew and there is
+// at least one weight update to apply. An
 // UpdateStatus or Delete is never treated as one; it takes the fallback path.
 // rebuildHosts reports a change for every host whose configuration moved, so
 // an unrelated VirtualServer can appear in this set; it needs a real render,
@@ -2588,8 +2589,16 @@ func (lbc *LoadBalancerController) applyWeightOnlyVSRChanges(vsrOld, vsrNew *con
 		startingIndex := getStartingSplitClientsIndex(vsrNew, vsEx)
 		namer := configs.NewVSVariableNamer(vsEx.VirtualServer)
 		allWeightUpdates = append(allWeightUpdates, computeVSRWeightUpdates(vsrOld, vsrNew, startingIndex, namer)...)
+	}
 
-		lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+	// A fast-lane call that would apply nothing must not end the sync: the
+	// caller then falls back to processChanges.
+	if len(allWeightUpdates) == 0 {
+		return false
+	}
+
+	for _, c := range changes {
+		lbc.updateVirtualServerStatusAndEvents(c.Resource.(*VirtualServerConfiguration), configs.Warnings{}, nil)
 	}
 
 	for _, w := range allWeightUpdates {

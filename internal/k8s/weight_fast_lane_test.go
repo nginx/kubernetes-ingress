@@ -1135,7 +1135,7 @@ func TestApplyWeightOnlyVSChanges_KeepsFastLaneWithUnrelatedStatusUpdate(t *test
 // guard, which additionally has to reject VirtualServers that do not reference
 // the VSR: rebuildHosts reports a change for every host whose configuration
 // moved, so an unrelated VirtualServer can appear in the set, and it needs a
-// real render.
+// real render. It also rejects a change set that results in no weight updates.
 func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 	t.Parallel()
 
@@ -1156,6 +1156,7 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 	tests := []struct {
 		name    string
 		changes []ResourceChange
+		vsrOld  *conf_v1.VirtualServerRoute // defaults to vsrOld above
 	}{
 		{
 			name:    "delete instead of add-or-update",
@@ -1180,6 +1181,11 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 				{Op: AddOrUpdate, Resource: unrelated},
 			},
 		},
+		{
+			name:    "referencing VirtualServer but no weight updates",
+			changes: []ResourceChange{{Op: AddOrUpdate, Resource: referencing}},
+			vsrOld:  vsrNew,
+		},
 	}
 
 	for _, test := range tests {
@@ -1188,19 +1194,26 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 
 			lbc, mgr := newWeightTestLBC(t, true)
 
-			if lbc.applyWeightOnlyVSRChanges(vsrOld, vsrNew, test.changes) {
+			old := vsrOld
+			if test.vsrOld != nil {
+				old = test.vsrOld
+			}
+			if lbc.applyWeightOnlyVSRChanges(old, vsrNew, test.changes) {
 				t.Error("applyWeightOnlyVSRChanges() = true, want false")
 			}
 			if got := mgr.recordedKeyvals(); len(got) != 0 {
 				t.Errorf("rejected change set still wrote %d keyvals, want 0", len(got))
 			}
+			if got := drainEvents(t, lbc); len(got) != 0 {
+				t.Errorf("rejected change set emitted events %v, want none", got)
+			}
 		})
 	}
 }
 
-// TestApplyWeightOnlyVSRChanges_EmptyChangeSet covers a VSR that no
-// VirtualServer references: there is nothing to render and nothing to poke, so
-// the fast lane succeeds trivially rather than forcing a reload.
+// TestApplyWeightOnlyVSRChanges_EmptyChangeSet covers an empty change set. The
+// fast lane has nothing to apply, so it must not end the sync; the caller falls
+// back to processChanges instead.
 func TestApplyWeightOnlyVSRChanges_EmptyChangeSet(t *testing.T) {
 	t.Parallel()
 
@@ -1209,8 +1222,8 @@ func TestApplyWeightOnlyVSRChanges_EmptyChangeSet(t *testing.T) {
 	vsrOld := testVSRWithSubroutes("default", "coffee", []splitShape{{routeSplits: []int{50, 50}}})
 	vsrNew := testVSRWithSubroutes("default", "coffee", []splitShape{{routeSplits: []int{70, 30}}})
 
-	if !lbc.applyWeightOnlyVSRChanges(vsrOld, vsrNew, nil) {
-		t.Error("applyWeightOnlyVSRChanges() = false, want true for an empty change set")
+	if lbc.applyWeightOnlyVSRChanges(vsrOld, vsrNew, nil) {
+		t.Error("applyWeightOnlyVSRChanges() = true, want false for an empty change set")
 	}
 	if got := mgr.recordedKeyvals(); len(got) != 0 {
 		t.Errorf("empty change set wrote %d keyvals, want 0", len(got))
@@ -1544,5 +1557,49 @@ func TestProcessChangesFromGlobalConfiguration_UpdateStatusIgnoresBatchError(t *
 	}
 	if !strings.Contains(updatedEvent, nl.EventReasonAddedOrUpdatedWithError) {
 		t.Errorf("updated VirtualServer should report the batch error, got %q", updatedEvent)
+	}
+}
+
+// TestSyncVirtualServerRoute_RecreatedVSRAppliesWeights covers a
+// VirtualServerRoute that is deleted and recreated with the same name before
+// the controller syncs the delete. The workqueue de-duplicates the two events
+// into one sync, in which the lister already returns the new object while
+// Configuration still holds the old one. A recreated object starts again at
+// generation 1, so name, namespace and generation all match; only the UID
+// differs. The new weights must still reach NGINX.
+func TestSyncVirtualServerRoute_RecreatedVSRAppliesWeights(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+	nsi := lbc.namespacedInformers.Get("default")
+
+	vsr := weightTestVSR("coffee", 1, []conf_v1.Route{twoWayRoute("/tea", 100, 0)})
+	vsr.UID = "uid-before-delete"
+	if err := nsi.virtualServerRouteLister.Add(vsr); err != nil {
+		t.Fatalf("seeding VSR informer: %v", err)
+	}
+	lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := weightTestVS("cafe", 1, []conf_v1.Route{{Path: "/tea", Route: "coffee"}})
+	seedVS(t, lbc, vs)
+
+	keyvalsAfterSeed := len(mgr.recordedKeyvals())
+
+	recreated := weightTestVSR("coffee", 1, []conf_v1.Route{twoWayRoute("/tea", 0, 100)})
+	recreated.UID = "uid-after-recreate"
+	if err := nsi.virtualServerRouteLister.Update(recreated); err != nil {
+		t.Fatalf("updating VSR informer: %v", err)
+	}
+
+	lbc.syncVirtualServerRoute(task{Kind: virtualServerRoute, Key: "default/coffee"})
+
+	namer := configs.NewVSVariableNamer(vs)
+	want := []configs.WeightUpdate{{
+		Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(0),
+		Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(0),
+		Value: namer.GetNameOfKeyOfMapForWeights(0, 0, 100),
+	}}
+	if diff := cmp.Diff(want, mgr.keyvalsSince(keyvalsAfterSeed)); diff != "" {
+		t.Errorf("keyval writes mismatch (-want +got):\n%s", diff)
 	}
 }
