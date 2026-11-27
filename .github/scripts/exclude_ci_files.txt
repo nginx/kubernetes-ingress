@@ -16,6 +16,7 @@
 .github/scripts/nkp-catalog-new-version.sh
 .github/scripts/nkp-catalog-new-version_test.sh
 .github/scripts/pull-release-notes.py
+.github/scripts/release-notes-attribution.py
 .github/scripts/release-docs.sh
 .github/scripts/release-notes.j2
 .github/scripts/release-version-update.sh
