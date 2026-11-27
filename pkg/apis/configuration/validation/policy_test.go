@@ -2554,6 +2554,15 @@ func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
 			oidcNative: &v1.OIDCNative{
 				Issuer:       "https://accounts.google.com",
 				ClientID:     "my-client-id",
+				PKCE:         "on",
+				ClientSecret: "my-oidc-secret",
+			},
+			msg: "pkce on with client secret",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client-id",
 				PKCE:         "off",
 				ClientSecret: "my-oidc-secret",
 			},
@@ -2826,16 +2835,6 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			},
 			fieldPath: "oidcNative.frontChannelLogoutURI",
 			msg:       "path traversal in frontChannelLogoutURI",
-		},
-		{
-			oidcNative: &v1.OIDCNative{
-				Issuer:       "https://accounts.google.com",
-				ClientID:     "my-client",
-				PKCE:         "on",
-				ClientSecret: "my-oidc-secret",
-			},
-			fieldPath: "oidcNative.clientSecret",
-			msg:       "clientSecret cannot be used when pkce is on",
 		},
 		{
 			oidcNative: &v1.OIDCNative{
