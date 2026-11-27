@@ -37,6 +37,17 @@ PUBLISH_WAF_DOS=${PUBLISH_WAF_DOS:-true}
 
 DRY_RUN=${DRY_RUN:-false}
 
+# Copies an image to new_tag; under DRY_RUN only logs what would be pushed.
+copy_image() {
+    local label=$1 image=$2 new_tag=$3
+    if $DRY_RUN; then
+        echo "  [DRY RUN] Would push image ${label} ${new_tag}, skipping."
+        return
+    fi
+    echo "  Pushing image ${label} ${new_tag}..."
+    ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
+}
+
 SOURCE_OSS_IMAGE_PREFIX=${SOURCE_OSS_IMAGE_PREFIX:-"nginx-ic/nginx-ingress"}
 
 TARGET_OSS_IMAGE_PREFIX=${TARGET_OSS_IMAGE_PREFIX:-"nginx-ic/nginx-ingress"}
@@ -111,10 +122,7 @@ if $PUBLISH_OSS; then
         image=${SOURCE_REGISTRY}/${SOURCE_OSS_IMAGE_PREFIX}:${SOURCE_TAG}${postfix}
         echo "Processing image ${image}"
         new_tag=${TARGET_REGISTRY}/${TARGET_OSS_IMAGE_PREFIX}:${TARGET_TAG}${postfix}
-        echo "  Pushing image OSS ${new_tag}..."
-        if ! $DRY_RUN; then
-            ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
-        fi
+        copy_image "OSS" "${image}" "${new_tag}"
     done
 else
     echo "Skipping Publish OSS flow"
@@ -128,10 +136,7 @@ if $PUBLISH_PLUS; then
         if $IS_IMMUTABLE && ${SKOPEO_BIN} --override-os linux --override-arch amd64 inspect docker://${new_tag} > /dev/null 2>&1; then
             echo "  ECR is immutable & tag ${new_tag} already exists, skipping."
         else
-            echo "  Pushing image Plus ${new_tag}..."
-            if ! $DRY_RUN; then
-                ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
-            fi
+            copy_image "Plus" "${image}" "${new_tag}"
         fi
     done
 else
@@ -146,10 +151,7 @@ if $PUBLISH_WAF; then
         if $IS_IMMUTABLE && ${SKOPEO_BIN} --override-os linux --override-arch amd64 inspect docker://${new_tag} > /dev/null 2>&1; then
             echo "  ECR is immutable & tag ${new_tag} already exists, skipping."
         else
-            echo "  Pushing image NAP WAF ${new_tag}..."
-            if ! $DRY_RUN; then
-                ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
-            fi
+            copy_image "NAP WAF" "${image}" "${new_tag}"
         fi
     done
     for postfix in "${NAP_WAFV5_TAG_POSTFIX_LIST[@]}"; do
@@ -159,10 +161,7 @@ if $PUBLISH_WAF; then
         if $IS_IMMUTABLE && ${SKOPEO_BIN} --override-os linux --override-arch amd64 inspect docker://${new_tag} > /dev/null 2>&1; then
             echo "  ECR is immutable & tag ${new_tag} already exists, skipping."
         else
-            echo "  Pushing image NAP WAFV5 ${new_tag}..."
-            if ! $DRY_RUN; then
-                ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
-            fi
+            copy_image "NAP WAFV5" "${image}" "${new_tag}"
         fi
     done
 else
@@ -177,10 +176,7 @@ if $PUBLISH_DOS; then
         if $IS_IMMUTABLE && ${SKOPEO_BIN} --override-os linux --override-arch amd64 inspect docker://${new_tag} > /dev/null 2>&1; then
             echo "  ECR is immutable & tag ${new_tag} already exists, skipping."
         else
-            echo "  Pushing image NAP DOS ${new_tag}..."
-            if ! $DRY_RUN; then
-                ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
-            fi
+            copy_image "NAP DOS" "${image}" "${new_tag}"
         fi
     done
 else
@@ -195,10 +191,7 @@ if $PUBLISH_WAF_DOS; then
         if $IS_IMMUTABLE && ${SKOPEO_BIN} --override-os linux --override-arch amd64 inspect docker://${new_tag} > /dev/null 2>&1; then
             echo "  ECR is immutable & tag ${new_tag} already exists, skipping."
         else
-            echo "  Pushing image NAP WAF/DOS ${new_tag}..."
-            if ! $DRY_RUN; then
-                ${SKOPEO_BIN} copy --retry-times 5 ${ARCH_OPTS} ${SOURCE_OPTS} ${TARGET_OPTS} docker://${image} docker://${new_tag}
-            fi
+            copy_image "NAP WAF/DOS" "${image}" "${new_tag}"
         fi
     done
 else
