@@ -72,8 +72,8 @@ runs:
       uses: ./.github/actions/scout-cache
       with:
         mode: restore
-        version: v1.29.0
-        sha: e7e2a72bf1485d10a58f30696b6c513b261ce4fa # renovate-digest: datasource=github-tags depName=docker/scout-action
+        version: v1.30.0
+        sha: b265cd48f8a1451d2680815b3e8dc4ed65ee16e7 # renovate-digest: datasource=github-tags depName=docker/scout-action
 
     - name: Prepare SARIF directory
       shell: bash
@@ -82,7 +82,7 @@ runs:
       run: mkdir -p "$(dirname "${SARIF_FILE}")"
 
     - name: Run Docker Scout vulnerability scanner
-      uses: docker/scout-action@e7e2a72bf1485d10a58f30696b6c513b261ce4fa # v1.29.0
+      uses: docker/scout-action@b265cd48f8a1451d2680815b3e8dc4ed65ee16e7 # v1.30.0
       with:
         command: cves
         image: ${{ inputs.image }}
@@ -93,7 +93,7 @@ runs:
 
     - name: Upload SARIF to GitHub code scanning
       if: ${{ inputs.github-upload == 'true' }}
-      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
       with:
         sarif_file: ${{ inputs.sarif-file }}
 
