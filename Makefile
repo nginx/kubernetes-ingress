@@ -42,7 +42,7 @@ PLUS_ARGS ?=  $(DOCKER_AUTH) --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION
 STATICCHECK_VERSION ?= 452d5bb86b45416c35891262f6a11dbd6a970117
 
 # renovate: datasource=github-tags depName=golang/vuln
-GOVULNCHECK_VERSION ?= v1.9.0
+GOVULNCHECK_VERSION ?= v1.10.0
 
 GO_DOCKER_IMAGE_NAME    ?= $(strip $(DOCKER_REGISTRY))/library/golang
 # renovate: datasource=docker depName=golang versioning=docker
